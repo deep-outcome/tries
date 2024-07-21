@@ -60,7 +60,7 @@ impl Node {
 }
 
 /// `&str` verified for working with `LrTrie`.
-pub struct KeyEntry<'a>(&'a str);
+pub struct KeyEntry<'a>(&'a str, usize);
 
 impl<'a> KeyEntry<'a> {
     /// Returns `None` for 0-len `key`.
@@ -68,7 +68,8 @@ impl<'a> KeyEntry<'a> {
         if key.len() == 0 {
             None
         } else {
-            Some(Self(key))
+            let len = key.chars().count();
+            Some(Self(key, len))
         }
     }
 }
@@ -98,8 +99,8 @@ impl LeftRight {
     }
 }
 
-fn path<'a>(key: &str, mut node: &'a Node) -> Vec<PathNode<'a>> {
-    let mut path = Vec::with_capacity(key.len() + 1);
+fn path<'a>(key: &Key, mut node: &'a Node) -> Vec<PathNode<'a>> {
+    let mut path = Vec::with_capacity(key.1 + 1);
 
     path.push((usize::MAX, node));
 
@@ -119,11 +120,11 @@ fn path<'a>(key: &str, mut node: &'a Node) -> Vec<PathNode<'a>> {
     path
 }
 
-fn entry_path_node<'a>(path: &'a Path, key: &str) -> Option<PathNode<'a>> {
-    let exp_len = key.len() + 1;
+fn entry_path_node<'a>(path: &'a Path, key: &Key) -> Option<PathNode<'a>> {
+    let exp_len = key.1 + 1;
 
     if path.len() == exp_len {
-        let epn = path[exp_len - 1];
+        let epn = path[key.1];
         if epn.1.lrref() {
             Some(epn)
         } else {
@@ -224,8 +225,6 @@ impl LrTrie {
     ///
     /// Returns `None` if key is not associated with entry.
     pub fn member(&self, key: &Key, lr: LeftRight) -> Option<String> {
-        let key = key.0;
-
         let path = path(key, self.node(lr));
         let epn = entry_path_node(&path, key);
 
@@ -271,16 +270,15 @@ impl LrTrie {
     }
 
     fn delete_crux(&mut self, key: &Key, lr: LeftRight, preserve_ks: bool) -> Result<(), ()> {
-        let key_str = key.0;
-
         // key side path
-        let ks_path = path(key_str, self.node(lr.clone()));
-        let ks_epn = match entry_path_node(&ks_path, key_str) {
+        let ks_path = path(key, self.node(lr.clone()));
+        let ks_epn = match entry_path_node(&ks_path, key) {
             Some(epn) => epn,
             _ => return Err(()),
         };
 
         let entry = LrTrie::member_crux(ks_epn.1);
+        let entry = KeyEntry::new(&entry).unwrap();
 
         // entry side path
         let es_path = path(&entry, self.node(lr.invert()));
@@ -423,10 +421,12 @@ mod tests_of_units {
 
             #[test]
             fn some() {
-                const KEY: &str = "key";
+                const KEY: &str = "emoción";
                 let key = KeyEntry::new(KEY);
                 assert!(key.is_some());
-                assert_eq!(KEY, key.unwrap().0);
+                let key = key.unwrap();
+                assert_eq!(KEY, key.0);
+                assert_eq!(KEY.chars().count(), key.1);
             }
 
             #[test]
@@ -458,16 +458,20 @@ mod tests_of_units {
 
     mod path {
 
-        use crate::{path as path_fn, KeyEntry, LrTrie, Node};
+        use crate::{path as path_fn, Key, LrTrie, Node};
 
         #[test]
         fn path() {
             let mut trie = LrTrie::new();
 
             const KEYWORD: &str = "keyword";
+            let keyword = Key::new(KEYWORD).unwrap();
 
-            let words = ["key", KEYWORD, "keyboard", "keyhole"];
-            let kes = words.map(|x| KeyEntry::new(x).unwrap());
+            const KEYHOLE: &str = "keyhole";
+            let keyhole = Key::new(KEYHOLE).unwrap();
+
+            let words = ["key", KEYWORD, "keyboard", KEYHOLE];
+            let kes = words.map(|x| Key::new(x).unwrap());
 
             for ke in &kes {
                 trie.insert(ke, ke);
@@ -476,7 +480,7 @@ mod tests_of_units {
             let l_root = &trie.left;
 
             for ke in &kes[..2] {
-                let path = path_fn(KEYWORD, l_root);
+                let path = path_fn(&keyword, l_root);
 
                 // path node
                 let root_pn = &path[0];
@@ -500,7 +504,7 @@ mod tests_of_units {
                 assert!(path[ix - 1].1.lrref());
             }
 
-            let path = path_fn(&words[3], &trie.right);
+            let path = path_fn(&keyhole, &trie.right);
 
             let h_node = &path[4];
 
@@ -512,12 +516,12 @@ mod tests_of_units {
         fn no_branch() {
             let mut trie = LrTrie::new();
 
-            const KEYBOARD: &str = "Keyboard";
-            let keyword = KeyEntry::new("Keyword").unwrap();
+            let keyboard = Key::new("Keyboard").unwrap();
+            let keyword = Key::new("Keyword").unwrap();
 
             trie.insert(&keyword, &keyword);
 
-            let path = path_fn(&KEYBOARD, &trie.left);
+            let path = path_fn(&keyboard, &trie.left);
 
             const PROOF: &str = "Key";
             assert_eq!(PROOF.len() + 1, path.len());
@@ -534,7 +538,8 @@ mod tests_of_units {
         fn no_branches() {
             let node = Node::empty();
 
-            let path = path_fn("key", &node);
+            let key = Key::new("key").unwrap();
+            let path = path_fn(&key, &node);
 
             assert_eq!(1, path.len());
             let pn = &path[0];
@@ -546,7 +551,7 @@ mod tests_of_units {
     mod entry_path_node {
         extern crate std;
 
-        use crate::{entry_path_node, Node, Path};
+        use crate::{entry_path_node, Key, Node, Path};
         use std::iter::repeat_with;
         use std::ptr;
         use std::string::{String, ToString};
@@ -572,6 +577,7 @@ mod tests_of_units {
 
             let path = path_imitation(4, &empty);
             let key = replacement_key(4);
+            let key = Key::new(&key).unwrap();
 
             assert_eq!(None, entry_path_node(&path, &key));
         }
@@ -582,6 +588,7 @@ mod tests_of_units {
 
             let path = path_imitation(5, &empty);
             let key = replacement_key(4);
+            let key = Key::new(&key).unwrap();
 
             assert_eq!(None, entry_path_node(&path, &key));
         }
@@ -596,6 +603,7 @@ mod tests_of_units {
 
             let mut path = path_imitation(en_ix + 1, &empty);
             let key = replacement_key(4);
+            let key = Key::new(&key).unwrap();
 
             path[en_ix].1 = &en;
 
@@ -792,7 +800,7 @@ mod tests_of_units {
         }
 
         mod insert_crux {
-            use crate::{path, Entry, LrTrie, Node};
+            use crate::{path, Entry, KeyEntry, LrTrie, Node};
 
             #[test]
             fn basic_test() {
@@ -838,11 +846,14 @@ mod tests_of_units {
                 const OLD: &str = "touchstone";
                 const NEW: &str = "touch";
 
-                _ = LrTrie::insert_crux(&mut root, &Entry::new(OLD).unwrap());
-                _ = LrTrie::insert_crux(&mut root, &Entry::new(NEW).unwrap());
+                let old = KeyEntry::new(OLD).unwrap();
+                let new = KeyEntry::new(NEW).unwrap();
 
-                let old_path = path(OLD, &root);
-                let new_path = path(NEW, &root);
+                _ = LrTrie::insert_crux(&mut root, &old);
+                _ = LrTrie::insert_crux(&mut root, &new);
+
+                let old_path = path(&old, &root);
+                let new_path = path(&new, &root);
 
                 assert_eq!(OLD.len() + 1, old_path.len());
                 assert_eq!(new_path, old_path[..NEW.len() + 1]);
@@ -924,7 +935,7 @@ mod tests_of_units {
         /// in path to another entry. Path len varies 0…m.
         mod delete {
 
-            use crate::{path, KeyEntry, LeftRight, LrTrie};
+            use crate::{path, Key, KeyEntry, LeftRight, LrTrie};
 
             #[test]
             fn not_member() {
@@ -969,7 +980,7 @@ mod tests_of_units {
                 let keyword = KeyEntry::new("Keyword").unwrap();
                 let keyboard = KeyEntry::new("Keyboard").unwrap();
                 let keypad = KeyEntry::new("Keypad").unwrap();
-                let key = "Key";
+                let key = Key::new("Key").unwrap();
 
                 for lr in [LeftRight::Left, LeftRight::Right] {
                     let mut trie = LrTrie::new();
@@ -984,7 +995,7 @@ mod tests_of_units {
                         assert!(trie.member(&keyword, lr.clone()).is_some());
                         assert!(trie.member(&keypad, lr.clone()).is_some());
 
-                        let path = path(key, trie.node(lr));
+                        let path = path(&key, trie.node(lr));
                         let node = path[key.len()].1;
                         let links = node.links.as_ref().unwrap();
                         assert_eq!(2, links.len());
