@@ -1,5 +1,3 @@
-#[no_std]
-
 type Alphabet<T> = Box<[Letter<T>]>;
 type Path<'a, T> = Vec<&'a Letter<T>>;
 
@@ -42,11 +40,15 @@ fn ix(c: char) -> usize {
     c as usize - 'a' as usize
 }
 
+/// String key validated for usage with `Trie`.
 pub struct Key {
     key: String,
 }
 
 impl Key {
+    /// All capitals are lowercased.
+    ///
+    /// `KeyError` if `s` is unusable as key.
     pub fn new(s: &str) -> Result<Key, KeyError> {
         if s.len() == 0 {
             return Err(KeyError::KeyWithInvalidLength);
@@ -69,17 +71,33 @@ impl Key {
     }
 }
 
+impl std::ops::Deref for Key {
+    type Target = str;
+
+    /// Returns `&str` of key string.
+    fn deref(&self) -> &str {
+        &self.key
+    }
+}
+
+/// Invalid options of key.
 #[cfg_attr(test, derive(Debug, PartialEq))]
 pub enum KeyError {
     KeyWithInvalidChars,
     KeyWithInvalidLength,
 }
 
+/// Retrieval tree implementation allowing for mapping any `T` to string composed of English letters alphabet.
+///
+/// Capitals are lowercased.
+///
+/// All methods with classic trie complexity, i.e. based on key len.
 pub struct Trie<T> {
     root: Alphabet<T>,
 }
 
 impl<T> Trie<T> {
+    /// Ctor.
     pub fn new() -> Trie<T> {
         Trie {
             root: crate::alphabet::<T>(),
@@ -111,6 +129,7 @@ impl<T> Trie<T> {
         }
     }
 
+    /// `None` for unknown key.
     pub fn member(&self, key: &Key) -> Option<&T> {
         let path = self.path(key);
 
@@ -123,6 +142,7 @@ impl<T> Trie<T> {
         }
     }
 
+    /// `Err` for unknown key.
     pub fn delete(&mut self, key: &Key) -> Result<(), ()> {
         let path = self.path(key);
         let entry_l = entry_letter(&path, key);
@@ -388,6 +408,15 @@ mod tests_of_units {
             let proof = "aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz";
 
             assert_eq!(proof, key.unwrap().key);
+        }
+
+        use std::ops::Deref;
+        #[test]
+        fn deref() {
+            let test = "test";
+            let key = Key::new(&test).unwrap();
+
+            assert_eq!(test, key.deref());
         }
     }
 
