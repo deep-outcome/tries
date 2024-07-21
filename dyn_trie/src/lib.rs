@@ -18,13 +18,19 @@ fn entry_path_node<'a, T>(path: &Path<'a, T>, key: &str) -> Option<PathNode<'a, 
     }
 }
 
+/// Retrieval tree implementation allowing for mapping any `T` to any string.
+///
+/// Every node is `char` as defined by Rust lang and uses `std::collections::HashMap`
+/// to linking subnodes. Thus all methods complexity is respective to hashmap methods complexity.
 pub struct Trie<T> {
     root: Node<T>,
 }
 
+/// Key validated for usage with `Trie`.
 pub struct Key<'a>(&'a str);
 
 impl<'a> Key<'a> {
+    /// `None` for 0-len `key`.
     pub fn new(key: &'a str) -> Option<Self> {
         if key.len() == 0 {
             None
@@ -36,6 +42,8 @@ impl<'a> Key<'a> {
 
 impl<'a> std::ops::Deref for Key<'a> {
     type Target = str;
+
+    /// Returns `&str` of key.
     fn deref(&self) -> &str {
         self.0
     }
@@ -43,6 +51,7 @@ impl<'a> std::ops::Deref for Key<'a> {
 
 const NULL: char = '\0';
 impl<T> Trie<T> {
+    /// Ctor.
     pub fn new() -> Trie<T> {
         Trie {
             root: Node::<T>::empty(),
@@ -59,6 +68,7 @@ impl<T> Trie<T> {
         node.entry = Some(entry);
     }
 
+    /// `None` for unknown key.
     pub fn member(&self, key: &Key) -> Option<&T> {
         let key = key.0;
         let path = self.path(key);
@@ -72,6 +82,7 @@ impl<T> Trie<T> {
         }
     }
 
+    /// `Err` for unknown key.
     pub fn delete(&mut self, key: &Key) -> Result<(), ()> {
         let key = key.0;
         let path = self.path(key);
