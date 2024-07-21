@@ -1,10 +1,9 @@
-#![no_std]
+//! To reduce memory demands of `LrTrie`, operations are not particularly optimal.
+//! If alphabet used became wide enough, some rework using e.g. hashmap would be needed.
 
-extern crate alloc;
-
-use alloc::string::String;
-use alloc::vec::Vec;
-use core::ptr;
+use std::ptr;
+use std::string::String;
+use std::vec::Vec;
 
 type Links = Vec<Node>;
 type Path<'a> = Vec<PathNode<'a>>;
@@ -71,6 +70,15 @@ impl<'a> KeyEntry<'a> {
         } else {
             Some(Self(key))
         }
+    }
+}
+
+impl<'a> std::ops::Deref for Key<'a> {
+    type Target = str;
+
+    /// Returns `&str` of key.
+    fn deref(&self) -> &str {
+        self.0
     }
 }
 
@@ -157,14 +165,17 @@ fn mut_node<'a>(node: &Node) -> &'a mut Node {
 /// has link to counterpart entry in opposite tree.
 ///
 /// While each entry-entry pair is settled by nodes in respective tree,
-/// each node carries extra reference to its supernode, `LrTrie` is not memory effecient
+/// each node carries extra reference to its supernode. Thus `LrTrie` is not memory effecient
 /// unless nodes in each side are reasonably reclaimed.
+///
+/// All methods time complexity depends on subnodes count. Thus TC is Ο(alphabet-size).
 pub struct LrTrie {
     left: Node,
     right: Node,
 }
 
 impl LrTrie {
+    /// Ctor.
     pub fn new() -> Self {
         LrTrie {
             left: Node::empty(),
@@ -405,6 +416,7 @@ mod tests_of_units {
     }
 
     mod keyentry {
+        use crate::KeyEntry;
 
         mod new {
             use crate::KeyEntry;
@@ -422,6 +434,15 @@ mod tests_of_units {
                 let key = KeyEntry::new("");
                 assert!(key.is_none());
             }
+        }
+
+        use std::ops::Deref;
+
+        #[test]
+        fn deref() {
+            const KEY: &str = "key";
+            let key = KeyEntry::new(KEY).unwrap();
+            assert_eq!(KEY, key.deref());
         }
     }
 
@@ -868,7 +889,7 @@ mod tests_of_units {
             }
         }
 
-        use alloc::vec::Vec;
+        use std::vec::Vec;
         #[test]
         fn member_crux() {
             const KEYLESS: &str = "keyless";
