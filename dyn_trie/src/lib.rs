@@ -4,8 +4,8 @@ type Links<T> = HashMap<char, Node<T>>;
 type Path<'a, T> = Vec<PathNode<'a, T>>;
 type PathNode<'a, T> = (char, &'a Node<T>);
 
-fn entry_path_node<'a, T>(path: &Path<'a, T>, key: &str) -> Option<PathNode<'a, T>> {
-    let key_len = key.len();
+fn entry_path_node<'a, T>(path: &Path<'a, T>, key: &Key) -> Option<PathNode<'a, T>> {
+    let key_len = key.1;
     if path.len() < key_len + 1 {
         None
     } else {
@@ -27,7 +27,7 @@ pub struct Trie<T> {
 }
 
 /// Key validated for usage with `Trie`.
-pub struct Key<'a>(&'a str);
+pub struct Key<'a>(&'a str, usize);
 
 impl<'a> Key<'a> {
     /// `None` for 0-len `key`.
@@ -35,7 +35,8 @@ impl<'a> Key<'a> {
         if key.len() == 0 {
             None
         } else {
-            Some(Self(key))
+            let len = key.chars().count();
+            Some(Self(key, len))
         }
     }
 }
@@ -70,9 +71,7 @@ impl<T> Trie<T> {
 
     /// `None` for unknown key.
     pub fn member(&self, key: &Key) -> Option<&T> {
-        let key = key.0;
         let path = self.path(key);
-
         let epn = entry_path_node(&path, key);
 
         if let Some(epn) = epn {
@@ -84,7 +83,6 @@ impl<T> Trie<T> {
 
     /// `Err` for unknown key.
     pub fn delete(&mut self, key: &Key) -> Result<(), ()> {
-        let key = key.0;
         let path = self.path(key);
         let entry_pn = match entry_path_node(&path, key) {
             Some(epn) => epn,
@@ -130,11 +128,11 @@ impl<T> Trie<T> {
         }
     }
 
-    fn path(&self, key: &str) -> Vec<PathNode<'_, T>> {
+    fn path(&self, key: &Key) -> Vec<PathNode<'_, T>> {
         let root = &self.root;
         let mut links = root.links.as_ref();
 
-        let mut path = Vec::with_capacity(key.len() + 1);
+        let mut path = Vec::with_capacity(key.1 + 1);
         path.push((NULL, root));
 
         for c in key.chars() {
@@ -197,9 +195,9 @@ where
 
 #[cfg(test)]
 mod tests_of_units {
-
+  
     mod entry_path_node {
-        use crate::{entry_path_node, Node, NULL};
+        use crate::{entry_path_node, Key, Node, NULL};
 
         fn replacement_key(n: usize) -> String {
             const REPLACEMENT: char = '\u{001A}';
@@ -215,6 +213,7 @@ mod tests_of_units {
             let node: Node<usize> = Node::empty();
             let path = vec![(NULL, &node); PATH_LEN];
             let key = replacement_key(PATH_LEN);
+            let key = Key(&key, key.len());
 
             assert_eq!(None, entry_path_node(&path, &key));
         }
@@ -226,6 +225,7 @@ mod tests_of_units {
             let node: Node<usize> = Node::empty();
             let path = vec![(NULL, &node); PATH_LEN];
             let key = replacement_key(PATH_LEN - 1);
+            let key = Key(&key, key.len());
 
             assert_eq!(None, entry_path_node(&path, &key));
         }
@@ -241,6 +241,7 @@ mod tests_of_units {
             path.push(('a', &entry_n));
 
             let key = replacement_key(4);
+            let key = Key(&key, key.len());
 
             let epn = entry_path_node(&path, &key);
             assert!(epn.is_some());
@@ -258,10 +259,12 @@ mod tests_of_units {
 
             #[test]
             fn some() {
-                const KEY: &str = "key";
+                const KEY: &str = "emoción";
                 let key = Key::new(KEY);
                 assert!(key.is_some());
-                assert_eq!(KEY, key.unwrap().0);
+                let key = key.unwrap();
+                assert_eq!(KEY, key.0);
+                assert_eq!(KEY.chars().count(), key.1);
             }
 
             #[test]
@@ -470,7 +473,9 @@ mod tests_of_units {
                 let keyword = kvs[2].0;
                 let proof = format!("{}{}", NULL, keyword);
 
-                let path = trie.path(keyword);
+                let key = Key(keyword, keyword.len());
+
+                let path = trie.path(&key);
                 assert_eq!(proof.len(), path.len());
 
                 let mut ix = 0;
@@ -512,7 +517,8 @@ mod tests_of_units {
                 const KEY: &str = "Key";
                 let trie = Trie::<usize>::new();
 
-                let path = trie.path(KEY);
+                let key = Key(KEY, KEY.len());
+                let path = trie.path(&key);
                 assert_eq!(1, path.len());
                 assert_eq!(NULL, path[0].0);
             }

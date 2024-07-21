@@ -1,6 +1,6 @@
 [package]
 name = "dyn_trie"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 keywords = [ "digital-tree", "prefix-tree", "trie", "retrieval-tree" ]
 authors = [ "software9119.technology" ]
@@ -9,3 +9,5 @@ homepage = "https://github.com/bravequickcleverfibreyarn/tries"
 repository = "https://github.com/bravequickcleverfibreyarn/tries"
 license = "MIT"
 categories = [ "data-structures" ]
+documentation = "https://docs.rs/dyn_trie/latest/dyn_trie/index.html"
+readme = "README.md"
