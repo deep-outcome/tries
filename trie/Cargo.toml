@@ -1,10 +1,10 @@
 [package]
-name = "trie"
+name = "plain_trie"
 version = "1.0.0"
 edition = "2021"
 keywords = [ "digital-tree", "prefix-tree", "trie", "retrieval-tree" ]
 authors = [ "software9119.technology" ]
-description = "Trie is trie capable of mapping any T to string composed of English alphabet letters."
+description = "Basic Trie is trie capable of mapping any T to string composed of English alphabet letters."
 homepage = "https://github.com/bravequickcleverfibreyarn/tries"
 repository = "https://github.com/bravequickcleverfibreyarn/tries"
 license = "MIT"
