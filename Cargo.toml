@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+  "trie",
+  "dyn_trie",
+  "lr_trie"
+]
