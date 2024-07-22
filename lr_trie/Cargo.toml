@@ -1,12 +1,12 @@
 [package]
 name = "lr_trie"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 keywords = [ "digital-tree", "prefix-tree", "trie", "retrieval-tree" ]
 authors = [ "software9119.technology" ]
 description = "Left-Right trie is trie capable of mapping any string to any string."
-homepage = "https://github.com/bravequickcleverfibreyarn/tries"
-repository = "https://github.com/bravequickcleverfibreyarn/tries"
+homepage = "https://github.com/bravequickcleverfibreyarn/tries/tree/main/lr_trie"
+repository = "https://github.com/bravequickcleverfibreyarn/tries/tree/main/lr_trie"
 license = "MIT"
 categories = [ "data-structures" ]
 documentation = "https://docs.rs/lr_trie/latest/lr_trie/index.html"
