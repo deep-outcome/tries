@@ -1,0 +1,1 @@
+- check with optimized lr-trie delete method (delete entry as traversing to root directly)

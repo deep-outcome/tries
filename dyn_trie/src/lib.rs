@@ -195,7 +195,7 @@ where
 
 #[cfg(test)]
 mod tests_of_units {
-  
+
     mod entry_path_node {
         use crate::{entry_path_node, Key, Node, NULL};
 
