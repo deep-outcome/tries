@@ -5,6 +5,8 @@ use std::ptr;
 use std::string::String;
 use std::vec::Vec;
 
+const BASIC_WORD_LEN_GUESS: usize = 12;
+
 type Links = Vec<Node>;
 type Path<'a> = Vec<PathNode<'a>>;
 type PathNode<'a> = (usize, &'a Node);
@@ -236,7 +238,7 @@ impl LrTrie {
     }
 
     fn member_crux(epn: &Node) -> String {
-        let mut entry = Vec::new();
+        let mut entry = Vec::with_capacity(BASIC_WORD_LEN_GUESS);
 
         let mut node = epn.lrref;
 
@@ -282,7 +284,7 @@ impl LrTrie {
 
         // entry side path
         let es_path = path(&entry, self.node(lr.invert()));
-        let es_epn = entry_path_node(&es_path, &entry).unwrap();
+        let es_epn = es_path[es_path.len() - 1];
 
         for (epn, path) in [(es_epn, &es_path), (ks_epn, &ks_path)] {
             let epn_mut = mut_node(&epn.1); // sounds
