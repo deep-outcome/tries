@@ -26,6 +26,7 @@ struct Node {
 }
 
 const NULL: char = '\0';
+const TYPICAL_STRING_LEN: usize = 12; // some guess as of now
 
 impl Node {
     fn lrref(&self) -> bool {
@@ -92,16 +93,7 @@ pub enum LeftRight {
     Right = 1,
 }
 
-impl LeftRight {
-    fn invert(&self) -> Self {
-        match self {
-            LeftRight::Left => LeftRight::Right,
-            LeftRight::Right => LeftRight::Left,
-        }
-    }
-}
-
-fn path<'a>(key: &Key, mut node: &'a Node) -> Vec<PathNode<'a>> {
+fn path_from_key<'a>(key: &Key, mut node: &'a Node) -> Path<'a> {
     let mut path = Vec::with_capacity(key.1 + 1);
 
     path.push((usize::MAX, node));
@@ -118,6 +110,24 @@ fn path<'a>(key: &Key, mut node: &'a Node) -> Vec<PathNode<'a>> {
 
         break;
     }
+
+    path
+}
+
+fn path_from_entry<'a>(key_node: &'a Node) -> Path<'a> {
+    let mut path = Vec::with_capacity(TYPICAL_STRING_LEN);
+
+    let mut n = unsafe { key_node.lrref.as_ref() }.unwrap();
+
+    while let Some(supn) = unsafe { n.supernode.as_ref() } {
+        let subn_ix = index_of_c(supn.links.as_ref().unwrap(), n.c).unwrap();
+
+        path.push((subn_ix, n));
+
+        n = supn;
+    }
+
+    path.push((usize::MAX, n));
 
     path
 }
@@ -227,34 +237,30 @@ impl LrTrie {
     ///
     /// Returns `None` if key is not associated with entry.
     pub fn member(&self, key: &Key, lr: LeftRight) -> Option<String> {
-        let path = path(key, self.node(lr));
+        let path = path_from_key(key, self.node(lr));
         let epn = entry_path_node(&path, key);
 
         if let Some(epn) = epn {
-            Some(LrTrie::member_crux(epn.1))
+            let mut entry = Vec::with_capacity(TYPICAL_STRING_LEN);
+
+            let mut node = epn.1.lrref;
+
+            loop {
+                let n = unsafe { node.as_ref() }.unwrap();
+                let supernode = n.supernode;
+
+                if supernode == ptr::null() {
+                    break;
+                }
+
+                entry.push(n.c);
+                node = supernode;
+            }
+
+            Some(entry.iter().rev().collect::<String>())
         } else {
             None
         }
-    }
-
-    fn member_crux(epn: &Node) -> String {
-        let mut entry = Vec::with_capacity(BASIC_WORD_LEN_GUESS);
-
-        let mut node = epn.lrref;
-
-        loop {
-            let n = unsafe { node.as_ref() }.unwrap();
-            let supernode = n.supernode;
-
-            if supernode == ptr::null() {
-                break;
-            }
-
-            entry.push(n.c);
-            node = supernode;
-        }
-
-        entry.iter().rev().collect::<String>()
     }
 
     fn node(&self, lr: LeftRight) -> &Node {
@@ -273,31 +279,35 @@ impl LrTrie {
 
     fn delete_crux(&mut self, key: &Key, lr: LeftRight, preserve_ks: bool) -> Result<(), ()> {
         // key side path
-        let ks_path = path(key, self.node(lr.clone()));
+        let ks_path = path_from_key(key, self.node(lr.clone()));
         let ks_epn = match entry_path_node(&ks_path, key) {
             Some(epn) => epn,
             _ => return Err(()),
         };
 
-        let entry = LrTrie::member_crux(ks_epn.1);
-        let entry = KeyEntry::new(&entry).unwrap();
-
         // entry side path
-        let es_path = path(&entry, self.node(lr.invert()));
-        let es_epn = es_path[es_path.len() - 1];
+        let es_path = path_from_entry(ks_epn.1);
+        let es_epn = es_path[0];
 
-        for (epn, path) in [(es_epn, &es_path), (ks_epn, &ks_path)] {
+        let deletion_data = [(es_epn, &es_path), (ks_epn, &ks_path)];
+        for data_ix in 0..2 {
+            let (epn, path) = deletion_data[data_ix];
+
             let epn_mut = mut_node(&epn.1); // sounds
             if epn_mut.links() {
                 epn_mut.lrref = ptr::null();
                 continue;
             }
 
-            let mut path_rev = path.iter().rev();
-            _ = path_rev.next();
+            let (limit, mut ix) = if data_ix == 0 {
+                (path.len() - 1, 1)
+            } else {
+                (0, path.len() - 2)
+            };
 
             let mut subnode_ix = epn.0;
-            while let Some((sn_ix, n)) = path_rev.next() {
+            loop {
+                let (sn_ix, n) = path[ix];
                 let n_mut = mut_node(n); // sounds
 
                 let n_links = n_mut.links.as_mut().unwrap();
@@ -313,7 +323,17 @@ impl LrTrie {
                     break;
                 }
 
-                subnode_ix = *sn_ix;
+                if ix == limit {
+                    break;
+                }
+
+                if data_ix == 0 {
+                    ix += 1;
+                } else {
+                    ix -= 1;
+                }
+
+                subnode_ix = sn_ix;
             }
 
             if preserve_ks {
@@ -362,6 +382,15 @@ mod tests_of_units {
             match lr {
                 LeftRight::Left => self.left.links.as_ref(),
                 LeftRight::Right => self.right.links.as_ref(),
+            }
+        }
+    }
+
+    impl LeftRight {
+        fn invert(&self) -> Self {
+            match self {
+                LeftRight::Left => LeftRight::Right,
+                LeftRight::Right => LeftRight::Left,
             }
         }
     }
@@ -448,22 +477,12 @@ mod tests_of_units {
         }
     }
 
-    mod leftright {
-        use crate::LeftRight;
+    mod path_from_key {
+
+        use crate::{path_from_key as path_fn, Key, LrTrie, Node};
 
         #[test]
-        fn invert() {
-            assert_eq!(LeftRight::Left, LeftRight::Right.invert());
-            assert_eq!(LeftRight::Right, LeftRight::Left.invert());
-        }
-    }
-
-    mod path {
-
-        use crate::{path as path_fn, Key, LrTrie, Node};
-
-        #[test]
-        fn path() {
+        fn path_from_key() {
             let mut trie = LrTrie::new();
 
             const KEYWORD: &str = "keyword";
@@ -547,6 +566,44 @@ mod tests_of_units {
             let pn = &path[0];
             assert_eq!(usize::MAX, pn.0);
             assert_eq!(&node as *const Node, pn.1 as *const Node);
+        }
+    }
+
+    use crate::{path_from_entry as path_fn, Entry, KeyEntry, NULL};
+
+    #[test]
+    fn path_from_entry() {
+        const ENTRY: &str = "JourneyOfDecade";
+
+        let key = KeyEntry::new("A").unwrap();
+        let entry = KeyEntry::new(ENTRY).unwrap();
+        let noise1 = Entry::new("JourneyOfYourLife").unwrap();
+        let noise2 = Entry::new("JourneyOfOurLifes").unwrap();
+
+        let mut trie = LrTrie::new();
+        trie.insert(&noise1, &noise1);
+        trie.insert(&noise2, &noise2);
+        trie.insert(&key, &entry);
+
+        let key_node = &trie.left.links.unwrap()[1];
+
+        let path = path_fn(key_node);
+        assert_eq!(path.len(), ENTRY.len() + 1);
+
+        for (ix, c) in ENTRY.chars().rev().enumerate() {
+            let pn = path[ix];
+
+            assert_eq!(c, pn.1.c);
+
+            let subn_ix = if c == 'D' {
+                2
+            } else if c == NULL {
+                usize::MAX
+            } else {
+                0
+            };
+
+            assert_eq!(subn_ix, pn.0, "{c}");
         }
     }
 
@@ -802,7 +859,7 @@ mod tests_of_units {
         }
 
         mod insert_crux {
-            use crate::{path, Entry, KeyEntry, LrTrie, Node};
+            use crate::{path_from_key, Entry, KeyEntry, LrTrie, Node};
 
             #[test]
             fn basic_test() {
@@ -854,8 +911,8 @@ mod tests_of_units {
                 _ = LrTrie::insert_crux(&mut root, &old);
                 _ = LrTrie::insert_crux(&mut root, &new);
 
-                let old_path = path(&old, &root);
-                let new_path = path(&new, &root);
+                let old_path = path_from_key(&old, &root);
+                let new_path = path_from_key(&new, &root);
 
                 assert_eq!(OLD.len() + 1, old_path.len());
                 assert_eq!(new_path, old_path[..NEW.len() + 1]);
@@ -902,25 +959,6 @@ mod tests_of_units {
             }
         }
 
-        use std::vec::Vec;
-        #[test]
-        fn member_crux() {
-            const KEYLESS: &str = "keyless";
-            let mut empty = Node::empty();
-
-            let mut nodes = Vec::with_capacity(KEYLESS.len());
-
-            let mut supernode: *const Node = &empty;
-            for (ix, c) in KEYLESS.chars().enumerate() {
-                let node = Node::new(c, supernode);
-                nodes.push(node);
-                supernode = &nodes[ix];
-            }
-
-            empty.lrref = supernode;
-            assert_eq!(KEYLESS, LrTrie::member_crux(&empty));
-        }
-
         #[test]
         fn node() {
             let trie = LrTrie::new();
@@ -937,7 +975,7 @@ mod tests_of_units {
         /// in path to another entry. Path len varies 0…m.
         mod delete {
 
-            use crate::{path, Key, KeyEntry, LeftRight, LrTrie};
+            use crate::{path_from_key, Key, KeyEntry, LeftRight, LrTrie};
 
             #[test]
             fn not_member() {
@@ -997,7 +1035,7 @@ mod tests_of_units {
                         assert!(trie.member(&keyword, lr.clone()).is_some());
                         assert!(trie.member(&keypad, lr.clone()).is_some());
 
-                        let path = path(&key, trie.node(lr));
+                        let path = path_from_key(&key, trie.node(lr));
                         let node = path[key.len()].1;
                         let links = node.links.as_ref().unwrap();
                         assert_eq!(2, links.len());
