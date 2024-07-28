@@ -5,8 +5,6 @@ use std::ptr;
 use std::string::String;
 use std::vec::Vec;
 
-const BASIC_WORD_LEN_GUESS: usize = 12;
-
 type Links = Vec<Node>;
 type Path<'a> = Vec<PathNode<'a>>;
 type PathNode<'a> = (usize, &'a Node);
@@ -26,7 +24,7 @@ struct Node {
 }
 
 const NULL: char = '\0';
-const TYPICAL_STRING_LEN: usize = 12; // some guess as of now
+const BASIC_WORD_LEN_GUESS: usize = 12;
 
 impl Node {
     fn lrref(&self) -> bool {
@@ -115,7 +113,7 @@ fn path_from_key<'a>(key: &Key, mut node: &'a Node) -> Path<'a> {
 }
 
 fn path_from_entry<'a>(key_node: &'a Node) -> Path<'a> {
-    let mut path = Vec::with_capacity(TYPICAL_STRING_LEN);
+    let mut path = Vec::with_capacity(BASIC_WORD_LEN_GUESS);
 
     let mut n = unsafe { key_node.lrref.as_ref() }.unwrap();
 
@@ -241,7 +239,7 @@ impl LrTrie {
         let epn = entry_path_node(&path, key);
 
         if let Some(epn) = epn {
-            let mut entry = Vec::with_capacity(TYPICAL_STRING_LEN);
+            let mut entry = Vec::with_capacity(BASIC_WORD_LEN_GUESS);
 
             let mut node = epn.1.lrref;
 
