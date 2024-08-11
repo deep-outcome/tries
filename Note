@@ -1,1 +1,3 @@
-- check with optimized lr-trie delete method (delete entry as traversing to root directly)
+ - check with deletion design, especially soundness of mut transformation in existing context
+ - check pn/epn, sup/sub, \Wks\w / _en\W, entry terminology
+ - check links = vec!/Links::new
