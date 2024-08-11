@@ -1,6 +1,7 @@
 //! To reduce memory demands of `LrTrie`, operations are not particularly optimal.
 //! If alphabet used became wide enough, some rework using e.g. hashmap would be needed.
 
+use std::mem::transmute;
 use std::ptr;
 use std::string::String;
 use std::vec::Vec;
@@ -91,60 +92,39 @@ pub enum LeftRight {
     Right = 1,
 }
 
-fn path_from_key<'a>(key: &Key, node: &'a Node) -> Option<Path<'a>> {
-    if let Some(path) = path_from_key_crux(key, node) {
-        if path[0].1.lrref() {
+fn path_from_key<'a>(key: &Key, root: &'a Node) -> Option<Path<'a>> {
+    if let Some(path) = path_from_key_crux(key, root) {
+        if path[key.1].1.lrref() {
             return Some(path);
         }
     }
     None
 }
 
-fn path_from_key_crux<'a>(key: &Key, mut node: &'a Node) -> Option<Path<'a>> {
-    let mut wr_ix = key.1;
-    let path_len = wr_ix + 1;
+fn path_from_key_crux<'a>(key: &Key, mut super_n: &'a Node) -> Option<Path<'a>> {
+    let path_len = key.1 + 1;
     let mut path = Vec::with_capacity(path_len);
+    let cap = path.spare_capacity_mut();
 
-    unsafe { path.set_len(path_len) };
-
-    path[wr_ix] = (usize::MAX, node);
+    let mut wr_ix = 0;
+    cap[wr_ix].write((usize::MAX, super_n));
 
     for c in key.chars() {
-        if let Some(l) = &node.links {
+        if let Some(l) = &super_n.links {
             if let Some(ix) = index_of_c(l, c) {
-                node = &l[ix];
-
-                wr_ix -= 1;
-                path[wr_ix] = (ix, node);
+                wr_ix += 1;
+                super_n = cap[wr_ix].write((ix, &l[ix])).1;
                 continue;
             }
         }
 
-        // beware of uncosistent `path` state
-        // len is false since some elements from start are just allocated space
-        // for `usize` and `&` should be no problem (with `Drop`)
+        // beware, some element was written, but none will get dropped
+        // for `usize` and `&` should be no problem
         return None;
     }
 
+    unsafe { path.set_len(path_len) };
     Some(path)
-}
-
-fn path_from_entry<'a>(key_node: &'a Node) -> Path<'a> {
-    let mut path = Vec::with_capacity(BASIC_WORD_LEN_GUESS);
-
-    let mut n = unsafe { key_node.lrref.as_ref() }.unwrap();
-
-    while let Some(supn) = unsafe { n.supernode.as_ref() } {
-        let subn_ix = index_of_c(supn.links.as_ref().unwrap(), n.c).unwrap();
-
-        path.push((subn_ix, n));
-
-        n = supn;
-    }
-
-    path.push((usize::MAX, n));
-
-    path
 }
 
 fn index_of_c(links: &Links, c: char) -> Option<usize> {
@@ -163,12 +143,75 @@ fn index_of_c(links: &Links, c: char) -> Option<usize> {
     None
 }
 
-fn mut_node<'a>(node: &Node) -> &'a mut Node {
-    let ptr: *const Node = node;
-    unsafe {
-        core::mem::transmute::<*const Node, *mut Node>(ptr)
-            .as_mut()
-            .unwrap()
+fn mut_node<'a>(node: *const Node) -> &'a mut Node {
+    unsafe { transmute::<*const Node, *mut Node>(node).as_mut() }.unwrap()
+}
+
+fn cl_lrref(keyentry_n: &mut Node) -> bool {
+    if keyentry_n.links() {
+        keyentry_n.lrref = ptr::null();
+        true
+    } else {
+        false
+    }
+}
+
+fn delete_subnode(n: &mut Node, subnode_ix: usize) -> bool {
+    let n_links = n.links.as_mut().unwrap();
+    _ = n_links.swap_remove(subnode_ix);
+
+    if n_links.len() == 0 {
+        n.links = None;
+    } else {
+        return true;
+    }
+
+    if n.lrref() {
+        return true;
+    }
+
+    return false;
+}
+
+fn delete_key_side<'a>(path: &Path<'a>) {
+    let mut path_rev = path.iter().rev();
+    let epn = path_rev.next().unwrap();
+
+    if cl_lrref(mut_node(epn.1)) {
+        return;
+    }
+
+    let mut sub_n_ix = epn.0;
+    while let Some((n_ix, n)) = path_rev.next() {
+        if delete_subnode(mut_node(*n), sub_n_ix) {
+            break;
+        }
+
+        sub_n_ix = *n_ix;
+    }
+}
+
+fn delete_entry_side(key_side_entry_n: &Node) {
+    let mut node = mut_node(key_side_entry_n.lrref);
+
+    if cl_lrref(node) {
+        return;
+    }
+
+    loop {
+        let super_n = node.supernode;
+        if super_n == ptr::null() {
+            break;
+        }
+
+        let super_n = mut_node(super_n);
+        let n_ix = index_of_c(super_n.links.as_ref().unwrap(), node.c).unwrap();
+
+        if delete_subnode(super_n, n_ix) {
+            break;
+        }
+
+        node = super_n;
     }
 }
 
@@ -202,8 +245,8 @@ impl LrTrie {
     pub fn insert(&mut self, l_entry: &Entry, r_entry: &Entry) {
         // let not make exercises for exact reinsert since
         // it is supposed to be very rare if at all
-        _ = self.delete_crux(l_entry, LeftRight::Left, true);
-        _ = self.delete_crux(r_entry, LeftRight::Right, true);
+        _ = self.delete_crux(l_entry, LeftRight::Left, false);
+        _ = self.delete_crux(r_entry, LeftRight::Right, false);
 
         let l_en = Self::insert_crux(&mut self.left, l_entry);
         let r_en = Self::insert_crux(&mut self.right, r_entry);
@@ -237,11 +280,11 @@ impl LrTrie {
     ///
     /// Returns `None` if key is not associated with entry.
     pub fn member(&self, key: &Key, lr: LeftRight) -> Option<String> {
-        let path = path_from_key(key, self.node(lr));
+        let path = path_from_key(key, self.root(lr));
 
         if let Some(path) = path {
             let mut entry = Vec::with_capacity(BASIC_WORD_LEN_GUESS);
-            let mut node = path[0].1.lrref;
+            let mut node = path[key.1].1.lrref;
 
             loop {
                 let n = unsafe { node.as_ref() }.unwrap();
@@ -261,7 +304,7 @@ impl LrTrie {
         }
     }
 
-    fn node(&self, lr: LeftRight) -> &Node {
+    fn root(&self, lr: LeftRight) -> &Node {
         match lr {
             LeftRight::Left => &self.left,
             LeftRight::Right => &self.right,
@@ -272,60 +315,15 @@ impl LrTrie {
     ///
     /// Returns `Err` when key is not associated with entry.
     pub fn delete(&mut self, key: &Key, lr: LeftRight) -> Result<(), ()> {
-        self.delete_crux(key, lr, false)
+        self.delete_crux(key, lr, true)
     }
 
-    fn delete_crux(&mut self, key: &Key, lr: LeftRight, preserve_ks: bool) -> Result<(), ()> {
-        // key side path
-        if let Some(ks_path) = path_from_key(key, self.node(lr)) {
-            let ks_epn = ks_path[0];
+    fn delete_crux(&mut self, key: &Key, lr: LeftRight, delete_ks: bool) -> Result<(), ()> {
+        if let Some(path) = path_from_key(key, self.root(lr)) {
+            delete_entry_side(path[key.1].1);
 
-            // entry side path
-            let es_path = path_from_entry(ks_epn.1);
-            let es_epn = es_path[0];
-
-            let deletion_data = [(es_epn, &es_path), (ks_epn, &ks_path)];
-            for data_ix in 0..2 {
-                let (epn, path) = deletion_data[data_ix];
-
-                let epn_mut = mut_node(&epn.1); // sounds
-                if epn_mut.links() {
-                    epn_mut.lrref = ptr::null();
-                    continue;
-                }
-
-                let limit = path.len() - 1;
-                let mut ix = 1;
-
-                let mut subnode_ix = epn.0;
-                loop {
-                    let (sn_ix, n) = path[ix];
-                    let n_mut = mut_node(n); // sounds
-
-                    let n_links = n_mut.links.as_mut().unwrap();
-                    _ = n_links.swap_remove(subnode_ix);
-
-                    if n_links.len() == 0 {
-                        n_mut.links = None;
-                    } else {
-                        break;
-                    }
-
-                    if n.lrref() {
-                        break;
-                    }
-
-                    if ix == limit {
-                        break;
-                    }
-
-                    ix += 1;
-                    subnode_ix = sn_ix;
-                }
-
-                if preserve_ks {
-                    break;
-                }
+            if delete_ks {
+                delete_key_side(&path)
             }
 
             Ok(())
@@ -349,10 +347,10 @@ mod tests_of_units {
         }
     }
 
-    use core::fmt::{Debug, Formatter};
+    use std::fmt::{Debug, Formatter};
 
     impl Debug for Node {
-        fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
             let links = if self.links() { "Some" } else { "None" };
             let lrref = if self.lrref() { "Some" } else { "None" };
             let sn = if self.supernode.is_null() {
@@ -389,7 +387,7 @@ mod tests_of_units {
     mod node {
 
         use crate::{Links, Node, NULL};
-        use core::ptr;
+        use std::ptr;
 
         #[test]
         fn lrref() {
@@ -499,7 +497,7 @@ mod tests_of_units {
 
     mod path_from_key_crux {
 
-        use crate::{path_from_key_crux as path_fn, Key, LrTrie, Node};
+        use crate::{path_from_key_crux as path_fn, Key, LrTrie, Node, PathNode};
 
         #[test]
         fn path_from_key() {
@@ -527,32 +525,32 @@ mod tests_of_units {
             let path = path.unwrap();
             assert_eq!(KEYWORD_LEN + 1, path.len());
 
-            // path node
-            let root_pn = &path[KEYWORD_LEN];
+            let root_pn: &PathNode = &path[0];
             assert_eq!(usize::MAX, root_pn.0);
 
             let root: *const Node = root_pn.1;
             assert_eq!(l_root as *const Node, root);
 
             for ke in &kes[..2] {
-                let mut ix = KEYWORD_LEN;
+                let mut ix = 1;
                 for c in ke.0.chars() {
-                    ix -= 1;
                     let pn = path[ix];
                     assert_eq!(0, pn.0);
 
                     let n = pn.1;
                     assert_eq!(c, n.c);
+
+                    ix += 1;
                 }
 
-                assert!(path[0].1.lrref());
+                assert!(path[ke.1].1.lrref());
             }
 
             let path = path_fn(&keyhole, &trie.right);
             assert!(path.is_some());
             let path = path.unwrap();
 
-            let h_node = &path[3];
+            let h_node = &path[4];
             assert_eq!('h', h_node.1.c);
 
             assert_eq!(2, h_node.0);
@@ -578,47 +576,6 @@ mod tests_of_units {
 
             let key = Key::new("key").unwrap();
             assert_eq!(None, path_fn(&key, &node));
-        }
-    }
-
-    mod path_from_entry {
-
-        use crate::{path_from_entry as path_fn, Entry, KeyEntry, LrTrie, NULL};
-
-        #[test]
-        fn path_from_entry() {
-            const ENTRY: &str = "JourneyOfDecade";
-
-            let key = KeyEntry::new("A").unwrap();
-            let entry = KeyEntry::new(ENTRY).unwrap();
-            let noise1 = Entry::new("JourneyOfYourLife").unwrap();
-            let noise2 = Entry::new("JourneyOfOurLifes").unwrap();
-
-            let mut trie = LrTrie::new();
-            trie.insert(&noise1, &noise1);
-            trie.insert(&noise2, &noise2);
-            trie.insert(&key, &entry);
-
-            let key_node = &trie.left.links.unwrap()[1];
-
-            let path = path_fn(key_node);
-            assert_eq!(path.len(), ENTRY.len() + 1);
-
-            for (ix, c) in ENTRY.chars().rev().enumerate() {
-                let pn = path[ix];
-
-                assert_eq!(c, pn.1.c);
-
-                let subn_ix = if c == 'D' {
-                    2
-                } else if c == NULL {
-                    usize::MAX
-                } else {
-                    0
-                };
-
-                assert_eq!(subn_ix, pn.0, "{c}");
-            }
         }
     }
 
@@ -657,6 +614,239 @@ mod tests_of_units {
 
         let mut_node = mut_node_fn(&node);
         assert_eq!(&node as *const Node, mut_node as *const Node);
+    }
+
+    mod cl_lrref {
+        use crate::{cl_lrref, Links, Node};
+        use std::ptr;
+
+        #[test]
+        fn has_to() {
+            let mut node = Node::empty();
+            node.lrref = &node;
+            node.links = Some(Links::new());
+
+            assert_eq!(true, cl_lrref(&mut node));
+            assert_eq!(ptr::null(), node.lrref);
+        }
+
+        #[test]
+        fn has_not_to() {
+            let mut node = Node::empty();
+            node.lrref = &node;
+
+            assert_eq!(false, cl_lrref(&mut node));
+            assert_eq!(&node as *const Node, node.lrref);
+        }
+    }
+
+    mod delete_subnode {
+        use crate::{delete_subnode, Links, Node};
+        use std::vec;
+
+        // deletion continues when and only when
+        // node does not participates in path to another
+        // node, where path length is allowed to be 0
+        #[test]
+        fn deletion_continues() {
+            let mut node = Node::empty();
+            node.links = Some(vec![Node::empty()]);
+
+            assert_eq!(false, delete_subnode(&mut node, 0));
+            assert_eq!(None, node.links);
+        }
+
+        // when node holds some links after removing subnode in
+        // question, it participates in path to another node
+        #[test]
+        fn node_with_links() {
+            let mut node = Node::empty();
+
+            #[rustfmt::skip]
+            let links = vec![                
+                Node::empty(),
+                Node::new('a', 0 as *const Node),
+                Node::new('b', 0 as *const Node),
+                Node::new('c', 0 as *const Node),
+            ];
+
+            node.links = Some(links);
+            assert_eq!(true, delete_subnode(&mut node, 1));
+
+            let links = node.links.as_ref().unwrap();
+            assert_eq!(3, links.len());
+            assert_eq!(&Node::empty(), &links[0]);
+            assert_eq!('c', links[1].c);
+            assert_eq!('b', links[2].c);
+        }
+
+        // key node has reference to entry node
+        // so it participates in 0-len path to
+        // another node
+        #[test]
+        fn key_node() {
+            let mut node = Node::empty();
+
+            node.links = Some(vec![Node::empty()]);
+            node.lrref = &node;
+
+            assert_eq!(true, delete_subnode(&mut node, 0));
+            assert_eq!(None, node.links);
+        }
+
+        #[test]
+        #[should_panic(expected = "swap_remove index (is 0) should be < len (is 0)")]
+        fn index_out_of_bounds() {
+            let mut node = Node::empty();
+            node.links = Some(Links::new());
+            delete_subnode(&mut node, 0);
+        }
+    }
+
+    mod delete_key_side {
+        use crate::{delete_key_side, Links, Node};
+        use std::ptr;
+
+        #[test]
+        fn keynode_with_links() {
+            let mut n = Node::empty();
+            n.lrref = &n;
+            n.links = Some(Links::new());
+
+            #[rustfmt::skip]
+            let path = vec![
+                (usize::MAX, &n),
+                (usize::MAX, &n)
+            ];
+
+            delete_key_side(&path);
+
+            assert_eq!(ptr::null(), n.lrref);
+        }
+
+        #[test]
+        fn node_with_links() {
+            let empty_n = Node::empty();
+
+            let mut n = Node::empty();
+            n.links = Some(vec![Node::empty(), Node::empty()]);
+
+            #[rustfmt::skip]
+            let path = vec![
+                (usize::MAX, &empty_n),
+                (usize::MAX, &n),
+                (1, &empty_n),
+            ];
+
+            delete_key_side(&path);
+
+            assert_eq!(1, n.links.as_ref().unwrap().len());
+        }
+
+        #[test]
+        fn node_being_keyentry() {
+            let empty_n = Node::empty();
+
+            let mut n1 = Node::empty();
+            n1.lrref = &n1;
+            n1.links = Some(vec![Node::empty()]);
+
+            let mut n2 = Node::empty();
+            n2.links = Some(vec![Node::empty()]);
+
+            #[rustfmt::skip]
+            let path = vec![
+                (usize::MAX, &empty_n),
+                (usize::MAX, &n1),
+                (0, &n2),
+                (0, &empty_n),
+            ];
+
+            delete_key_side(&path);
+
+            assert_eq!(false, n1.links());
+            assert_eq!(false, n2.links());
+        }
+
+        #[test]
+        fn root_escape() {
+            let mut root = Node::empty();
+            let node = Node::new('a', &root);
+            root.links = Some(vec![node]);
+
+            #[rustfmt::skip]
+            let path = vec![
+                (usize::MAX, &root),                
+                (0, &root.links.as_ref().unwrap()[0]),
+            ];
+
+            delete_key_side(&path);
+            assert_eq!(None, root.links);
+        }
+    }
+
+    mod delete_entry_side {
+        use crate::{delete_entry_side, Links, Node};
+        use std::ptr;
+
+        #[test]
+        fn keynode_with_links() {
+            let mut n = Node::empty();
+            n.supernode = &n;
+            n.lrref = &n;
+            n.links = Some(Links::new());
+
+            delete_entry_side(&n);
+
+            assert_eq!(ptr::null(), n.lrref);
+        }
+
+        #[test]
+        fn node_with_links() {
+            let mut n = Node::empty();
+            n.supernode = &n;
+            n.links = Some(vec![Node::new('a', &n), Node::empty()]);
+
+            let mut ks_en = Node::empty();
+            ks_en.lrref = &n.links.as_ref().unwrap()[0];
+
+            delete_entry_side(&ks_en);
+
+            let links = n.links.as_ref();
+            assert!(links.is_some());
+            let links = links.unwrap();
+
+            assert_eq!(1, links.len());
+            assert_eq!('\0', links[0].c);
+        }
+
+        #[test]
+        fn node_being_keyentry() {
+            let mut n = Node::empty();
+            n.supernode = &n;
+            n.links = Some(vec![Node::new('a', &n)]);
+            n.lrref = &n;
+
+            let mut ks_en = Node::empty();
+            ks_en.lrref = &n.links.as_ref().unwrap()[0];
+
+            delete_entry_side(&ks_en);
+
+            assert_eq!(None, n.links);
+        }
+
+        #[test]
+        fn root_escape() {
+            let mut root = Node::empty();
+            let node = Node::new('a', &root);
+            root.links = Some(vec![node]);
+
+            let mut ks_en = Node::empty();
+            ks_en.lrref = &root.links.as_ref().unwrap()[0];
+
+            delete_entry_side(&ks_en);
+            assert_eq!(None, root.links);
+        }
     }
 
     mod trie {
@@ -701,7 +891,7 @@ mod tests_of_units {
             }
 
             fn put_id(node: *const Node, val: usize) {
-                let node = unsafe { core::mem::transmute::<*const Node, *mut Node>(node) };
+                let node = unsafe { std::mem::transmute::<*const Node, *mut Node>(node) };
                 unsafe { node.as_mut() }.unwrap().id = val;
             }
 
@@ -848,7 +1038,6 @@ mod tests_of_units {
 
                 const OLD: &str = "touchstone";
                 const NEW: &str = "touch";
-                const OLD_LEN: usize = OLD.len();
 
                 let old = KeyEntry::new(OLD).unwrap();
                 let new = KeyEntry::new(NEW).unwrap();
@@ -859,8 +1048,8 @@ mod tests_of_units {
                 let old_path = path_from_key_crux(&old, &root).unwrap();
                 let new_path = path_from_key_crux(&new, &root).unwrap();
 
-                assert_eq!(OLD_LEN + 1, old_path.len());
-                assert_eq!(new_path, old_path[OLD_LEN - NEW.len()..]);
+                assert_eq!(OLD.len() + 1, old_path.len());
+                assert_eq!(new_path, old_path[..NEW.len() + 1]);
             }
         }
 
@@ -905,14 +1094,14 @@ mod tests_of_units {
         }
 
         #[test]
-        fn node() {
+        fn root() {
             let trie = LrTrie::new();
 
             let left: *const Node = &trie.left;
             let right: *const Node = &trie.right;
 
-            assert_eq!(left, trie.node(LeftRight::Left));
-            assert_eq!(right, trie.node(LeftRight::Right));
+            assert_eq!(left, trie.root(LeftRight::Left));
+            assert_eq!(right, trie.root(LeftRight::Right));
         }
 
         /// Node in path to entry being deleted
@@ -980,9 +1169,9 @@ mod tests_of_units {
                         assert!(trie.member(&keyword, lr.clone()).is_some());
                         assert!(trie.member(&keypad, lr.clone()).is_some());
 
-                        let path = path_from_key_crux(&key, trie.node(lr)).unwrap();
-                        let node = path[0].1;
-                        let links = node.links.as_ref().unwrap();
+                        let path = path_from_key_crux(&key, trie.root(lr)).unwrap();
+                        let y_node = path[key.1].1;
+                        let links = y_node.links.as_ref().unwrap();
                         assert_eq!(2, links.len());
                         let filtered = links.iter().filter(|x| x.c == 'w' || x.c == 'p').count();
                         assert_eq!(2, filtered);
@@ -1025,7 +1214,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn node_being_entry() {
+            fn node_being_keyentry() {
                 let keyword = KeyEntry::new("Keyword").unwrap();
                 let k = KeyEntry::new("K").unwrap();
 
