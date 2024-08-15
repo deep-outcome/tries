@@ -76,7 +76,7 @@ impl<'a> KeyEntry<'a> {
     }
 }
 
-impl<'a> std::ops::Deref for Key<'a> {
+impl<'a> std::ops::Deref for KeyEntry<'a> {
     type Target = str;
 
     /// Returns `&str` of key.
@@ -258,19 +258,19 @@ impl LrTrie {
     fn insert_crux<'a>(mut node: &'a mut Node, e: &Entry) -> &'a mut Node {
         let e = e.0;
 
-        let mut supernode: *const Node = node;
+        let mut super_n: *const Node = node;
         for c in e.chars() {
             let links = node.links.get_or_insert_with(|| Links::new());
 
             let ix = if let Some(i) = index_of_c(links, c) {
                 i
             } else {
-                links.push(Node::new(c, supernode));
+                links.push(Node::new(c, super_n));
                 links.len() - 1
             };
 
             node = &mut links[ix];
-            supernode = node;
+            super_n = node;
         }
 
         node
@@ -288,14 +288,14 @@ impl LrTrie {
 
             loop {
                 let n = unsafe { node.as_ref() }.unwrap();
-                let supernode = n.supernode;
+                let super_n = n.supernode;
 
-                if supernode == ptr::null() {
+                if super_n == ptr::null() {
                     break;
                 }
 
                 entry.push(n.c);
-                node = supernode;
+                node = super_n;
             }
 
             Some(entry.iter().rev().collect::<String>())
@@ -497,7 +497,7 @@ mod tests_of_units {
 
     mod path_from_key_crux {
 
-        use crate::{path_from_key_crux as path_fn, Key, LrTrie, Node, PathNode};
+        use crate::{path_from_key_crux as path_fn, Key, KeyEntry, LrTrie, Node, PathNode};
 
         #[test]
         fn path_from_key() {
@@ -511,7 +511,7 @@ mod tests_of_units {
             let keyhole = Key::new(KEYHOLE).unwrap();
 
             let words = ["key", KEYWORD, "keyboard", KEYHOLE];
-            let kes = words.map(|x| Key::new(x).unwrap());
+            let kes = words.map(|x| KeyEntry::new(x).unwrap());
 
             for ke in &kes {
                 trie.insert(ke, ke);
@@ -562,7 +562,7 @@ mod tests_of_units {
             let mut trie = LrTrie::new();
 
             let keyboard = Key::new("Keyboard").unwrap();
-            let keyword = Key::new("Keyword").unwrap();
+            let keyword = KeyEntry::new("Keyword").unwrap();
 
             trie.insert(&keyword, &keyword);
 
@@ -1011,7 +1011,7 @@ mod tests_of_units {
                 assert!(root.links.is_some());
 
                 let mut links = root.links.as_ref().unwrap();
-                let mut supernode: *const Node = &root;
+                let mut super_n: *const Node = &root;
                 for (ix, c) in ENTRY.chars().enumerate() {
                     let node = links.get(0);
 
@@ -1019,8 +1019,8 @@ mod tests_of_units {
                     let node = node.unwrap();
 
                     assert_eq!(c, node.c);
-                    assert_eq!(supernode, node.supernode);
-                    supernode = node;
+                    assert_eq!(super_n, node.supernode);
+                    super_n = node;
 
                     if ix < limit {
                         let temp = &node.links;
