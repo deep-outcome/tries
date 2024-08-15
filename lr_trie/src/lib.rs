@@ -192,12 +192,13 @@ fn delete_key_side<'a>(path: &Path<'a>) {
 }
 
 fn delete_entry_side(key_side_entry_n: &Node) {
-    let mut node = mut_node(key_side_entry_n.lrref);
+    let node = mut_node(key_side_entry_n.lrref);
 
     if cl_lrref(node) {
         return;
     }
 
+    let mut node: &Node = node;
     loop {
         let super_n = node.supernode;
         if super_n == ptr::null() {
