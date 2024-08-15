@@ -9,5 +9,4 @@ let mut trie = Trie::new();
 trie.insert(3usize, &key);
 
 assert!(trie.member(&key).is_some());
-
 ```
