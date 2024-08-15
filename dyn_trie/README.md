@@ -2,7 +2,7 @@
 
 Dynamic trie is trie that allows mapping of any T to any string with complexity based on hash map complexity.
 
-```Rust
+```rust
 let mut trie = Trie::new();
 
 let keyword = Key::new("Keyword").unwrap();
