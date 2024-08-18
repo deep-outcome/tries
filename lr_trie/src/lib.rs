@@ -86,7 +86,7 @@ impl<'a> std::ops::Deref for KeyEntry<'a> {
 }
 
 /// Denotes desired target tree on respective operations.
-#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(test, derive(Clone, Debug, PartialEq))]
 pub enum LeftRight {
     Left = 0,
     Right = 1,
