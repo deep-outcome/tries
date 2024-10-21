@@ -4,11 +4,12 @@ type Path<'a, T> = Vec<&'a Letter<T>>;
 const ALPHABET_LEN: usize = 26;
 
 fn alphabet<T>() -> Alphabet<T> {
-    let mut vec = Vec::with_capacity(ALPHABET_LEN);
+    let mut alphabet = Vec::new();
+    alphabet.reserve_exact(ALPHABET_LEN);
 
     #[cfg(test)]
     let mut c = 'a' as u8;
-    for sc in vec.spare_capacity_mut() {
+    for sc in alphabet.spare_capacity_mut() {
         let mut _letter = sc.write(Letter::new());
         #[cfg(test)]
         {
@@ -17,8 +18,8 @@ fn alphabet<T>() -> Alphabet<T> {
         }
     }
 
-    unsafe { vec.set_len(ALPHABET_LEN) };
-    vec.into_boxed_slice()
+    unsafe { alphabet.set_len(ALPHABET_LEN) };
+    alphabet.into_boxed_slice()
 }
 
 fn entry_letter<'a, T>(path: &Path<'a, T>, key: &Key) -> Option<&'a Letter<T>> {
@@ -290,11 +291,11 @@ mod tests_of_units {
 
     #[test]
     fn alphabet() {
-        let ab = alphabet_fn::<usize>();
-        assert_eq!(crate::ALPHABET_LEN, ab.len());
+        let alphabet = alphabet_fn::<usize>();
+        assert_eq!(crate::ALPHABET_LEN, alphabet.len());
 
         for (ix, c) in ('a'..='z').enumerate() {
-            let letter = &ab[ix];
+            let letter = &alphabet[ix];
             assert_eq!(c, letter.value);
             assert!(letter.alphabet.is_none());
             assert!(letter.entry.is_none());
@@ -427,10 +428,10 @@ mod tests_of_units {
         fn new() {
             let trie = Trie::<usize>::new();
 
-            let ab = alphabet();
+            let alphabet = alphabet();
             let rt = trie.root;
 
-            assert_eq!(*ab, *rt);
+            assert_eq!(*alphabet, *rt);
         }
 
         mod insert {
