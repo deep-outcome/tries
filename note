@@ -1,1 +1,2 @@
 - improve path generations: new key types, avoid excesses, permisive validations etc.
+- replace rev with double-ended iterator approach
