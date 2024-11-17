@@ -1,7 +1,14 @@
+//! Classic retrieval tree implementation with fixed size alphabet per node.
+
 type Alphabet<T> = Box<[Letter<T>]>;
-type Path<'a, T> = Vec<&'a Letter<T>>;
 
 const ALPHABET_LEN: usize = 26;
+
+#[cfg_attr(test, derive(PartialEq, Debug))]
+enum TraRes<'a, T> {
+    Ok(&'a Letter<T>),
+    Unknown,
+}
 
 fn alphabet<T>() -> Alphabet<T> {
     let mut alphabet = Vec::new();
@@ -20,21 +27,6 @@ fn alphabet<T>() -> Alphabet<T> {
 
     unsafe { alphabet.set_len(ALPHABET_LEN) };
     alphabet.into_boxed_slice()
-}
-
-fn entry_letter<'a, T>(path: &Path<'a, T>, key: &Key) -> Option<&'a Letter<T>> {
-    let el_ix = key.key.len() - 1;
-
-    if path.len() - 1 < el_ix {
-        None
-    } else {
-        let el = path[el_ix];
-        if el.entry() {
-            Some(el)
-        } else {
-            None
-        }
-    }
 }
 
 fn ix(c: char) -> usize {
@@ -82,19 +74,31 @@ impl std::ops::Deref for Key {
 }
 
 /// Invalid options of key.
-#[cfg_attr(test, derive(Debug, PartialEq))]
+#[derive(Debug, PartialEq)]
 pub enum KeyError {
     KeyWithInvalidChars,
     KeyWithInvalidLength,
 }
 
-/// Retrieval tree implementation allowing for mapping any `T` to string composed of English letters alphabet.
+/// Trie implementation allowing for mapping any `T` to string composed of English letters alphabet.
 ///
 /// Capitals are lowercased.
 ///
-/// All methods with classic trie complexity, i.e. based on key len.
+/// ± all methods with classic trie ACC (asymptotic computational complexity):
+/// - _s_ means `char`s iterated over.
+/// - _q_ means unique nodes.
+/// ```rust
+/// use plain_trie::{Key, Trie};
+/// let key = Key::new("touchstone").unwrap();
+///
+/// let mut trie = Trie::new();
+/// trie.insert(3usize, &key);
+///
+/// assert!(trie.member(&key).is_some());
+/// ```
 pub struct Trie<T> {
     root: Alphabet<T>,
+    trac: Vec<*mut Letter<T>>,
 }
 
 impl<T> Trie<T> {
@@ -102,9 +106,13 @@ impl<T> Trie<T> {
     pub fn new() -> Trie<T> {
         Trie {
             root: crate::alphabet::<T>(),
+            trac: Vec::new(),
         }
     }
 
+    /// ACC:
+    /// - time scope is Θ(s)
+    /// - space scope is Θ(q)
     pub fn insert(&mut self, entry: T, key: &Key) {
         let key = &key.key;
         let last_letter_ix = key.len() - 1;
@@ -131,46 +139,60 @@ impl<T> Trie<T> {
     }
 
     /// `None` for unknown key.
+    ///
+    /// ACC time scope is Θ(s)
     pub fn member(&self, key: &Key) -> Option<&T> {
-        let path = self.path(key);
+        let this = unsafe { self.as_mut() };
 
-        let el = entry_letter(&path, key);
-
-        if let Some(el) = el {
-            el.entry.as_ref()
+        let track_res = this.track(key, false);
+        if let TraRes::Ok(l) = track_res {
+            let as_ref = l.entry.as_ref();
+            Some(unsafe { as_ref.unwrap_unchecked() })
         } else {
             None
         }
     }
 
-    /// `Err` for unknown key.
-    pub fn delete(&mut self, key: &Key) -> Result<(), ()> {
-        let path = self.path(key);
-        let entry_l = entry_letter(&path, key);
+    unsafe fn as_mut(&self) -> &mut Self {
+        let ptr: *const Self = self;
+        let mut_ptr: *mut Self = core::mem::transmute(ptr);
+        mut_ptr.as_mut().unwrap()
+    }
 
-        let entry_l = if let Some(el) = entry_l {
-            el
+    /// `Err` for unknown key.
+    ///
+    /// ACC TS is backtracing buffer capacity dependent:
+    /// - time scope: Ω(s) or ϴ(s)
+    /// - space scope: ϴ(s)
+    pub fn delete(&mut self, key: &Key) -> Result<(), ()> {
+        let track_res = self.track(&key, true);
+        let res = if let TraRes::Ok(_) = track_res {
+            Self::delete_actual(&mut self.trac);
+            Ok(())
         } else {
-            return Err(());
+            Err(())
         };
 
-        unsafe { as_mut(entry_l) }.entry = None;
+        self.trac.clear();
+        res
+    }
 
-        if entry_l.alphabet() {
-            return Ok(());
+    fn delete_actual(trac: &mut Vec<*mut Letter<T>>) {
+        let mut trace = trac.iter_mut().map(|x| unsafe { x.as_mut() }.unwrap());
+        let entry_node = trace.next_back().unwrap();
+
+        entry_node.entry = None;
+
+        if entry_node.alphabet() {
+            return;
         }
 
-        let mut rev = path.iter().rev();
-        _ = rev.next();
-
-        while let Some(l) = rev.next() {
-            let l_mut = unsafe { as_mut(*l) };
-
-            let alphabet = l_mut.alphabet.as_ref().unwrap();
+        while let Some(l) = trace.next_back() {
+            let alphabet = l.alphabet.as_ref().unwrap();
             let mut remove_alphab = true;
 
-            for inx in 0..ALPHABET_LEN {
-                let letter = &alphabet[inx];
+            for ix in 0..ALPHABET_LEN {
+                let letter = &alphabet[ix];
 
                 if letter.alphabet() || letter.entry() {
                     remove_alphab = false;
@@ -179,7 +201,7 @@ impl<T> Trie<T> {
             }
 
             if remove_alphab {
-                l_mut.alphabet = None;
+                l.alphabet = None;
             } else {
                 break;
             }
@@ -188,45 +210,86 @@ impl<T> Trie<T> {
                 break;
             }
         }
-
-        return Ok(());
-
-        unsafe fn as_mut<T>(letter: &Letter<T>) -> &mut Letter<T> {
-            let ptr: *const Letter<T> = letter;
-            let mut_ptr: *mut Letter<T> = std::mem::transmute(ptr);
-            mut_ptr.as_mut().unwrap()
-        }
     }
 
-    fn path(&self, key: &Key) -> Vec<&Letter<T>> {
-        let key = &key.key;
+    /// `Trie` uses internal buffer, to avoid excesive allocations and copying, which grows
+    /// over time due backtracing in `delete` method which backtraces whole path from entry
+    /// node to root node.
+    ///
+    /// Use this method to shrink or extend it to fit actual program needs. Neither shrinking nor extending
+    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal `delete` performance, set `approx_cap` to, at least, `occurrent.count()`.
+    ///
+    /// Some high value is sufficient anyway. Since buffer continuous
+    /// usage, its capacity will likely expand at some point in time to size sufficient to all occurrents.
+    ///
+    /// Return value is actual buffer capacity.
+    ///
+    /// **Note:** While `String` is UTF8 encoded, its byte length does not have to equal its `char` count
+    /// which is either equal or lesser.
+    /// ```
+    /// let sights = "🤩";
+    /// assert_eq!(4, sights.len());
+    /// assert_eq!(1, sights.chars().count());
+    ///
+    /// let yes = "sí";
+    /// assert_eq!(3, yes.len());
+    /// assert_eq!(2, yes.chars().nth(1).unwrap().len_utf8());
+    ///
+    /// let abc = "abc";
+    /// assert_eq!(3, abc.len());
+    /// ```
+    pub fn put_trace_cap(&mut self, approx_cap: usize) -> usize {
+        let trac = &mut self.trac;
+        let cp = trac.capacity();
 
-        let mut alphabet = &self.root;
-        let entryl_ix = key.len() - 1;
+        if cp < approx_cap {
+            trac.reserve(approx_cap);
+        } else if cp > approx_cap {
+            *trac = Vec::with_capacity(approx_cap);
+        }
 
-        let mut path = Vec::with_capacity(entryl_ix + 1);
-        let mut erator = key.chars().enumerate();
+        trac.capacity()
+    }
+
+    /// Return value is internal backtracing buffer capacity.
+    ///
+    /// Check with `fn put_trace_cap` for details.
+    pub fn acq_trace_cap(&self) -> usize {
+        self.trac.capacity()
+    }
+
+    // - TS: Ω(s) when `tracing = true`, ϴ(s) otherwise
+    // - SS: ϴ(s) when `tracing = true`, ϴ(0) otherwise
+    fn track(&mut self, key: &Key, tracing: bool) -> TraRes<T> {
+        let mut key = key.key.chars();
+
+        let c = key.next();
+        let c = unsafe { c.unwrap_unchecked() };
+
+        let trac = &mut self.trac;
+        let mut letter = &mut self.root[ix(c)];
 
         loop {
-            let (it_ix, c) = erator.next().unwrap();
+            if tracing {
+                trac.push(letter)
+            }
 
-            let ix = ix(c);
-
-            let letter = &alphabet[ix];
-            path.push(letter);
-
-            if it_ix < entryl_ix {
-                if !letter.alphabet() {
-                    break;
+            if let Some(c) = key.next() {
+                if let Some(ab) = letter.alphabet.as_mut() {
+                    letter = &mut ab[ix(c)];
+                } else {
+                    return TraRes::Unknown;
                 }
             } else {
                 break;
             }
-
-            alphabet = letter.alphabet.as_ref().unwrap();
         }
 
-        return path;
+        if letter.entry() {
+            TraRes::Ok(letter)
+        } else {
+            TraRes::Unknown
+        }
     }
 }
 
@@ -299,66 +362,6 @@ mod tests_of_units {
             assert_eq!(c, letter.value);
             assert!(letter.alphabet.is_none());
             assert!(letter.entry.is_none());
-        }
-    }
-
-    mod entry_letter {
-        use crate::{entry_letter, Key, Letter};
-
-        #[test]
-        fn longer_key() {
-            let letter: Letter<usize> = Letter {
-                value: 'a',
-                alphabet: None,
-                entry: None,
-            };
-            let path = vec![&letter; 3];
-            let key = Key {
-                key: String::from("aaaa"),
-            };
-
-            assert_eq!(None, entry_letter(&path, &key));
-        }
-
-        #[test]
-        fn not_entry() {
-            let letter: Letter<usize> = Letter {
-                value: 'a',
-                alphabet: None,
-                entry: None,
-            };
-            let path = vec![&letter; 4];
-            let key = Key {
-                key: String::from("aaaa"),
-            };
-
-            assert_eq!(None, entry_letter(&path, &key));
-        }
-
-        #[test]
-        fn entry() {
-            let undistinctive: Letter<usize> = Letter {
-                value: 'a',
-                alphabet: None,
-                entry: None,
-            };
-
-            let mut distinctive = undistinctive.clone();
-            distinctive.entry = Some(0);
-            distinctive.value = 'b';
-
-            let mut path = vec![&undistinctive; 3];
-            path.push(&distinctive);
-
-            let key = Key {
-                key: String::from("aaab"),
-            };
-
-            let el = entry_letter(&path, &key);
-            assert!(el.is_some());
-            let el = el.unwrap();
-            assert!(el.entry());
-            assert_eq!('b', el.value);
         }
     }
 
@@ -522,144 +525,262 @@ mod tests_of_units {
             }
         }
 
+        #[test]
+        fn as_mut() {
+            let trie = Trie::<usize>::new();
+            let trie_ptr = &trie as *const Trie<usize>;
+            let trie_mut = unsafe { trie.as_mut() };
+            assert_eq!(trie_ptr as usize, trie_mut as *mut Trie<usize> as usize);
+        }
+
         /// Letter in path to entry being deleted
         /// cannot be deleted if and only if participates
         /// in path to another entry. Path len varies 0…m.
         mod delete {
+            use crate::{Key, Trie};
 
-            use crate::{ix, Key, Trie};
+            #[test]
+            fn known_unknown() {
+                let known = Key::new("VigilantAndVigourous").unwrap();
+                let unknown = Key::new("NeglectfulAndFeeble").unwrap();
+
+                let mut trie = Trie::new();
+                trie.insert(3, &known);
+
+                assert_eq!(Ok(()), trie.delete(&known));
+                assert_eq!(None, trie.member(&known));
+                assert_eq!(0, trie.trac.len());
+
+                assert_eq!(Err(()), trie.delete(&unknown));
+                assert_eq!(0, trie.trac.len());
+            }
+        }
+
+        mod delete_actual {
+            use crate::{ix, Key, TraRes, Trie};
 
             #[test]
             fn basic_test() {
                 let key = Key::new("Keyword").unwrap();
                 let mut trie = Trie::new();
-                trie.insert(0usize, &key);
 
-                assert!(trie.delete(&key).is_ok());
+                trie.insert(3, &key);
+
+                _ = trie.track(&key, true);
+                Trie::delete_actual(&mut trie.trac);
 
                 let k = &trie.root[ix('k')];
-                assert!(!k.alphabet());
-            }
-
-            #[test]
-            fn not_member() {
-                let key = Key::new("Keyword").unwrap();
-                let mut trie = Trie::new();
-                trie.insert(0usize, &key);
-
-                for k in ["Key", "Opener"] {
-                    let bad_key = Key::new(k).unwrap();
-                    let err = trie.delete(&bad_key);
-                    assert!(err.is_err());
-                    assert!(trie.member(&key).is_some());
-                }
+                assert_eq!(false, k.alphabet());
             }
 
             #[test]
             fn inner_entry() {
                 let mut trie = Trie::new();
 
+                let outer_val = 3;
                 let outer = Key::new("Keyword").unwrap();
-                trie.insert(0usize, &outer);
+                trie.insert(outer_val, &outer);
 
+                let inner_val = 8;
                 let inner = Key::new("Key").unwrap();
-                trie.insert(0usize, &inner);
+                trie.insert(inner_val, &inner);
 
-                assert!(trie.delete(&inner).is_ok());
-                assert!(trie.member(&inner).is_none());
-                assert!(trie.member(&outer).is_some());
+                _ = trie.track(&inner, true);
+                Trie::delete_actual(&mut trie.trac);
+
+                assert_eq!(None, trie.member(&inner));
+                assert_eq!(Some(&outer_val), trie.member(&outer));
             }
 
             #[test]
             fn entry_with_peer_entry() {
                 let mut trie = Trie::new();
 
+                let peer_val = 3;
                 let peer = Key::new("Keyworder").unwrap();
-                trie.insert(0usize, &peer);
+                trie.insert(peer_val, &peer);
 
+                let test_val = 8;
                 let test = Key::new("Keywordee").unwrap();
-                trie.insert(0usize, &test);
+                trie.insert(test_val, &test);
 
-                assert!(trie.delete(&test).is_ok());
-                assert!(trie.member(&test).is_none());
+                _ = trie.track(&test, true);
+                Trie::delete_actual(&mut trie.trac);
 
-                let path = trie.path(&test);
-                assert_eq!(test.key.len(), path.len());
+                assert_eq!(None, trie.member(&test));
+                assert_eq!(Some(&peer_val), trie.member(&peer));
             }
 
             #[test]
             fn entry_with_peer_with_alphabet() {
                 let mut trie = Trie::new();
 
+                let peer_val = 3;
                 let peer = Key::new("Keyworders").unwrap();
-                trie.insert(0usize, &peer);
+                trie.insert(peer_val, &peer);
 
+                let test_val = 8;
                 let test = Key::new("Keywordee").unwrap();
-                trie.insert(0usize, &test);
+                trie.insert(test_val, &test);
 
-                assert!(trie.delete(&test).is_ok());
-                assert!(trie.member(&test).is_none());
+                _ = trie.track(&test, true);
+                Trie::delete_actual(&mut trie.trac);
 
-                let path = trie.path(&test);
-                assert_eq!(test.key.len(), path.len());
-
-                assert!(trie.member(&peer).is_some());
+                assert_eq!(None, trie.member(&test));
+                assert_eq!(Some(&peer_val), trie.member(&peer));
             }
 
             #[test]
             fn entry_under_entry() {
                 let mut trie = Trie::new();
 
+                let above_val = 3;
                 let above = Key::new("Keyworder").unwrap();
-                trie.insert(0usize, &above);
+                trie.insert(above_val, &above);
 
+                let under_val = 8;
                 let under = Key::new("Keyworders").unwrap();
-                trie.insert(0usize, &under);
+                trie.insert(under_val, &under);
 
-                assert!(trie.delete(&under).is_ok());
-                assert!(trie.member(&under).is_none());
-                assert!(trie.member(&above).is_some());
+                _ = trie.track(&under, true);
 
-                let path = trie.path(&under);
+                Trie::delete_actual(&mut trie.trac);
+                assert_eq!(None, trie.member(&under));
+                assert_eq!(Some(&above_val), trie.member(&above));
 
-                let r_letter = &path[path.len() - 1];
-                assert_eq!('r', r_letter.value);
-                assert!(!r_letter.alphabet());
+                let res = trie.track(&above, false);
+                if let TraRes::Ok(l) = res {
+                    assert_eq!('r', l.value);
+                    assert_eq!(false, l.alphabet());
+                } else {
+                    panic!("TraRes::Ok(_) was expected, instead {:?}.", res);
+                }
+            }
+        }
+        mod put_trace_cap {
+            use crate::Trie;
+
+            #[test]
+            fn extend() {
+                const NEW_CAP: usize = 10;
+
+                let mut trie = Trie::<usize>::new();
+                assert!(trie.trac.capacity() < NEW_CAP);
+
+                let size = trie.put_trace_cap(NEW_CAP);
+                assert!(size >= NEW_CAP);
+                assert!(trie.trac.capacity() >= NEW_CAP);
+            }
+
+            #[test]
+            fn shrink() {
+                const NEW_CAP: usize = 10;
+                const OLD_CAP: usize = 50;
+
+                let mut trie = Trie::<usize>::new();
+                trie.trac = Vec::with_capacity(OLD_CAP);
+
+                let size = trie.put_trace_cap(NEW_CAP);
+                assert!(size >= NEW_CAP && size < OLD_CAP);
+                let cap = trie.trac.capacity();
+                assert!(cap >= NEW_CAP && cap < OLD_CAP);
+            }
+
+            #[test]
+            fn same() {
+                let mut trie = Trie::<usize>::new();
+                let cap = trie.trac.capacity();
+
+                let size = trie.put_trace_cap(cap);
+                assert_eq!(cap, size);
+                assert_eq!(cap, trie.trac.capacity());
             }
         }
 
-        mod path {
+        #[test]
+        fn acq_trace_cap() {
+            const VAL: usize = 10;
 
-            use crate::{Key, Trie};
+            let mut trie = Trie::<usize>::new();
+            let trac = &mut trie.trac;
+
+            assert!(trac.capacity() < VAL);
+            trac.reserve_exact(VAL);
+            assert_eq!(VAL, trie.acq_trace_cap());
+        }
+
+        mod track {
+            use crate::{Key, TraRes, Trie};
 
             #[test]
-            fn path() {
-                let key = Key::new("keyword").unwrap();
+            fn singular_occurrent() {
+                let key = Key::new("A").unwrap();
+
                 let mut trie = Trie::new();
-                trie.insert(33usize, &key);
 
-                let path = trie.path(&key);
+                let val = 8;
+                trie.insert(val, &key);
+                let res = trie.track(&key, true);
 
-                let key = key.key;
-                let key_len = key.len();
+                if let TraRes::Ok(l) = res {
+                    let l_val = l.value;
+                    let trac = &trie.trac;
 
-                assert_eq!(key_len, path.len());
-                for (c, l) in key.chars().zip(path.iter()) {
-                    assert_eq!(c, l.value);
+                    assert_eq!('a', l_val);
+                    assert_eq!(1, trac.len());
+
+                    let l = unsafe { trac[0].as_ref() }.unwrap();
+                    assert_eq!('a', l.value)
+                } else {
+                    panic!("TraRes::Ok(_) was expected, instead {:?}.", res);
                 }
-
-                let entry_l = path[key_len - 1];
-                assert!(entry_l.entry());
-                assert_eq!(33, entry_l.entry.unwrap());
             }
 
             #[test]
-            fn unknown_key() {
-                let key = Key::new("Key").unwrap();
-                let trie = Trie::<usize>::new();
+            fn tracing() {
+                let key = Key::new("DictionaryLexicon").unwrap();
 
-                let path = trie.path(&key);
-                assert_eq!(1, path.len());
+                let mut trie = Trie::new();
+
+                let val = 8;
+                trie.insert(val, &key);
+                _ = trie.track(&key, true);
+
+                let proof = key.key;
+                let trac = &trie.trac;
+
+                assert_eq!(proof.len(), trac.len());
+
+                for (x, c) in proof.chars().enumerate() {
+                    let l = trac[x];
+                    let l = unsafe { l.as_mut() }.unwrap();
+                    assert_eq!(c, l.value);
+                }
+            }
+
+            #[test]
+            fn unknown_not_path() {
+                let key = Key::new("Wordbook").unwrap();
+                let bad_key = Key::new("Wordbooks").unwrap();
+
+                let mut trie = Trie::new();
+
+                let val = 8;
+                trie.insert(val, &key);
+                let res = trie.track(&bad_key, false);
+                assert_eq!(TraRes::Unknown, res);
+            }
+
+            #[test]
+            fn unknown_not_entry() {
+                let key = Key::new("Wordbooks").unwrap();
+                let bad_key = Key::new("Wordbook").unwrap();
+
+                let mut trie = Trie::new();
+
+                trie.insert(8, &key);
+                let res = trie.track(&bad_key, false);
+                assert_eq!(TraRes::Unknown, res);
             }
         }
     }
@@ -696,3 +817,5 @@ mod tests_of_units {
         }
     }
 }
+
+// cargo test --release
