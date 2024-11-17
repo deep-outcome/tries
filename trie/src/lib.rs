@@ -148,8 +148,8 @@ impl<T> Trie<T> {
 
         let track_res = this.track(key, false);
         if let TraRes::Ok(l) = track_res {
-            let as_ref = l.entry.as_ref();
-            Some(unsafe { as_ref.unwrap_unchecked() })
+            let entry_ref = l.entry.as_ref();
+            Some(unsafe { entry_ref.unwrap_unchecked() })
         } else {
             None
         }
