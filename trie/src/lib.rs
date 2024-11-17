@@ -39,7 +39,7 @@ pub struct Key {
 }
 
 impl Key {
-    /// All capitals are lowercased.
+    /// All capitals are lowercased. English alphabet only.
     ///
     /// `KeyError` if `s` is unusable as key.
     pub fn new(s: &str) -> Result<Key, KeyError> {
@@ -76,11 +76,13 @@ impl std::ops::Deref for Key {
 /// Invalid options of key.
 #[derive(Debug, PartialEq)]
 pub enum KeyError {
+    /// Other than A–Za–z.
     KeyWithInvalidChars,
+    /// Zero-length key.
     KeyWithInvalidLength,
 }
 
-/// Trie implementation allowing for mapping any `T` to string composed of English letters alphabet.
+/// Trie implementation allowing for mapping any `T` to string.
 ///
 /// Capitals are lowercased.
 ///
@@ -217,10 +219,10 @@ impl<T> Trie<T> {
     /// node to root node.
     ///
     /// Use this method to shrink or extend it to fit actual program needs. Neither shrinking nor extending
-    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal `delete` performance, set `approx_cap` to, at least, `occurrent.count()`.
+    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal `delete` performance, set `approx_cap` to _key_ `char` length.
     ///
     /// Some high value is sufficient anyway. Since buffer continuous
-    /// usage, its capacity will likely expand at some point in time to size sufficient to all occurrents.
+    /// usage, its capacity will likely expand at some point in time to size sufficient to all keys.
     ///
     /// Return value is actual buffer capacity.
     ///
@@ -713,7 +715,7 @@ mod tests_of_units {
             use crate::{Key, TraRes, Trie};
 
             #[test]
-            fn singular_occurrent() {
+            fn singular_key() {
                 let key = Key::new("A").unwrap();
 
                 let mut trie = Trie::new();
