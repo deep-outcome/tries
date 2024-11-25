@@ -478,7 +478,7 @@ impl<T> Trie<T> {
     /// - SC: ϴ(s)
     ///
     /// Check with `put_trace_cap` for details on backtracing.
-    pub fn rem<'a>(&'a mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
+    pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
         let res = match self.track(key, true) {
             TraRes::Ok(_) => {
                 let en = Self::rem_actual(&mut self.tr);
