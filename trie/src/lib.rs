@@ -1,225 +1,389 @@
-//! Classic retrieval tree implementation with fixed size alphabet per node.
+//! Extendable classic retrieval tree implementation with fixed size alphabet per node.
+//!
+//! Maps any `T` using any `impl Iterator<Item = char>` type.
+use crate::english_letters::ALPHABET_LEN;
+use std::vec::Vec;
 
-type Alphabet<T> = Box<[Letter<T>]>;
-
-const ALPHABET_LEN: usize = 26;
-
-#[cfg_attr(test, derive(PartialEq, Debug))]
-enum TraRes<'a, T> {
-    Ok(&'a Letter<T>),
-    Unknown,
+/// `Letter` is `Alphabet` element, represents tree node.
+#[cfg_attr(test, derive(PartialEq))]
+pub struct Letter<T> {
+    #[cfg(test)]
+    val: char,
+    ab: Option<Alphabet<T>>,
+    en: Option<T>,
 }
 
-fn alphabet<T>() -> Alphabet<T> {
-    let mut alphabet = Vec::new();
-    alphabet.reserve_exact(ALPHABET_LEN);
+impl<T> Letter<T> {
+    const fn new() -> Self {
+        Letter {
+            #[cfg(test)]
+            val: '👌',
+            ab: None,
+            en: None,
+        }
+    }
+
+    const fn ab(&self) -> bool {
+        self.ab.is_some()
+    }
+
+    const fn en(&self) -> bool {
+        self.en.is_some()
+    }
+}
+
+/// Tree node arms. Consists of `Letter`s.
+pub type Alphabet<T> = Box<[Letter<T>]>;
+/// Index conversion function. Tighten with `Alphabet`.
+/// Returns corresponding `usize`d index of `char`.
+///
+/// For details see `english_letters::ix` implementation.
+pub type Ix = fn(char) -> usize;
+/// Alphabet function. Constructs alphabet that supports chosen `char`s.
+///
+/// Not all arms necessarily have to logically exists.
+///
+/// For details see `english_letters::ab` implementation.
+pub type Ab<T> = fn() -> Alphabet<T>;
+
+/// Alphabet function, tree arms generation of length specified.
+pub fn ab<T>(len: usize) -> Alphabet<T> {
+    let mut ab = Vec::new();
+    ab.reserve_exact(len);
 
     #[cfg(test)]
+    #[cfg(feature = "test-ext")]
     let mut c = 'a' as u8;
-    for sc in alphabet.spare_capacity_mut() {
+
+    for sc in ab.spare_capacity_mut() {
         let mut _letter = sc.write(Letter::new());
+
         #[cfg(test)]
+        #[cfg(feature = "test-ext")]
         {
-            _letter.value = c as char;
+            _letter.val = c as char;
             c = c + 1;
         }
     }
 
-    unsafe { alphabet.set_len(ALPHABET_LEN) };
-    alphabet.into_boxed_slice()
+    unsafe { ab.set_len(len) };
+
+    ab.into_boxed_slice()
 }
 
-fn ix(c: char) -> usize {
-    c as usize - 'a' as usize
+/// Module contains functions for working with English alphabet small letters, a-z.
+///
+/// For details see `Trie::new_with()`.
+pub mod english_letters {
+
+    use crate::{ab as ab_fn, Alphabet};
+
+    /// 26
+    pub const ALPHABET_LEN: usize = 26;
+
+    /// `Alphabet` of English small letters length.
+    pub fn ab<T>() -> Alphabet<T> {
+        ab_fn(ALPHABET_LEN)
+    }
+
+    /// Index conversion function.
+    pub fn ix(c: char) -> usize {
+        #[allow(non_upper_case_globals)]
+        const a: usize = 'a' as usize;
+
+        let code_point = c as usize;
+        match code_point {
+            c if c > 96 && c < 123 => c - a,
+            _ => panic!("Index conversion failed because code point {code_point} is unsupported."),
+        }
+    }
 }
 
-/// String key validated for usage with `Trie`.
-pub struct Key {
-    key: String,
+/// Key error enumeration.
+#[derive(Debug, PartialEq, Eq)]
+pub enum KeyErr {
+    /// Zero key usage.
+    ZeroLen,
+    /// Unknown key usage.
+    Unknown,
 }
 
-impl Key {
-    /// All capitals are lowercased. English alphabet only.
+impl<T> From<InsRes<T>> for KeyErr {
+    /// Return value is `KeyError` if `InsRes::Err(_)`; _panics_ otherwise.
+    fn from(ir: InsRes<T>) -> Self {
+        if let InsRes::Err(keer) = ir {
+            keer
+        } else {
+            panic!("Not InsRes::Err(_) variant.")
+        }
+    }
+}
+
+impl<'a, T> From<AcqRes<'a, T>> for KeyErr {
+    /// Return value is `KeyError` if `AcqRes::Err(_)`; _panics_ otherwise.
+    fn from(ar: AcqRes<T>) -> Self {
+        if let AcqRes::Err(keer) = ar {
+            keer
+        } else {
+            panic!("Not AcqRes::Err(_) variant.")
+        }
+    }
+}
+
+impl<T> From<RemRes<T>> for KeyErr {
+    /// Return value is `KeyError` if `RemRes::Err(_)`; _panics_ otherwise.
+    fn from(rr: RemRes<T>) -> Self {
+        if let RemRes::Err(keer) = rr {
+            keer
+        } else {
+            panic!("Not RemRes::Err(_) variant.")
+        }
+    }
+}
+
+/// Insertion result enumeration.
+#[derive(Debug, PartialEq, Eq)]
+pub enum InsRes<T> {
+    /// Insertion accomplished. Optionally holds previous entry, based on its existence.
+    Ok(Option<T>),
+    /// Key error.
+    Err(KeyErr),
+}
+
+impl<T> InsRes<T> {
+    /// Returns `true` if `InsRes::Ok(_)`, if not `false`.
+    pub const fn is_ok(&self) -> bool {
+        match self {
+            InsRes::Ok(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Returns `true` if `InsRes::Ok(Some(T))`, if not `false`.
+    pub const fn is_some(&self) -> bool {
+        if let InsRes::Ok(opt) = self {
+            if let Some(_) = opt {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Returns `T` of `InsRes::Ok(Some(T))` or _panics_ if:
+    /// - not that variant
+    /// - `Option<T>` is `None`
+    pub fn unwrap_ok_some(self) -> T {
+        if let InsRes::Ok(opt) = self {
+            if let Some(t) = opt {
+                return t;
+            }
+        }
+
+        panic!("Not InsRes::Ok(Some(T)) variant.")
+    }
+
+    /// Returns `T` of `InsRes::Ok(Some(T))` and does not _panic_ (UB) if:
+    /// - not that variant
+    /// - `Option<T>` is `None`
     ///
-    /// `KeyError` if `s` is unusable as key.
-    pub fn new(s: &str) -> Result<Key, KeyError> {
-        if s.len() == 0 {
-            return Err(KeyError::KeyWithInvalidLength);
+    /// Check with `std::hint::unreachable_unchecked` for more information.
+    pub unsafe fn unwrap_ok_some_unchecked(self) -> T {
+        if let InsRes::Ok(opt) = self {
+            if let Some(t) = opt {
+                return t;
+            }
         }
 
-        let mut key = String::with_capacity(s.len());
-        for mut c in s.chars() {
-            if c.is_ascii_alphabetic() {
-                if c.is_ascii_uppercase() {
-                    c.make_ascii_lowercase();
-                }
-
-                key.push(c);
-            } else {
-                return Err(KeyError::KeyWithInvalidChars);
-            };
-        }
-
-        Ok(Key { key })
+        // SAFETY: the safety contract must be upheld by the caller.
+        unsafe { std::hint::unreachable_unchecked() }
     }
 }
 
-impl std::ops::Deref for Key {
-    type Target = str;
+/// Acquisition result enumeration.
+#[derive(Debug, PartialEq, Eq)]
+pub enum AcqRes<'a, T> {
+    /// Acquisition accomplished.
+    Ok(&'a T),
+    /// Key error.
+    Err(KeyErr),
+}
 
-    /// Returns `&str` of key string.
-    fn deref(&self) -> &str {
-        &self.key
+impl<'a, T> AcqRes<'a, T> {
+    /// Returns `true` if `AcqRes::Ok(_)`, if not `false`.
+    pub const fn is_ok(&self) -> bool {
+        match self {
+            AcqRes::Ok(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Returns `&T` of `AcqRes::Ok(&T)` or _panics_ if not that variant.
+    pub const fn unwrap(&self) -> &T {
+        match self {
+            AcqRes::Ok(t) => t,
+            _ => panic!("Not AcqRes::Ok(&T) variant."),
+        }
+    }
+
+    /// Returns `&T` of `AcqRes::Ok(&T)` and does not _panic_ if not that variant (UB).
+    ///
+    /// Check with `std::hint::unreachable_unchecked` for more information.
+    pub const unsafe fn unwrap_unchecked(&self) -> &T {
+        match self {
+            AcqRes::Ok(t) => t,
+            // SAFETY: the safety contract must be upheld by the caller.
+            _ => unsafe { std::hint::unreachable_unchecked() },
+        }
     }
 }
 
-/// Invalid options of key.
-#[derive(Debug, PartialEq)]
-pub enum KeyError {
-    /// Other than A–Za–z.
-    KeyWithInvalidChars,
-    /// Zero-length key.
-    KeyWithInvalidLength,
+/// Removal result enumeration.
+#[derive(Debug, PartialEq, Eq)]
+pub enum RemRes<T> {
+    /// Removal accomplished.
+    Ok(T),
+    /// Key error.
+    Err(KeyErr),
 }
 
-/// Trie implementation allowing for mapping any `T` to string.
+impl<T> RemRes<T> {
+    /// Returns `true` if `RemRes::Ok(_)`, if not `false`.
+    pub const fn is_ok(&self) -> bool {
+        match self {
+            RemRes::Ok(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Returns `T` of `RemRes::Ok(T)` or _panics_ if not that variant.
+    pub fn unwrap(self) -> T {
+        match self {
+            RemRes::Ok(t) => t,
+            _ => panic!("Not RemRes::Ok(T) variant."),
+        }
+    }
+
+    /// Returns `T` of `RemRes::Ok(T)` and does not _panic_ if not that variant (UB).
+    ///
+    /// Check with `std::hint::unreachable_unchecked` for more information.
+    pub unsafe fn unwrap_unchecked(self) -> T {
+        match self {
+            RemRes::Ok(t) => t,
+            // SAFETY: the safety contract must be upheld by the caller.
+            _ => unsafe { std::hint::unreachable_unchecked() },
+        }
+    }
+}
+
+#[cfg_attr(test, derive(PartialEq, Debug))]
+enum TraRes<'a, T> {
+    Ok(&'a Letter<T>),
+    ZeroLen,
+    UnknownForNotEntry,
+    UnknownForAbsentPath,
+}
+
+impl<'a, T> TraRes<'a, T> {
+    fn key_err(&self) -> KeyErr {
+        match self {
+            TraRes::ZeroLen => KeyErr::ZeroLen,
+            TraRes::UnknownForNotEntry | TraRes::UnknownForAbsentPath => KeyErr::Unknown,
+            _ => panic!("Unsupported arm match."),
+        }
+    }
+}
+
+/// Trie implementation allowing for mapping any `T` to any `impl Iterator<Item = char>` type.
 ///
-/// Capitals are lowercased.
+/// OOB English small letters, a–z, support only.
 ///
-/// ± all methods with classic trie ACC (asymptotic computational complexity):
-/// - _s_ means `char`s iterated over.
-/// - _q_ means unique nodes.
-/// ```rust
-/// use plain_trie::{Key, Trie};
-/// let key = Key::new("touchstone").unwrap();
+/// ```
+/// use plain_trie::{Trie, AcqRes};
+/// use std::panic::catch_unwind;
 ///
 /// let mut trie = Trie::new();
-/// trie.insert(3usize, &key);
+/// let key = || "oomph".chars();
+/// let val = 333;
 ///
-/// assert!(trie.member(&key).is_some());
+/// _ = trie.ins(key(), val);
+/// match trie.acq(key()) {
+///     AcqRes::Ok(v) => assert_eq!(&val, v),
+///     _ => panic!("Expected AcqRes::Ok(_).")
+/// }
+///
+/// let val = 444;
+/// _ = trie.ins(key(), val);
+/// match trie.acq(key()) {
+///     AcqRes::Ok(v) => assert_eq!(&val, v),
+///     _ => panic!("Expected AcqRes::Ok(_).")
+/// }
+///
+/// let catch = catch_unwind(move|| _ = trie.ins("A".chars(), 0));
+/// assert!(catch.is_err());
 /// ```
+///
+/// When asymptotic computational complexity is not explicitly specified , it is:
+/// - s is count of `char`s iterated over
+/// - time:  Θ(s)
+/// - space: Θ(0)
 pub struct Trie<T> {
-    root: Alphabet<T>,
-    trac: Vec<*mut Letter<T>>,
+    // tree root
+    rt: Alphabet<T>,
+    // index fn
+    ix: Ix,
+    // alphabet fn
+    ab: Ab<T>,
+    // backtrace buff
+    tr: Vec<*mut Letter<T>>,
 }
 
 impl<T> Trie<T> {
-    /// Ctor.
-    pub fn new() -> Trie<T> {
-        Trie {
-            root: crate::alphabet::<T>(),
-            trac: Vec::new(),
-        }
+    /// Constructs default version of `Trie`, i.e. via
+    /// `fn new_with()` with `english_letters::ab` and `english_letters::ix`.
+    pub fn new() -> Self {
+        Self::new_with(english_letters::ix, english_letters::ab)
     }
 
-    /// ACC:
-    /// - time scope is Θ(s)
-    /// - space scope is Θ(q)
-    pub fn insert(&mut self, entry: T, key: &Key) {
-        let key = &key.key;
-        let last_letter_ix = key.len() - 1;
-        let mut alphabet = &mut self.root;
-
-        let mut erator = key.chars().enumerate();
-
-        loop {
-            let (it_ix, c) = erator.next().unwrap();
-            let c_ix = ix(c);
-
-            let letter = &mut alphabet[c_ix];
-            if it_ix < last_letter_ix {
-                if !letter.alphabet() {
-                    letter.alphabet = Some(crate::alphabet())
-                }
-            } else {
-                letter.entry = Some(entry);
-                break;
-            }
-
-            alphabet = letter.alphabet.as_mut().unwrap();
-        }
-    }
-
-    /// `None` for unknown key.
+    /// Allows to use custom alphabet different from default alphabet.
     ///
-    /// ACC time scope is Θ(s)
-    pub fn member(&self, key: &Key) -> Option<&T> {
-        let this = unsafe { self.as_mut() };
-
-        let track_res = this.track(key, false);
-        if let TraRes::Ok(l) = track_res {
-            let entry_ref = l.entry.as_ref();
-            Some(unsafe { entry_ref.unwrap_unchecked() })
-        } else {
-            None
-        }
-    }
-
-    unsafe fn as_mut(&self) -> &mut Self {
-        let ptr: *const Self = self;
-        let mut_ptr: *mut Self = core::mem::transmute(ptr);
-        mut_ptr.as_mut().unwrap()
-    }
-
-    /// `Err` for unknown key.
+    /// ```
+    /// use plain_trie::{ab as ab_fn, Alphabet, Trie};
     ///
-    /// ACC TS is backtracing buffer capacity dependent:
-    /// - time scope: Ω(s) or ϴ(s)
-    /// - space scope: ϴ(s)
-    pub fn delete(&mut self, key: &Key) -> Result<(), ()> {
-        let track_res = self.track(&key, true);
-        let res = if let TraRes::Ok(_) = track_res {
-            Self::delete_actual(&mut self.trac);
-            Ok(())
-        } else {
-            Err(())
-        };
-
-        self.trac.clear();
-        res
-    }
-
-    fn delete_actual(trac: &mut Vec<*mut Letter<T>>) {
-        let mut trace = trac.iter_mut().map(|x| unsafe { x.as_mut() }.unwrap());
-        let entry_node = trace.next_back().unwrap();
-
-        entry_node.entry = None;
-
-        if entry_node.alphabet() {
-            return;
-        }
-
-        while let Some(l) = trace.next_back() {
-            let alphabet = l.alphabet.as_ref().unwrap();
-            let mut remove_alphab = true;
-
-            for ix in 0..ALPHABET_LEN {
-                let letter = &alphabet[ix];
-
-                if letter.alphabet() || letter.entry() {
-                    remove_alphab = false;
-                    break;
-                }
-            }
-
-            if remove_alphab {
-                l.alphabet = None;
-            } else {
-                break;
-            }
-
-            if l.entry() {
-                break;
-            }
+    /// fn ab() -> Alphabet<u8> {
+    ///    ab_fn(2)
+    /// }
+    /// fn ix(c: char) -> usize {
+    ///    match c {
+    ///        '&' => 0,
+    ///        '|' => 1,
+    ///        _ => panic!("Only `|` or `&`."),
+    ///    }
+    /// }
+    ///
+    /// let mut trie = Trie::new_with(ix, ab);
+    /// let aba = "&|&";
+    /// let bab = "|&|";
+    /// _ = trie.ins(aba.chars(), 1);
+    /// _ = trie.ins(bab.chars(), 2);
+    ///
+    /// assert_eq!(&1, trie.acq(aba.chars()).unwrap());
+    /// assert_eq!(&2, trie.acq(bab.chars()).unwrap());
+    pub fn new_with(ix: Ix, ab: Ab<T>) -> Self {
+        Self {
+            rt: ab(),
+            ix,
+            ab,
+            tr: Vec::new(),
         }
     }
 
-    /// `Trie` uses internal buffer, to avoid excesive allocations and copying, which grows
-    /// over time due backtracing in `delete` method which backtraces whole path from entry
+    /// `Trie` uses internal buffer, to avoid excessive allocations and copying, which grows
+    /// over time due backtracing in `rem` method which backtraces whole path from entry
     /// node to root node.
     ///
     /// Use this method to shrink or extend it to fit actual program needs. Neither shrinking nor extending
-    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal `delete` performance, set `approx_cap` to _key_ `char` length.
+    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal `rem` performance, set `approx_cap` to, at least, `key.count()`.
     ///
     /// Some high value is sufficient anyway. Since buffer continuous
     /// usage, its capacity will likely expand at some point in time to size sufficient to all keys.
@@ -229,9 +393,9 @@ impl<T> Trie<T> {
     /// **Note:** While `String` is UTF8 encoded, its byte length does not have to equal its `char` count
     /// which is either equal or lesser.
     /// ```
-    /// let sights = "🤩";
-    /// assert_eq!(4, sights.len());
-    /// assert_eq!(1, sights.chars().count());
+    /// let star = "⭐";
+    /// assert_eq!(3, star.len());
+    /// assert_eq!(1, star.chars().count());
     ///
     /// let yes = "sí";
     /// assert_eq!(3, yes.len());
@@ -241,289 +405,671 @@ impl<T> Trie<T> {
     /// assert_eq!(3, abc.len());
     /// ```
     pub fn put_trace_cap(&mut self, approx_cap: usize) -> usize {
-        let trac = &mut self.trac;
-        let cp = trac.capacity();
+        let tr = &mut self.tr;
+        let cp = tr.capacity();
 
         if cp < approx_cap {
-            trac.reserve(approx_cap);
+            tr.reserve(approx_cap);
         } else if cp > approx_cap {
-            *trac = Vec::with_capacity(approx_cap);
+            *tr = Vec::with_capacity(approx_cap);
         }
 
-        trac.capacity()
+        tr.capacity()
     }
 
     /// Return value is internal backtracing buffer capacity.
     ///
     /// Check with `fn put_trace_cap` for details.
     pub fn acq_trace_cap(&self) -> usize {
-        self.trac.capacity()
+        self.tr.capacity()
     }
 
-    // - TS: Ω(s) when `tracing = true`, ϴ(s) otherwise
-    // - SS: ϴ(s) when `tracing = true`, ϴ(0) otherwise
-    fn track(&mut self, key: &Key, tracing: bool) -> TraRes<T> {
-        let mut key = key.key.chars();
-
+    /// Return value is `InsRes::Ok(Option<T>)` when operation accomplished. It holds previous
+    /// entry, if there was some.
+    ///
+    /// Only invalid key recognized is zero-length key.
+    ///
+    /// - SC: Θ(q) where q is number of unique nodes, i.e. `char`s in respective branches.
+    pub fn ins(&mut self, mut key: impl Iterator<Item = char>, entry: T) -> InsRes<T> {
         let c = key.next();
+
+        if c.is_none() {
+            return InsRes::Err(KeyErr::ZeroLen);
+        }
+
         let c = unsafe { c.unwrap_unchecked() };
 
-        let trac = &mut self.trac;
-        let mut letter = &mut self.root[ix(c)];
+        let ix = self.ix;
+        let ab = self.ab;
+
+        let mut letter = &mut self.rt[ix(c)];
+
+        while let Some(c) = key.next() {
+            let alphabet = letter.ab.get_or_insert_with(|| ab());
+            letter = &mut alphabet[ix(c)];
+        }
+
+        let prev = letter.en.replace(entry);
+        InsRes::Ok(prev)
+    }
+
+    /// Used to acquire entry of `key`.
+    pub fn acq(&self, key: impl Iterator<Item = char>) -> AcqRes<T> {
+        let this = unsafe { self.as_mut() };
+
+        match this.track(key, false) {
+            TraRes::Ok(l) => {
+                let en = l.en.as_ref();
+                AcqRes::Ok(unsafe { en.unwrap_unchecked() })
+            }
+            res => AcqRes::Err(res.key_err()),
+        }
+    }
+
+    unsafe fn as_mut(&self) -> &mut Self {
+        let ptr: *const Self = self;
+        let mut_ptr: *mut Self = core::mem::transmute(ptr);
+        mut_ptr.as_mut().unwrap()
+    }
+
+    /// Used to remove key-entry from tree.
+    ///
+    /// - TC: Ω(s) or ϴ(s) / backtracing buffer capacity dependent complexity /
+    /// - SC: ϴ(s)
+    ///
+    /// Check with `put_trace_cap` for details on backtracing.
+    pub fn rem<'a>(&'a mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
+        let res = match self.track(key, true) {
+            TraRes::Ok(_) => {
+                let en = Self::rem_actual(&mut self.tr);
+                RemRes::Ok(en)
+            }
+            res => RemRes::Err(res.key_err()),
+        };
+
+        self.tr.clear();
+        res
+    }
+
+    fn rem_actual(tr: &mut Vec<*mut Letter<T>>) -> T {
+        let mut trace = tr.iter_mut().map(|x| unsafe { x.as_mut() }.unwrap());
+        let entry = trace.next_back().unwrap();
+
+        let en = entry.en.take();
+
+        if !entry.ab() {
+            while let Some(l) = trace.next_back() {
+                let alphabet = l.ab.as_ref().unwrap();
+                let mut remove_alphab = true;
+
+                for ix in 0..ALPHABET_LEN {
+                    let letter = &alphabet[ix];
+
+                    if letter.ab() || letter.en() {
+                        remove_alphab = false;
+                        break;
+                    }
+                }
+
+                if remove_alphab {
+                    l.ab = None;
+                } else {
+                    break;
+                }
+
+                if l.en() {
+                    break;
+                }
+            }
+        }
+
+        unsafe { en.unwrap_unchecked() }
+    }
+
+    // - s is count of `char`s iterated over.
+    // - TC: Ω(s) when `tracing = true`, ϴ(s) otherwise
+    // - SC: ϴ(s) when `tracing = true`, ϴ(0) otherwise
+    fn track<'a>(
+        &'a mut self,
+        mut key: impl Iterator<Item = char>,
+        tracing: bool,
+    ) -> TraRes<'a, T> {
+        let c = key.next();
+
+        if c.is_none() {
+            return TraRes::ZeroLen;
+        }
+
+        let c = unsafe { c.unwrap_unchecked() };
+
+        let ix = &self.ix;
+        let tr = &mut self.tr;
+
+        let mut letter = &mut self.rt[ix(c)];
 
         loop {
             if tracing {
-                trac.push(letter)
+                tr.push(letter)
             }
 
             if let Some(c) = key.next() {
-                if let Some(ab) = letter.alphabet.as_mut() {
+                if let Some(ab) = letter.ab.as_mut() {
                     letter = &mut ab[ix(c)];
                 } else {
-                    return TraRes::Unknown;
+                    return TraRes::UnknownForAbsentPath;
                 }
             } else {
                 break;
             }
         }
 
-        if letter.entry() {
+        if letter.en() {
             TraRes::Ok(letter)
         } else {
-            TraRes::Unknown
+            TraRes::UnknownForNotEntry
         }
-    }
-}
-
-#[cfg_attr(test, derive(PartialEq, Clone))]
-struct Letter<T> {
-    #[cfg(test)]
-    value: char,
-    alphabet: Option<Alphabet<T>>,
-    entry: Option<T>,
-}
-
-impl<T> Letter<T> {
-    fn entry(&self) -> bool {
-        self.entry.is_some()
-    }
-
-    fn alphabet(&self) -> bool {
-        self.alphabet.is_some()
-    }
-
-    fn new() -> Self {
-        Letter {
-            #[cfg(test)]
-            value: '🫀',
-            alphabet: None,
-            entry: None,
-        }
-    }
-}
-
-#[cfg(test)]
-use std::fmt::{Debug, Formatter};
-
-#[cfg(test)]
-impl<T> Debug for Letter<T>
-where
-    T: Debug,
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let alphabet = if self.alphabet() { "Alphabet" } else { "None" };
-
-        f.write_fmt(format_args!(
-            "Letter {{\n  value: {:?}\n  alphabet: {:?}\n  entry: {:?}\n}}",
-            self.value, alphabet, self.entry
-        ))
     }
 }
 
 #[cfg(test)]
 mod tests_of_units {
 
-    fn unsupported_chars() -> [u8; 4] {
-        #[rustfmt::skip] let ucs =
-        [
-            'a' as u8 -1, 'z' as u8 +1,
-            'A' as u8 -1, 'Z' as u8 +1,
-        ];
-        ucs
-    }
+    use crate::Letter;
+    use std::fmt::{Debug, Formatter};
 
-    use super::{alphabet as alphabet_fn, ix};
+    impl<T> Debug for Letter<T> {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            let ab = some_none(self.ab.as_ref());
+            let en = some_none(self.en.as_ref());
 
-    #[test]
-    fn alphabet() {
-        let alphabet = alphabet_fn::<usize>();
-        assert_eq!(crate::ALPHABET_LEN, alphabet.len());
+            return f.write_fmt(format_args!(
+                "Letter {{\n  val: {}\n  ab: {}\n  en: {:?}\n}}",
+                self.val, ab, en
+            ));
 
-        for (ix, c) in ('a'..='z').enumerate() {
-            let letter = &alphabet[ix];
-            assert_eq!(c, letter.value);
-            assert!(letter.alphabet.is_none());
-            assert!(letter.entry.is_none());
+            fn some_none<T>(val: Option<&T>) -> &'static str {
+                if val.is_some() {
+                    "Some"
+                } else {
+                    "None"
+                }
+            }
         }
     }
 
-    #[test]
-    fn ix_test() {
-        let ix = ix('a');
-        assert_eq!(0, ix);
+    mod letter {
+
+        use crate::english_letters::ab as ab_fn;
+        use crate::Letter;
+
+        #[test]
+        fn new() {
+            let letter = Letter::<usize>::new();
+
+            assert_eq!('👌', letter.val);
+            assert!(letter.ab.is_none());
+            assert!(letter.en.is_none());
+        }
+
+        #[test]
+        fn ab() {
+            let mut letter = Letter::<usize>::new();
+            assert_eq!(false, letter.ab());
+
+            letter.ab = Some(ab_fn());
+            assert_eq!(true, letter.ab());
+        }
+
+        #[test]
+        fn en() {
+            let mut letter = Letter::<usize>::new();
+            assert_eq!(false, letter.en());
+
+            letter.en = Some(0);
+            assert_eq!(true, letter.en());
+        }
     }
 
-    mod key {
+    mod ab {
 
-        use super::unsupported_chars;
-        use crate::{Key, KeyError, ALPHABET_LEN};
+        use crate::ab as ab_fn;
+        use crate::english_letters::ALPHABET_LEN;
+
+        #[test]
+        fn ab() {
+            let ab = ab_fn::<usize>(ALPHABET_LEN);
+            assert_eq!(ALPHABET_LEN, ab.len());
+
+            #[cfg(feature = "test-ext")]
+            {
+                for (ix, c) in ('a'..='z').enumerate() {
+                    let letter = &ab[ix];
+
+                    assert_eq!(c, letter.val);
+                    assert!(letter.ab.is_none());
+                    assert!(letter.en.is_none());
+                }
+            }
+        }
 
         #[test]
         fn zero_len() {
-            let key = Key::new("");
+            let ab = ab_fn::<usize>(0);
+            assert_eq!(0, ab.len());
+        }
+    }
 
-            assert!(key.is_err());
-            assert_eq!(KeyError::KeyWithInvalidLength, key.err().unwrap());
+    mod english_letters {
+        use crate::english_letters::{ab as ab_fn, ALPHABET_LEN};
+
+        #[test]
+        fn consts() {
+            assert_eq!(26, ALPHABET_LEN);
         }
 
         #[test]
-        fn invalid_str() {
-            let ucs = unsupported_chars();
+        fn ab() {
+            let ab = ab_fn::<usize>();
+            assert_eq!(ALPHABET_LEN, ab.len());
+        }
 
-            let mut s = String::new();
-            for c in ucs {
-                s.push(c as char);
-                let key = Key::new(&s);
-                assert!(key.is_err());
-                assert_eq!(KeyError::KeyWithInvalidChars, key.err().unwrap());
-                s.clear();
+        mod ix {
+            use crate::english_letters::ix;
+            use std::panic::catch_unwind;
+
+            #[test]
+            fn ixes() {
+                assert_eq!(0, ix('a'));
+                assert_eq!(25, ix('z'));
+            }
+
+            #[test]
+            fn unsupported_char() {
+                let ucs = unsupported_chars();
+
+                for (c, cp) in ucs.map(|x| (x as char, x)) {
+                    let result = catch_unwind(|| ix(c));
+                    assert!(result.is_err());
+
+                    let err = unsafe { result.unwrap_err_unchecked() };
+                    let downcast = err.downcast_ref::<String>().unwrap();
+                    let proof =
+                        format!("Index conversion failed because code point {cp} is unsupported.");
+                    assert_eq!(&proof, downcast);
+                }
+            }
+
+            fn unsupported_chars() -> [u8; 2] {
+                #[rustfmt::skip] let ucs =
+                [                    
+                    'a' as u8 -1, 'z' as u8 +1, // 97–122
+                ];
+
+                ucs
             }
         }
+    }
+
+    mod key_err {
+        use crate::{AcqRes, InsRes, KeyErr, RemRes};
 
         #[test]
-        fn valid_str() {
-            let mut s = String::with_capacity(ALPHABET_LEN * 2);
-            for c in ('a'..='z').zip('A'..='Z') {
-                s.push(c.0);
-                s.push(c.1);
-            }
-
-            let key = Key::new(&s);
-            assert!(key.is_ok());
-
-            let proof = "aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz";
-
-            assert_eq!(proof, key.unwrap().key);
+        fn from_ins_res() {
+            let from = From::from(InsRes::<usize>::Err(KeyErr::Unknown));
+            assert_eq!(KeyErr::Unknown, from);
         }
 
-        use std::ops::Deref;
         #[test]
-        fn deref() {
-            let test = "test";
-            let key = Key::new(&test).unwrap();
+        #[should_panic(expected = "Not InsRes::Err(_) variant.")]
+        fn from_ins_res_panic() {
+            let _: KeyErr = From::from(InsRes::<usize>::Ok(None));
+        }
 
-            assert_eq!(test, key.deref());
+        #[test]
+        fn from_acq_res() {
+            let from = From::from(AcqRes::<usize>::Err(KeyErr::Unknown));
+            assert_eq!(KeyErr::Unknown, from);
+        }
+
+        #[test]
+        #[should_panic(expected = "Not AcqRes::Err(_) variant.")]
+        fn from_acq_res_panic() {
+            let _: KeyErr = From::from(AcqRes::<usize>::Ok(&3));
+        }
+
+        #[test]
+        fn from_rem_res() {
+            let from = From::from(RemRes::<usize>::Err(KeyErr::Unknown));
+            assert_eq!(KeyErr::Unknown, from);
+        }
+
+        #[test]
+        #[should_panic(expected = "Not RemRes::Err(_) variant.")]
+        fn from_rem_res_panic() {
+            let _: KeyErr = From::from(RemRes::<usize>::Ok(3));
+        }
+    }
+
+    mod ins_res {
+        use crate::{InsRes, KeyErr};
+
+        #[test]
+        fn is_ok() {
+            assert_eq!(true, InsRes::<usize>::Ok(None).is_ok());
+            assert_eq!(false, InsRes::<usize>::Err(KeyErr::ZeroLen).is_ok());
+        }
+
+        #[test]
+        fn is_some_some() {
+            assert_eq!(true, InsRes::Ok(Some(3)).is_some());
+        }
+
+        #[test]
+        fn is_some_none() {
+            assert_eq!(false, InsRes::<usize>::Ok(None).is_some());
+        }
+
+        #[test]
+        fn is_some_not_ok() {
+            assert_eq!(false, InsRes::<usize>::Err(KeyErr::ZeroLen).is_some());
+        }
+
+        #[test]
+        fn unwrap_ok_some_some() {
+            let t = 3usize;
+            assert_eq!(t, InsRes::Ok(Some(t)).unwrap_ok_some());
+        }
+
+        #[test]
+        #[should_panic(expected = "Not InsRes::Ok(Some(T)) variant.")]
+        fn unwrap_ok_some_none() {
+            _ = InsRes::<usize>::Ok(None).unwrap_ok_some()
+        }
+
+        #[test]
+        #[should_panic(expected = "Not InsRes::Ok(Some(T)) variant.")]
+        fn unwrap_ok_some_not_ok() {
+            _ = InsRes::<usize>::Err(KeyErr::ZeroLen).unwrap_ok_some()
+        }
+
+        #[test]
+        fn unwrap_ok_some_unchecked() {
+            let t = 3usize;
+            let unwrap = unsafe { InsRes::Ok(Some(t)).unwrap_ok_some_unchecked() };
+            assert_eq!(t, unwrap);
+        }
+    }
+
+    mod acq_res {
+
+        use crate::{AcqRes, KeyErr};
+
+        #[test]
+        fn is_ok() {
+            let t = 3usize;
+
+            assert_eq!(true, AcqRes::Ok(&t).is_ok());
+            assert_eq!(false, AcqRes::<usize>::Err(KeyErr::ZeroLen).is_ok());
+        }
+
+        #[test]
+        fn unwrap() {
+            let t = &3usize;
+            assert_eq!(t, AcqRes::Ok(t).unwrap());
+        }
+
+        #[test]
+        #[should_panic(expected = "Not AcqRes::Ok(&T) variant.")]
+        fn unwrap_panic() {
+            _ = AcqRes::<usize>::Err(KeyErr::ZeroLen).unwrap()
+        }
+
+        #[test]
+        fn unwrap_unchecked() {
+            let proof = &3usize;
+            let res = AcqRes::Ok(proof);
+            let test = unsafe { res.unwrap_unchecked() };
+            assert_eq!(proof, test);
+        }
+    }
+
+    mod rem_res {
+        use crate::{KeyErr, RemRes};
+
+        #[test]
+        fn is_ok() {
+            let t = 3usize;
+
+            assert_eq!(true, RemRes::Ok(t).is_ok());
+            assert_eq!(false, RemRes::<usize>::Err(KeyErr::ZeroLen).is_ok());
+        }
+
+        #[test]
+        fn unwrap() {
+            let t = 3usize;
+            assert_eq!(t, RemRes::Ok(t).unwrap());
+        }
+
+        #[test]
+        #[should_panic(expected = "Not RemRes::Ok(T) variant.")]
+        fn unwrap_panic() {
+            _ = RemRes::<usize>::Err(KeyErr::ZeroLen).unwrap()
+        }
+
+        #[test]
+        fn unwrap_unchecked() {
+            let t = 3usize;
+            let res = RemRes::Ok(t);
+            let unwrap = unsafe { res.unwrap_unchecked() };
+            assert_eq!(t, unwrap);
+        }
+    }
+
+    mod track_res {
+        use crate::{KeyErr, Letter, TraRes};
+
+        #[test]
+        fn key_err_supported() {
+            assert_eq!(KeyErr::ZeroLen, TraRes::<u8>::ZeroLen.key_err());
+            assert_eq!(KeyErr::Unknown, TraRes::<u8>::UnknownForNotEntry.key_err());
+            assert_eq!(
+                KeyErr::Unknown,
+                TraRes::<u8>::UnknownForAbsentPath.key_err()
+            );
+        }
+
+        #[test]
+        #[should_panic(expected = "Unsupported arm match.")]
+        fn key_err_unsupported() {
+            let letter = Letter::<usize>::new();
+            _ = TraRes::Ok(&letter).key_err()
         }
     }
 
     mod trie {
-        use crate::{alphabet, Trie};
+        use crate::english_letters::{ab, ix};
+        use crate::{Letter, Trie};
 
         #[test]
         fn new() {
             let trie = Trie::<usize>::new();
-
-            let alphabet = alphabet();
-            let rt = trie.root;
-
-            assert_eq!(*alphabet, *rt);
+            assert_eq!(ab::<usize> as usize, trie.ab as usize);
+            assert_eq!(ix as usize, trie.ix as usize);
         }
 
-        mod insert {
-            use crate::{ix as ix_fn, Key, Trie};
+        #[test]
+        fn new_with() {
+            fn test_ix(_c: char) -> usize {
+                0
+            }
+            fn test_ab() -> Box<[Letter<usize>]> {
+                let mut ab = Vec::new();
+                ab.push(Letter::new());
+                ab.into_boxed_slice()
+            }
+
+            let trie = Trie::new_with(test_ix, test_ab);
+
+            assert_eq!(test_ab(), trie.rt);
+            assert_eq!(test_ab as usize, trie.ab as usize);
+            assert_eq!(test_ix as usize, trie.ix as usize);
+            assert_eq!(0, trie.tr.capacity());
+        }
+
+        mod put_trace_cap {
+            use crate::Trie;
+
+            #[test]
+            fn extend() {
+                let new_cap = 10;
+
+                let mut trie = Trie::<usize>::new();
+                assert!(trie.tr.capacity() < new_cap);
+
+                let size = trie.put_trace_cap(new_cap);
+                assert!(size >= new_cap);
+                assert!(trie.tr.capacity() >= new_cap);
+            }
+
+            #[test]
+            fn shrink() {
+                let new_cap = 10;
+                let old_cap = 50;
+
+                let mut trie = Trie::<usize>::new();
+                trie.tr = Vec::with_capacity(old_cap);
+
+                let size = trie.put_trace_cap(new_cap);
+                assert!(size >= new_cap && size < old_cap);
+                let cap = trie.tr.capacity();
+                assert!(cap >= new_cap && cap < old_cap);
+            }
+
+            #[test]
+            fn same() {
+                let cap = 10;
+                let mut trie = Trie::<usize>::new();
+                let tr = &mut trie.tr;
+
+                assert!(tr.capacity() < cap);
+                tr.reserve_exact(cap);
+
+                let size = trie.put_trace_cap(cap);
+                assert_eq!(cap, size);
+                assert_eq!(cap, trie.tr.capacity());
+            }
+        }
+
+        #[test]
+        fn acq_trace_cap() {
+            let cap = 10;
+            let mut trie = Trie::<usize>::new();
+            let tr = &mut trie.tr;
+
+            assert!(tr.capacity() < cap);
+            tr.reserve_exact(cap);
+
+            assert_eq!(cap, trie.acq_trace_cap());
+        }
+
+        mod ins {
+            use crate::english_letters::ix;
+            use crate::{InsRes, KeyErr, Trie};
 
             #[test]
             fn basic_test() {
-                const KEY: &str = "touchstone";
-                let key = Key::new(&KEY).unwrap();
+                let key = "impreciseness";
+                let keyer = || key.chars();
+                let entry = 18;
 
                 let mut trie = Trie::new();
-                trie.insert(3usize, &key);
+                assert_eq!(InsRes::Ok(None), trie.ins(keyer(), entry));
 
-                let last_letter_ix = KEY.len() - 1;
+                let last_ix = key.len() - 1;
+                let mut ultra_ab = &trie.rt;
+                for (it_ix, c) in keyer().enumerate() {
+                    let terminal_it = it_ix == last_ix;
 
-                let mut alphabet = &trie.root;
+                    let l = &ultra_ab[ix(c)];
+                    let infra_ab = l.ab.as_ref();
+                    assert_eq!(terminal_it, infra_ab.is_none());
 
-                for (ix, c) in KEY.chars().enumerate() {
-                    let letter = &alphabet[ix_fn(c)];
-
-                    if ix < last_letter_ix {
-                        let temp = &letter.alphabet;
-                        assert!(temp.is_some());
-                        alphabet = temp.as_ref().unwrap();
+                    if terminal_it {
+                        assert_eq!(Some(entry), l.en)
                     } else {
-                        assert!(!letter.alphabet());
-
-                        let entry = letter.entry;
-                        assert!(entry.is_some());
-                        assert_eq!(3usize, entry.unwrap());
+                        ultra_ab = unsafe { infra_ab.unwrap_unchecked() };
                     }
                 }
             }
 
             #[test]
-            fn existing_path_insert() {
-                let existing = Key::new("touchstone").unwrap();
-                let new = Key::new("touch").unwrap();
-
+            fn zero_key() {
                 let mut trie = Trie::new();
-                trie.insert(3usize, &existing);
-                trie.insert(4usize, &new);
-
-                assert!(trie.member(&existing).is_some());
-                assert!(trie.member(&new).is_some());
+                let test = trie.ins("".chars(), 3);
+                let proof = InsRes::Err(KeyErr::ZeroLen);
+                assert_eq!(proof, test);
             }
 
             #[test]
-            fn overwrite() {
-                let key = Key::new("touchstone").unwrap();
+            fn singular_key() {
+                let entry = 3;
 
                 let mut trie = Trie::new();
-                trie.insert(3usize, &key);
-                trie.insert(4, &key);
+                assert_eq!(InsRes::Ok(None), trie.ins("a".chars(), entry));
+                assert_eq!(Some(entry), trie.rt[ix('a')].en);
+            }
 
-                let member = trie.member(&key);
-                assert!(member.is_some());
-                assert_eq!(4, *member.unwrap());
+            #[test]
+            fn double_insert() {
+                let key = "impreciseness";
+                let keyer = || key.chars();
+                let entry_1 = 10;
+                let entry_2 = 20;
+
+                let mut trie = Trie::new();
+                assert_eq!(InsRes::Ok(None), trie.ins(keyer(), entry_1));
+                assert_eq!(InsRes::Ok(Some(entry_1)), trie.ins(keyer(), entry_2));
+
+                let last_ix = key.len() - 1;
+                let mut ultra_ab = &trie.rt;
+                for (it_ix, c) in keyer().enumerate() {
+                    let terminal_it = it_ix == last_ix;
+
+                    let l = &ultra_ab[ix(c)];
+                    let infra_ab = l.ab.as_ref();
+                    assert_eq!(terminal_it, infra_ab.is_none());
+
+                    if terminal_it {
+                        assert_eq!(Some(entry_2), l.en)
+                    } else {
+                        ultra_ab = unsafe { infra_ab.unwrap_unchecked() };
+                    }
+                }
             }
         }
 
-        mod member {
-
-            use crate::{Key, Trie};
+        mod acq {
+            use crate::{AcqRes, KeyErr, Trie};
 
             #[test]
-            fn member() {
-                let key = Key::new("Keyword").unwrap();
-                let mut trie = Trie::new();
-                trie.insert(27usize, &key);
+            fn known_unknown() {
+                let a = || "a".chars();
+                let b = || "b".chars();
+                let v = 10;
 
-                let member = trie.member(&key);
-                assert!(member.is_some());
-                assert_eq!(27, *member.unwrap());
+                let mut trie = Trie::new();
+                _ = trie.ins(a(), v);
+
+                assert_eq!(AcqRes::Ok(&v), trie.acq(a()));
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(b()));
             }
 
             #[test]
-            fn not_member() {
-                let key = Key::new("Keyword").unwrap();
-                let mut trie = Trie::new();
-                trie.insert(0usize, &key);
-
-                for k in ["Key", "Opener"] {
-                    let key = Key::new(k).unwrap();
-                    let member = trie.member(&key);
-                    assert!(member.is_none());
-                }
+            fn zero_key() {
+                let trie = Trie::<usize>::new();
+                let test = trie.acq("".chars());
+                let proof = AcqRes::Err(KeyErr::ZeroLen);
+                assert_eq!(proof, test);
             }
         }
 
@@ -532,292 +1078,240 @@ mod tests_of_units {
             let trie = Trie::<usize>::new();
             let trie_ptr = &trie as *const Trie<usize>;
             let trie_mut = unsafe { trie.as_mut() };
-            assert_eq!(trie_ptr as usize, trie_mut as *mut Trie<usize> as usize);
+            assert_eq!(trie_ptr as usize, trie_mut as *mut Trie::<usize> as usize);
         }
 
-        /// Letter in path to entry being deleted
-        /// cannot be deleted if and only if participates
-        /// in path to another entry. Path len varies 0…m.
-        mod delete {
-            use crate::{Key, Trie};
+        mod rem {
+            use crate::{AcqRes, KeyErr, RemRes, Trie};
 
             #[test]
             fn known_unknown() {
-                let known = Key::new("VigilantAndVigourous").unwrap();
-                let unknown = Key::new("NeglectfulAndFeeble").unwrap();
+                let known = || "plainoperator".chars();
+                let unknown = || "secretagent".chars();
 
                 let mut trie = Trie::new();
-                trie.insert(3, &known);
 
-                assert_eq!(Ok(()), trie.delete(&known));
-                assert_eq!(None, trie.member(&known));
-                assert_eq!(0, trie.trac.len());
+                let known_entry = 13;
+                _ = trie.ins(known(), known_entry);
 
-                assert_eq!(Err(()), trie.delete(&unknown));
-                assert_eq!(0, trie.trac.len());
+                assert_eq!(RemRes::Ok(known_entry), trie.rem(known()));
+                assert_eq!(0, trie.tr.len());
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(known()));
+
+                assert_eq!(RemRes::Err(KeyErr::Unknown), trie.rem(unknown()));
+                assert_eq!(0, trie.tr.len());
+            }
+
+            #[test]
+            fn zero_key() {
+                let mut trie = Trie::<usize>::new();
+                let test = trie.rem("".chars());
+                let proof = RemRes::Err(KeyErr::ZeroLen);
+                assert_eq!(proof, test);
             }
         }
 
-        mod delete_actual {
-            use crate::{ix, Key, TraRes, Trie};
+        mod rem_actual {
+            use crate::english_letters::ix;
+            use crate::{AcqRes, KeyErr, TraRes, Trie};
 
             #[test]
             fn basic_test() {
-                let key = Key::new("Keyword").unwrap();
+                let key = || "abcxyz".chars();
+                let entry = 60;
+
                 let mut trie = Trie::new();
+                _ = trie.ins(key(), entry);
 
-                trie.insert(3, &key);
+                _ = trie.track(key(), true);
 
-                _ = trie.track(&key, true);
-                Trie::delete_actual(&mut trie.trac);
+                assert_eq!(entry, Trie::rem_actual(&mut trie.tr));
 
-                let k = &trie.root[ix('k')];
-                assert_eq!(false, k.alphabet());
+                let k = &trie.rt[ix('a')];
+                assert_eq!(false, k.ab());
             }
 
             #[test]
             fn inner_entry() {
                 let mut trie = Trie::new();
 
-                let outer_val = 3;
-                let outer = Key::new("Keyword").unwrap();
-                trie.insert(outer_val, &outer);
+                let outer = || "keyword".chars();
+                let outer_entry = 15;
+                _ = trie.ins(outer(), outer_entry);
 
-                let inner_val = 8;
-                let inner = Key::new("Key").unwrap();
-                trie.insert(inner_val, &inner);
+                let inner_entry = 25;
+                let inner = || "key".chars();
+                _ = trie.ins(inner(), inner_entry);
 
-                _ = trie.track(&inner, true);
-                Trie::delete_actual(&mut trie.trac);
+                _ = trie.track(inner(), true);
 
-                assert_eq!(None, trie.member(&inner));
-                assert_eq!(Some(&outer_val), trie.member(&outer));
+                assert_eq!(inner_entry, Trie::rem_actual(&mut trie.tr));
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(inner()));
+                assert_eq!(AcqRes::Ok(&outer_entry), trie.acq(outer()));
             }
 
             #[test]
             fn entry_with_peer_entry() {
                 let mut trie = Trie::new();
 
-                let peer_val = 3;
-                let peer = Key::new("Keyworder").unwrap();
-                trie.insert(peer_val, &peer);
+                let peer = || "keyworder".chars();
+                let peer_entry = 15;
+                _ = trie.ins(peer(), peer_entry);
 
-                let test_val = 8;
-                let test = Key::new("Keywordee").unwrap();
-                trie.insert(test_val, &test);
+                let test = || "keywordee".chars();
+                let test_entry = 25;
+                _ = trie.ins(test(), test_entry);
 
-                _ = trie.track(&test, true);
-                Trie::delete_actual(&mut trie.trac);
+                _ = trie.track(test(), true);
 
-                assert_eq!(None, trie.member(&test));
-                assert_eq!(Some(&peer_val), trie.member(&peer));
+                assert_eq!(test_entry, Trie::rem_actual(&mut trie.tr));
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(test()));
+                assert_eq!(AcqRes::Ok(&peer_entry), trie.acq(peer()));
             }
 
             #[test]
             fn entry_with_peer_with_alphabet() {
                 let mut trie = Trie::new();
 
-                let peer_val = 3;
-                let peer = Key::new("Keyworders").unwrap();
-                trie.insert(peer_val, &peer);
+                let peer = || "keyworders".chars();
+                let peer_entry = 11;
+                _ = trie.ins(peer(), peer_entry);
 
-                let test_val = 8;
-                let test = Key::new("Keywordee").unwrap();
-                trie.insert(test_val, &test);
+                let test = || "keywordee".chars();
+                let test_entry = 22;
+                _ = trie.ins(test(), test_entry);
 
-                _ = trie.track(&test, true);
-                Trie::delete_actual(&mut trie.trac);
+                _ = trie.track(test(), true);
 
-                assert_eq!(None, trie.member(&test));
-                assert_eq!(Some(&peer_val), trie.member(&peer));
+                assert_eq!(test_entry, Trie::rem_actual(&mut trie.tr));
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(test()));
+                assert_eq!(AcqRes::Ok(&peer_entry), trie.acq(peer()));
             }
 
+            // indemonstrable, shortcut would be "executed" anyway in next iteration
             #[test]
             fn entry_under_entry() {
                 let mut trie = Trie::new();
 
-                let above_val = 3;
-                let above = Key::new("Keyworder").unwrap();
-                trie.insert(above_val, &above);
+                let above = || "keyworder".chars();
+                let above_entry = 50;
+                _ = trie.ins(above(), above_entry);
 
-                let under_val = 8;
-                let under = Key::new("Keyworders").unwrap();
-                trie.insert(under_val, &under);
+                let under = || "keyworders".chars();
+                let under_entry = 60;
+                _ = trie.ins(under(), under_entry);
 
-                _ = trie.track(&under, true);
+                _ = trie.track(under(), true);
 
-                Trie::delete_actual(&mut trie.trac);
-                assert_eq!(None, trie.member(&under));
-                assert_eq!(Some(&above_val), trie.member(&above));
+                assert_eq!(under_entry, Trie::rem_actual(&mut trie.tr));
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(under()));
+                assert_eq!(AcqRes::Ok(&above_entry), trie.acq(above()));
 
-                let res = trie.track(&above, false);
+                let res = trie.track(above(), false);
                 if let TraRes::Ok(l) = res {
-                    assert_eq!('r', l.value);
-                    assert_eq!(false, l.alphabet());
+                    #[cfg(feature = "test-ext")]
+                    assert_eq!('r', l.val);
+                    assert_eq!(false, l.ab());
                 } else {
                     panic!("TraRes::Ok(_) was expected, instead {:?}.", res);
                 }
             }
-        }
-        mod put_trace_cap {
-            use crate::Trie;
-
-            #[test]
-            fn extend() {
-                const NEW_CAP: usize = 10;
-
-                let mut trie = Trie::<usize>::new();
-                assert!(trie.trac.capacity() < NEW_CAP);
-
-                let size = trie.put_trace_cap(NEW_CAP);
-                assert!(size >= NEW_CAP);
-                assert!(trie.trac.capacity() >= NEW_CAP);
-            }
-
-            #[test]
-            fn shrink() {
-                const NEW_CAP: usize = 10;
-                const OLD_CAP: usize = 50;
-
-                let mut trie = Trie::<usize>::new();
-                trie.trac = Vec::with_capacity(OLD_CAP);
-
-                let size = trie.put_trace_cap(NEW_CAP);
-                assert!(size >= NEW_CAP && size < OLD_CAP);
-                let cap = trie.trac.capacity();
-                assert!(cap >= NEW_CAP && cap < OLD_CAP);
-            }
-
-            #[test]
-            fn same() {
-                let mut trie = Trie::<usize>::new();
-                let cap = trie.trac.capacity();
-
-                let size = trie.put_trace_cap(cap);
-                assert_eq!(cap, size);
-                assert_eq!(cap, trie.trac.capacity());
-            }
-        }
-
-        #[test]
-        fn acq_trace_cap() {
-            const VAL: usize = 10;
-
-            let mut trie = Trie::<usize>::new();
-            let trac = &mut trie.trac;
-
-            assert!(trac.capacity() < VAL);
-            trac.reserve_exact(VAL);
-            assert_eq!(VAL, trie.acq_trace_cap());
         }
 
         mod track {
-            use crate::{Key, TraRes, Trie};
+            use crate::{TraRes, Trie};
 
             #[test]
+            fn zero_key() {
+                let mut trie = Trie::<usize>::new();
+                let res = trie.track("".chars(), false);
+                assert_eq!(TraRes::ZeroLen, res);
+            }
+
+            #[test]
+            #[cfg(feature = "test-ext")]
             fn singular_key() {
-                let key = Key::new("A").unwrap();
+                let key = || "a".chars();
 
-                let mut trie = Trie::new();
+                let mut trie = Trie::<usize>::new();
 
-                let val = 8;
-                trie.insert(val, &key);
-                let res = trie.track(&key, true);
+                _ = trie.ins(key(), 100);
+                let res = trie.track(key(), true);
 
                 if let TraRes::Ok(l) = res {
-                    let l_val = l.value;
-                    let trac = &trie.trac;
+                    let l_val = l.val;
+                    let tr = &trie.tr;
 
                     assert_eq!('a', l_val);
-                    assert_eq!(1, trac.len());
+                    assert_eq!(1, tr.len());
 
-                    let l = unsafe { trac[0].as_ref() }.unwrap();
-                    assert_eq!('a', l.value)
+                    let l = unsafe { tr[0].as_ref() }.unwrap();
+                    assert_eq!('a', l.val)
                 } else {
                     panic!("TraRes::Ok(_) was expected, instead {:?}.", res);
                 }
             }
 
             #[test]
+            #[cfg(feature = "test-ext")]
             fn tracing() {
-                let key = Key::new("DictionaryLexicon").unwrap();
+                let key = || "dictionarylexicon".chars();
 
-                let mut trie = Trie::new();
+                let mut trie = Trie::<usize>::new();
+                _ = trie.ins(key(), 999);
+                _ = trie.track(key(), true);
 
-                let val = 8;
-                trie.insert(val, &key);
-                _ = trie.track(&key, true);
+                let proof = key().collect::<Vec<char>>();
+                let tr = &trie.tr;
 
-                let proof = key.key;
-                let trac = &trie.trac;
+                assert_eq!(proof.len(), tr.len());
 
-                assert_eq!(proof.len(), trac.len());
+                for (x, &c) in proof.iter().enumerate() {
+                    let l = tr[x];
+                    let l = unsafe { l.as_ref() }.unwrap();
+                    assert_eq!(c, l.val);
+                }
+            }
 
-                for (x, c) in proof.chars().enumerate() {
-                    let l = trac[x];
-                    let l = unsafe { l.as_mut() }.unwrap();
-                    assert_eq!(c, l.value);
+            #[test]
+            #[cfg(feature = "test-ext")]
+            fn ok() {
+                let key = || "wordbook".chars();
+                let last = 'k';
+
+                let mut trie = Trie::<usize>::new();
+                _ = trie.ins(key(), 444);
+                let res = trie.track(key(), false);
+
+                match res {
+                    TraRes::Ok(l) => assert_eq!(last, l.val),
+                    _ => panic!("TraRes::Ok(_) was expected, instead {:?}.", res),
                 }
             }
 
             #[test]
             fn unknown_not_path() {
-                let key = Key::new("Wordbook").unwrap();
-                let bad_key = Key::new("Wordbooks").unwrap();
+                let key = || "wordbook".chars();
+                let bad_key = || "wordbooks".chars();
 
                 let mut trie = Trie::new();
-
-                let val = 8;
-                trie.insert(val, &key);
-                let res = trie.track(&bad_key, false);
-                assert_eq!(TraRes::Unknown, res);
+                _ = trie.ins(key(), 500);
+                let res = trie.track(bad_key(), false);
+                assert_eq!(TraRes::UnknownForAbsentPath, res);
             }
 
             #[test]
             fn unknown_not_entry() {
-                let key = Key::new("Wordbooks").unwrap();
-                let bad_key = Key::new("Wordbook").unwrap();
+                let key = || "wordbooks".chars();
+                let bad_key = || "wordbook".chars();
 
                 let mut trie = Trie::new();
-
-                trie.insert(8, &key);
-                let res = trie.track(&bad_key, false);
-                assert_eq!(TraRes::Unknown, res);
+                _ = trie.ins(key(), 777);
+                let res = trie.track(bad_key(), false);
+                assert_eq!(TraRes::UnknownForNotEntry, res);
             }
-        }
-    }
-
-    mod letter {
-
-        use crate::{alphabet as alphabet_fn, Letter};
-
-        #[test]
-        fn entry() {
-            let mut letter = Letter::<usize>::new();
-
-            assert!(!letter.entry());
-            letter.entry = Some(1);
-            assert!(letter.entry());
-        }
-
-        #[test]
-        fn alphabet() {
-            let mut letter = Letter::<usize>::new();
-
-            assert!(!letter.alphabet());
-            letter.alphabet = Some(alphabet_fn());
-            assert!(letter.alphabet());
-        }
-
-        #[test]
-        fn new() {
-            let letter = Letter::<usize>::new();
-
-            assert_eq!('🫀', letter.value);
-            assert!(letter.alphabet.is_none());
-            assert!(letter.entry.is_none());
         }
     }
 }
 
-// cargo test --release
+// cargo test --features test-ext --release
