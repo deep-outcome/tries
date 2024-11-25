@@ -70,7 +70,7 @@ fn test() {
     let kv_2 = ("az", 2);
 
     for kv in [kv_1, kv_2] {
-        let res = trie.ins(kv.0.chars(), kv.1.clone());
+        let res = trie.ins(kv.0.chars(), kv.1);
         assert_eq!(true, res.is_ok());
     }
 
