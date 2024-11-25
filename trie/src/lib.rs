@@ -160,7 +160,7 @@ impl<T> InsRes<T> {
     }
 
     /// Returns `true` if `InsRes::Ok(Some(T))`, if not `false`.
-    pub const fn is_some(&self) -> bool {
+    pub const fn is_ok_some(&self) -> bool {
         if let InsRes::Ok(opt) = self {
             if let Some(_) = opt {
                 return true;
@@ -760,18 +760,18 @@ mod tests_of_units {
         }
 
         #[test]
-        fn is_some_some() {
-            assert_eq!(true, InsRes::Ok(Some(3)).is_some());
+        fn is_ok_some_some() {
+            assert_eq!(true, InsRes::Ok(Some(3)).is_ok_some());
         }
 
         #[test]
-        fn is_some_none() {
-            assert_eq!(false, InsRes::<usize>::Ok(None).is_some());
+        fn is_ok_some_none() {
+            assert_eq!(false, InsRes::<usize>::Ok(None).is_ok_some());
         }
 
         #[test]
-        fn is_some_not_ok() {
-            assert_eq!(false, InsRes::<usize>::Err(KeyErr::ZeroLen).is_some());
+        fn is_ok_some_not_ok() {
+            assert_eq!(false, InsRes::<usize>::Err(KeyErr::ZeroLen).is_ok_some());
         }
 
         #[test]
