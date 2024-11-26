@@ -6,7 +6,7 @@
 - all methods with classic trie asymptotic computational complexity
 - customizable alphabet support
 
-# basic usage
+### basic usage
 
 ```rust
 let mut trie = Trie::new();
@@ -30,7 +30,7 @@ let catch = catch_unwind(move|| _ = trie.ins("A".chars(), 0));
 assert!(catch.is_err());
 ```
 
-# custom alphabet implementation
+### custom alphabet implementation
 
 - use `Trie::new_with` in conjunction with implementation for _"ab"_ and _"ix"_ fucntions
 - example bellow shows sample implementation for alphabet extended with capital letters

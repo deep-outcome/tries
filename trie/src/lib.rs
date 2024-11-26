@@ -173,7 +173,7 @@ impl<T> InsRes<T> {
     /// Returns `T` of `InsRes::Ok(Some(T))` or _panics_ if:
     /// - not that variant
     /// - `Option<T>` is `None`
-    pub fn unwrap_ok_some(self) -> T {
+    pub fn uproot_ok_some(self) -> T {
         if let InsRes::Ok(opt) = self {
             if let Some(t) = opt {
                 return t;
@@ -188,7 +188,7 @@ impl<T> InsRes<T> {
     /// - `Option<T>` is `None`
     ///
     /// Check with `std::hint::unreachable_unchecked` for more information.
-    pub unsafe fn unwrap_ok_some_unchecked(self) -> T {
+    pub unsafe fn uproot_ok_some_unchecked(self) -> T {
         if let InsRes::Ok(opt) = self {
             if let Some(t) = opt {
                 return t;
@@ -219,7 +219,7 @@ impl<'a, T> AcqRes<'a, T> {
     }
 
     /// Returns `&T` of `AcqRes::Ok(&T)` or _panics_ if not that variant.
-    pub const fn unwrap(&self) -> &T {
+    pub const fn uproot(&self) -> &T {
         match self {
             AcqRes::Ok(t) => t,
             _ => panic!("Not AcqRes::Ok(&T) variant."),
@@ -229,7 +229,7 @@ impl<'a, T> AcqRes<'a, T> {
     /// Returns `&T` of `AcqRes::Ok(&T)` and does not _panic_ if not that variant (UB).
     ///
     /// Check with `std::hint::unreachable_unchecked` for more information.
-    pub const unsafe fn unwrap_unchecked(&self) -> &T {
+    pub const unsafe fn uproot_unchecked(&self) -> &T {
         match self {
             AcqRes::Ok(t) => t,
             // SAFETY: the safety contract must be upheld by the caller.
@@ -257,7 +257,7 @@ impl<T> RemRes<T> {
     }
 
     /// Returns `T` of `RemRes::Ok(T)` or _panics_ if not that variant.
-    pub fn unwrap(self) -> T {
+    pub fn uproot(self) -> T {
         match self {
             RemRes::Ok(t) => t,
             _ => panic!("Not RemRes::Ok(T) variant."),
@@ -267,7 +267,7 @@ impl<T> RemRes<T> {
     /// Returns `T` of `RemRes::Ok(T)` and does not _panic_ if not that variant (UB).
     ///
     /// Check with `std::hint::unreachable_unchecked` for more information.
-    pub unsafe fn unwrap_unchecked(self) -> T {
+    pub unsafe fn uproot_unchecked(self) -> T {
         match self {
             RemRes::Ok(t) => t,
             // SAFETY: the safety contract must be upheld by the caller.
@@ -367,8 +367,8 @@ impl<T> Trie<T> {
     /// _ = trie.ins(aba.chars(), 1);
     /// _ = trie.ins(bab.chars(), 2);
     ///
-    /// assert_eq!(&1, trie.acq(aba.chars()).unwrap());
-    /// assert_eq!(&2, trie.acq(bab.chars()).unwrap());
+    /// assert_eq!(&1, trie.acq(aba.chars()).uproot());
+    /// assert_eq!(&2, trie.acq(bab.chars()).uproot());
     pub fn new_with(ix: Ix, ab: Ab<T>) -> Self {
         Self {
             rt: ab(),
@@ -775,28 +775,28 @@ mod tests_of_units {
         }
 
         #[test]
-        fn unwrap_ok_some_some() {
+        fn uproot_ok_some_some() {
             let t = 3usize;
-            assert_eq!(t, InsRes::Ok(Some(t)).unwrap_ok_some());
+            assert_eq!(t, InsRes::Ok(Some(t)).uproot_ok_some());
         }
 
         #[test]
         #[should_panic(expected = "Not InsRes::Ok(Some(T)) variant.")]
-        fn unwrap_ok_some_none() {
-            _ = InsRes::<usize>::Ok(None).unwrap_ok_some()
+        fn uproot_ok_some_none() {
+            _ = InsRes::<usize>::Ok(None).uproot_ok_some()
         }
 
         #[test]
         #[should_panic(expected = "Not InsRes::Ok(Some(T)) variant.")]
-        fn unwrap_ok_some_not_ok() {
-            _ = InsRes::<usize>::Err(KeyErr::ZeroLen).unwrap_ok_some()
+        fn uproot_ok_some_not_ok() {
+            _ = InsRes::<usize>::Err(KeyErr::ZeroLen).uproot_ok_some()
         }
 
         #[test]
-        fn unwrap_ok_some_unchecked() {
+        fn uproot_ok_some_unchecked() {
             let t = 3usize;
-            let unwrap = unsafe { InsRes::Ok(Some(t)).unwrap_ok_some_unchecked() };
-            assert_eq!(t, unwrap);
+            let uproot = unsafe { InsRes::Ok(Some(t)).uproot_ok_some_unchecked() };
+            assert_eq!(t, uproot);
         }
     }
 
@@ -813,22 +813,22 @@ mod tests_of_units {
         }
 
         #[test]
-        fn unwrap() {
+        fn uproot() {
             let t = &3usize;
-            assert_eq!(t, AcqRes::Ok(t).unwrap());
+            assert_eq!(t, AcqRes::Ok(t).uproot());
         }
 
         #[test]
         #[should_panic(expected = "Not AcqRes::Ok(&T) variant.")]
-        fn unwrap_panic() {
-            _ = AcqRes::<usize>::Err(KeyErr::ZeroLen).unwrap()
+        fn uproot_panic() {
+            _ = AcqRes::<usize>::Err(KeyErr::ZeroLen).uproot()
         }
 
         #[test]
-        fn unwrap_unchecked() {
+        fn uproot_unchecked() {
             let proof = &3usize;
             let res = AcqRes::Ok(proof);
-            let test = unsafe { res.unwrap_unchecked() };
+            let test = unsafe { res.uproot_unchecked() };
             assert_eq!(proof, test);
         }
     }
@@ -845,23 +845,23 @@ mod tests_of_units {
         }
 
         #[test]
-        fn unwrap() {
+        fn uproot() {
             let t = 3usize;
-            assert_eq!(t, RemRes::Ok(t).unwrap());
+            assert_eq!(t, RemRes::Ok(t).uproot());
         }
 
         #[test]
         #[should_panic(expected = "Not RemRes::Ok(T) variant.")]
-        fn unwrap_panic() {
-            _ = RemRes::<usize>::Err(KeyErr::ZeroLen).unwrap()
+        fn uproot_panic() {
+            _ = RemRes::<usize>::Err(KeyErr::ZeroLen).uproot()
         }
 
         #[test]
-        fn unwrap_unchecked() {
+        fn uproot_unchecked() {
             let t = 3usize;
             let res = RemRes::Ok(t);
-            let unwrap = unsafe { res.unwrap_unchecked() };
-            assert_eq!(t, unwrap);
+            let uproot = unsafe { res.uproot_unchecked() };
+            assert_eq!(t, uproot);
         }
     }
 
