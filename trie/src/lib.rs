@@ -953,6 +953,7 @@ mod tests_of_units {
 
                 assert!(tr.capacity() < cap);
                 tr.reserve_exact(cap);
+                let cap = tr.capacity();
 
                 let size = trie.put_trace_cap(cap);
                 assert_eq!(cap, size);
@@ -968,6 +969,7 @@ mod tests_of_units {
 
             assert!(tr.capacity() < cap);
             tr.reserve_exact(cap);
+            let cap = tr.capacity();
 
             assert_eq!(cap, trie.acq_trace_cap());
         }
