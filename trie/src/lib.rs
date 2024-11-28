@@ -51,18 +51,16 @@ pub fn ab<T>(len: usize) -> Alphabet<T> {
     let mut ab = Vec::new();
     ab.reserve_exact(len);
 
-    #[cfg(test)]
-    #[cfg(feature = "test-ext")]
-    let mut c = 'a' as u8;
-
-    for sc in ab.spare_capacity_mut() {
-        let mut _letter = sc.write(Letter::new());
+    let spare = ab.spare_capacity_mut();
+    for ix in 0..len {
+        let mut _letter = spare[ix].write(Letter::new());
 
         #[cfg(test)]
         #[cfg(feature = "test-ext")]
         {
-            _letter.val = c as char;
-            c = c + 1;
+            #[allow(non_upper_case_globals)]
+            const a: u8 = 'a' as u8;
+            _letter.val = (a + ix as u8) as char;
         }
     }
 
