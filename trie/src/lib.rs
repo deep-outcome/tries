@@ -1,12 +1,11 @@
 //! Extendable classic retrieval tree implementation with fixed size alphabet per node.
 //!
 //! Maps any `T` using any `impl Iterator<Item = char>` type.
-use crate::english_letters::ALPHABET_LEN;
-use std::vec::Vec;
 
+use std::vec::Vec;
 /// `Letter` is `Alphabet` element, represents tree node.
 #[cfg_attr(test, derive(PartialEq))]
-pub struct Letter<T> {
+struct Letter<T> {
     #[cfg(test)]
     val: char,
     ab: Option<Alphabet<T>>,
@@ -33,21 +32,15 @@ impl<T> Letter<T> {
 }
 
 /// Tree node arms. Consists of `Letter`s.
-pub type Alphabet<T> = Box<[Letter<T>]>;
-/// Index conversion function. Tighten with `Alphabet`.
+type Alphabet<T> = Box<[Letter<T>]>;
+/// Index conversion function. Tighten with alphabet used.
 /// Returns corresponding `usize`d index of `char`.
 ///
 /// For details see `english_letters::ix` implementation.
 pub type Ix = fn(char) -> usize;
-/// Alphabet function. Constructs alphabet that supports chosen `char`s.
-///
-/// Not all arms necessarily have to logically exists.
-///
-/// For details see `english_letters::ab` implementation.
-pub type Ab<T> = fn() -> Alphabet<T>;
 
 /// Alphabet function, tree arms generation of length specified.
-pub fn ab<T>(len: usize) -> Alphabet<T> {
+fn ab<T>(len: usize) -> Alphabet<T> {
     let mut ab = Vec::new();
     ab.reserve_exact(len);
 
@@ -69,20 +62,13 @@ pub fn ab<T>(len: usize) -> Alphabet<T> {
     ab.into_boxed_slice()
 }
 
-/// Module contains functions for working with English alphabet small letters, a-z.
+/// Module for working with English alphabet small letters, a-z.
 ///
 /// For details see `Trie::new_with()`.
 pub mod english_letters {
 
-    use crate::{ab as ab_fn, Alphabet};
-
-    /// 26
+    /// 26, small letters count.
     pub const ALPHABET_LEN: usize = 26;
-
-    /// `Alphabet` of English small letters length.
-    pub fn ab<T>() -> Alphabet<T> {
-        ab_fn(ALPHABET_LEN)
-    }
 
     /// Index conversion function.
     pub fn ix(c: char) -> usize {
@@ -330,8 +316,8 @@ pub struct Trie<T> {
     rt: Alphabet<T>,
     // index fn
     ix: Ix,
-    // alphabet fn
-    ab: Ab<T>,
+    // alphabet len
+    al: usize,
     // backtrace buff
     tr: Vec<*mut Letter<T>>,
 }
@@ -340,17 +326,14 @@ impl<T> Trie<T> {
     /// Constructs default version of `Trie`, i.e. via
     /// `fn new_with()` with `english_letters::ab` and `english_letters::ix`.
     pub fn new() -> Self {
-        Self::new_with(english_letters::ix, english_letters::ab)
+        Self::new_with(english_letters::ix, english_letters::ALPHABET_LEN)
     }
 
     /// Allows to use custom alphabet different from default alphabet.
     ///
     /// ```
-    /// use plain_trie::{ab as ab_fn, Alphabet, Trie};
+    /// use plain_trie::Trie;
     ///
-    /// fn ab() -> Alphabet<u8> {
-    ///    ab_fn(2)
-    /// }
     /// fn ix(c: char) -> usize {
     ///    match c {
     ///        '&' => 0,
@@ -359,7 +342,9 @@ impl<T> Trie<T> {
     ///    }
     /// }
     ///
-    /// let mut trie = Trie::new_with(ix, ab);
+    /// let ab_len = 2;
+    ///
+    /// let mut trie = Trie::new_with(ix, ab_len);
     /// let aba = "&|&";
     /// let bab = "|&|";
     /// _ = trie.ins(aba.chars(), 1);
@@ -367,11 +352,11 @@ impl<T> Trie<T> {
     ///
     /// assert_eq!(&1, trie.acq(aba.chars()).uproot());
     /// assert_eq!(&2, trie.acq(bab.chars()).uproot());
-    pub fn new_with(ix: Ix, ab: Ab<T>) -> Self {
+    pub fn new_with(ix: Ix, ab_len: usize) -> Self {
         Self {
-            rt: ab(),
+            rt: ab(ab_len),
             ix,
-            ab,
+            al: ab_len,
             tr: Vec::new(),
         }
     }
@@ -438,12 +423,12 @@ impl<T> Trie<T> {
         let c = unsafe { c.unwrap_unchecked() };
 
         let ix = self.ix;
-        let ab = self.ab;
+        let al = self.al;
 
         let mut letter = &mut self.rt[ix(c)];
 
         while let Some(c) = key.next() {
-            let alphabet = letter.ab.get_or_insert_with(|| ab());
+            let alphabet = letter.ab.get_or_insert_with(|| ab(al));
             letter = &mut alphabet[ix(c)];
         }
 
@@ -479,7 +464,7 @@ impl<T> Trie<T> {
     pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
         let res = match self.track(key, true) {
             TraRes::Ok(_) => {
-                let en = Self::rem_actual(&mut self.tr);
+                let en = Self::rem_actual(self);
                 RemRes::Ok(en)
             }
             res => RemRes::Err(res.key_err()),
@@ -489,8 +474,8 @@ impl<T> Trie<T> {
         res
     }
 
-    fn rem_actual(tr: &mut Vec<*mut Letter<T>>) -> T {
-        let mut trace = tr.iter_mut().map(|x| unsafe { x.as_mut() }.unwrap());
+    fn rem_actual(&mut self) -> T {
+        let mut trace = self.tr.iter_mut().map(|x| unsafe { x.as_mut() }.unwrap());
         let entry = trace.next_back().unwrap();
 
         let en = entry.en.take();
@@ -500,7 +485,7 @@ impl<T> Trie<T> {
                 let alphabet = l.ab.as_ref().unwrap();
                 let mut remove_alphab = true;
 
-                for ix in 0..ALPHABET_LEN {
+                for ix in 0..self.al {
                     let letter = &alphabet[ix];
 
                     if letter.ab() || letter.en() {
@@ -597,8 +582,7 @@ mod tests_of_units {
 
     mod letter {
 
-        use crate::english_letters::ab as ab_fn;
-        use crate::Letter;
+        use crate::{ab as ab_fn, Letter};
 
         #[test]
         fn new() {
@@ -614,7 +598,7 @@ mod tests_of_units {
             let mut letter = Letter::<usize>::new();
             assert_eq!(false, letter.ab());
 
-            letter.ab = Some(ab_fn());
+            letter.ab = Some(ab_fn(0));
             assert_eq!(true, letter.ab());
         }
 
@@ -658,17 +642,11 @@ mod tests_of_units {
     }
 
     mod english_letters {
-        use crate::english_letters::{ab as ab_fn, ALPHABET_LEN};
+        use crate::english_letters::ALPHABET_LEN;
 
         #[test]
         fn consts() {
             assert_eq!(26, ALPHABET_LEN);
-        }
-
-        #[test]
-        fn ab() {
-            let ab = ab_fn::<usize>();
-            assert_eq!(ALPHABET_LEN, ab.len());
         }
 
         mod ix {
@@ -885,31 +863,27 @@ mod tests_of_units {
     }
 
     mod trie {
-        use crate::english_letters::{ab, ix};
-        use crate::{Letter, Trie};
+        use crate::english_letters::{ix, ALPHABET_LEN};
+        use crate::{ab, Trie};
 
         #[test]
         fn new() {
             let trie = Trie::<usize>::new();
-            assert_eq!(ab::<usize> as usize, trie.ab as usize);
+            assert_eq!(ALPHABET_LEN, trie.al);
             assert_eq!(ix as usize, trie.ix as usize);
         }
 
         #[test]
         fn new_with() {
             fn test_ix(_c: char) -> usize {
-                0
-            }
-            fn test_ab() -> Box<[Letter<usize>]> {
-                let mut ab = Vec::new();
-                ab.push(Letter::new());
-                ab.into_boxed_slice()
+                1
             }
 
-            let trie = Trie::new_with(test_ix, test_ab);
+            let ab_len = 9;
+            let trie = Trie::<usize>::new_with(test_ix, ab_len);
 
-            assert_eq!(test_ab(), trie.rt);
-            assert_eq!(test_ab as usize, trie.ab as usize);
+            assert_eq!(ab(ab_len), trie.rt);
+            assert_eq!(ab_len, trie.al);
             assert_eq!(test_ix as usize, trie.ix as usize);
             assert_eq!(0, trie.tr.capacity());
         }
@@ -1125,10 +1099,34 @@ mod tests_of_units {
 
                 _ = trie.track(key(), true);
 
-                assert_eq!(entry, Trie::rem_actual(&mut trie.tr));
+                assert_eq!(entry, Trie::rem_actual(&mut trie));
 
-                let k = &trie.rt[ix('a')];
-                assert_eq!(false, k.ab());
+                let a = &trie.rt[ix('a')];
+                assert_eq!(false, a.ab());
+            }
+
+            #[test]
+            fn ab_len_test() {
+                let ix = |c| match c {
+                    'a' => 0,
+                    'z' => 99,
+                    _ => panic!(),
+                };
+
+                let key_1 = || "aaa".chars();
+                let key_2 = || "aaz".chars();
+
+                let key_1_val = 50;
+                let key_2_val = 60;
+
+                let mut trie = Trie::new_with(ix, 100);
+                _ = trie.ins(key_1(), key_1_val);
+                _ = trie.ins(key_2(), key_2_val);
+
+                _ = trie.track(key_1(), true);
+
+                assert_eq!(key_1_val, Trie::rem_actual(&mut trie));
+                assert!(trie.acq(key_2()).is_ok());
             }
 
             #[test]
@@ -1145,7 +1143,7 @@ mod tests_of_units {
 
                 _ = trie.track(inner(), true);
 
-                assert_eq!(inner_entry, Trie::rem_actual(&mut trie.tr));
+                assert_eq!(inner_entry, Trie::rem_actual(&mut trie));
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(inner()));
                 assert_eq!(AcqRes::Ok(&outer_entry), trie.acq(outer()));
             }
@@ -1164,7 +1162,7 @@ mod tests_of_units {
 
                 _ = trie.track(test(), true);
 
-                assert_eq!(test_entry, Trie::rem_actual(&mut trie.tr));
+                assert_eq!(test_entry, Trie::rem_actual(&mut trie));
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(test()));
                 assert_eq!(AcqRes::Ok(&peer_entry), trie.acq(peer()));
             }
@@ -1183,7 +1181,7 @@ mod tests_of_units {
 
                 _ = trie.track(test(), true);
 
-                assert_eq!(test_entry, Trie::rem_actual(&mut trie.tr));
+                assert_eq!(test_entry, Trie::rem_actual(&mut trie));
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(test()));
                 assert_eq!(AcqRes::Ok(&peer_entry), trie.acq(peer()));
             }
@@ -1203,7 +1201,7 @@ mod tests_of_units {
 
                 _ = trie.track(under(), true);
 
-                assert_eq!(under_entry, Trie::rem_actual(&mut trie.tr));
+                assert_eq!(under_entry, Trie::rem_actual(&mut trie));
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(under()));
                 assert_eq!(AcqRes::Ok(&above_entry), trie.acq(above()));
 

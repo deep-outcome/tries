@@ -1,4 +1,4 @@
-use plain_trie::{ab as ab_fn, AcqRes, Alphabet, RemRes, Trie};
+use plain_trie::{AcqRes, RemRes, Trie};
 
 const ALPHABET_LEN: u32 = 52;
 
@@ -19,13 +19,9 @@ fn ix(c: char) -> usize {
     }) as usize
 }
 
-fn ab() -> Alphabet<usize> {
-    ab_fn(ALPHABET_LEN as usize)
-}
-
 #[test]
 fn custom_ab() {
-    let mut trie = Trie::new_with(ix, ab);
+    let mut trie = Trie::new_with(ix, ALPHABET_LEN as usize);
 
     let kv_1 = ("AZ", 1);
     let kv_2 = ("az", 2);

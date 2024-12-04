@@ -32,12 +32,12 @@ assert!(catch.is_err());
 
 ### custom alphabet implementation
 
-- use `Trie::new_with` in conjunction with implementation for _"ab"_ and _"ix"_ fucntions
+- use `Trie::new_with` in conjunction with implementation for char-index conversion function and apposite alphabet len
 - example bellow shows sample implementation for alphabet extended with capital letters
 
 
 ```rust
-use plain_trie::{ab as ab_fn, AcqRes, Alphabet, RemRes, Trie};
+use plain_trie::{AcqRes, RemRes, Trie};
 
 const ALPHABET_LEN: u32 = 52;
 
@@ -58,13 +58,9 @@ fn ix(c: char) -> usize {
     }) as usize
 }
 
-fn ab() -> Alphabet<usize> {
-    ab_fn(ALPHABET_LEN as usize)
-}
-
 #[test]
 fn test() {
-    let mut trie = Trie::new_with(ix, ab);
+    let mut trie = Trie::new_with(ix, ALPHABET_LEN as usize);
 
     let kv_1 = ("AZ", 1);
     let kv_2 = ("az", 2);
