@@ -32,7 +32,7 @@ assert!(catch.is_err());
 
 ### custom alphabet implementation
 
-- use `Trie::new_with` in conjunction with implementation for char-index conversion function and apposite alphabet len
+- use `Trie::new_with` in conjunction with implementation for char-index conversion function and apposite alphabet length
 - example bellow shows sample implementation for alphabet extended with capital letters
 
 
