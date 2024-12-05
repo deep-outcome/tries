@@ -324,7 +324,7 @@ pub struct Trie<T> {
 
 impl<T> Trie<T> {
     /// Constructs default version of `Trie`, i.e. via
-    /// `fn new_with()` with `english_letters::ab` and `english_letters::ix`.
+    /// `fn new_with()` with `english_letters::ALPHABET_LEN` and `english_letters::ix`.
     pub fn new() -> Self {
         Self::new_with(english_letters::ix, english_letters::ALPHABET_LEN)
     }
