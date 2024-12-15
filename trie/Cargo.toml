@@ -1,12 +1,11 @@
 [package]
 name = "plain_trie"
-version = "5.0.1"
+version = "5.0.2"
 edition = "2021"
 keywords = [ "digital-tree", "prefix-tree", "trie", "retrieval-tree" ]
 authors = [ "software9119.technology" ]
 description = "Classic trie implementation capable of mapping any T to char iterator."
-homepage = "https://github.com/bravequickcleverfibreyarn/tries/tree/main/trie"
-repository = "https://github.com/bravequickcleverfibreyarn/tries/tree/main/trie"
+repository = "https://github.com/deep-outcome/tries/tree/main/trie"
 license = "MIT"
 categories = [ "data-structures" ]
 documentation = "https://docs.rs/plain_trie/latest/plain_trie/index.html"
