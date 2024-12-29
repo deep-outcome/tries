@@ -1,2 +1,3 @@
-- improve path generations: new key types, avoid excesses, permisive validations etc, use t-oc way is possible
+- improve path generations (internal buffer)
 - replace rev with double-ended iterator approach!
+- trie performant key handling
