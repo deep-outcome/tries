@@ -1,3 +1,10 @@
 - improve path generations (internal buffer)
 - replace rev with double-ended iterator approach!
 - trie performant key handling
+- extract all
+- clear
+
+- opts    
+    ▪ reduce memory demands by raw pointers (fruitfull?)
+    ▪ pseudo-root for all
+    ▪ keys and values methods for tries
