@@ -36,12 +36,12 @@ type Alphabet<T> = Box<[Letter<T>]>;
 /// Index conversion function. Tighten with alphabet used.
 /// Returns corresponding `usize`d index of `char`.
 ///
-/// For details see `english_letters::ix` implementation.
+/// Check with `english_letters::ix` implementation for lodestar.
 pub type Ix = fn(char) -> usize;
 
 /// Reversal index conversion function. Symmetrically mirrors `Ix` function.
 ///
-/// For details see `english_letters::re` implementation.
+/// Check with `english_letters::re` for lodestar.
 pub type Re = fn(usize) -> char;
 
 /// Alphabet function, tree arms generation of length specified.
@@ -115,7 +115,7 @@ fn view<'a, T>(ab: &'a Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(Stri
 
 /// Module for working with English alphabet small letters, a-z.
 ///
-/// For details see `Trie::new_with()`.
+/// Check with `Trie::new_with()` for more.
 pub mod english_letters {
 
     #[allow(non_upper_case_globals)]
@@ -540,8 +540,8 @@ impl<T> Trie<T> {
 
     /// Used to remove key-entry from tree.
     ///
-    /// - TC: Ω(c) or ϴ(c) / backtracing buffer capacity dependent complexity /
-    /// - SC: ϴ(c)
+    /// - TC: Ω(c) or ϴ(c). / Backtracing buffer capacity dependent complexity. /
+    /// - SC: ϴ(c).
     ///
     /// Check with `put_trace_cap` for details on backtracing.
     pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
