@@ -44,12 +44,6 @@ pub type Ix = fn(char) -> usize;
 /// For details see `english_letters::re` implementation.
 pub type Re = fn(usize) -> char;
 
-/// Tuple-list of key-entry duos removed from tree.
-pub type Extraction<T> = Vec<(String, T)>;
-
-/// Tuple-list of key-entry duos viewed from tree.
-pub type View<'a, T> = Vec<(String, &'a T)>;
-
 /// Alphabet function, tree arms generation of length specified.
 fn ab<T>(len: usize) -> Alphabet<T> {
     let mut ab = Vec::new();
@@ -640,6 +634,38 @@ impl<T> Trie<T> {
         } else {
             TraRes::UnknownForNotEntry
         }
+    }
+
+    /// Used to extract occurences from tree. Leaves tree empty.
+    ///
+    /// Extraction is alphabetically ordered.
+    ///
+    /// - TC: Ω(n) where n is count of nodes in tree.
+    /// - SC: Θ(s) where s is key lengths summation.
+    pub fn ext(&mut self) -> Vec<(String, T)> {
+        if let Some(re) = self.re {
+            // capacity is prebuffered to 1000
+            let mut buff = String::with_capacity(1000);
+
+            // capacity is prebuffered to 1000
+            let mut res = Vec::with_capacity(1000);
+
+            ext(&mut self.rt, &mut buff, re, &mut res);
+            res.shrink_to_fit();
+
+            self.clr();
+
+            res
+        } else {
+            panic!("This method is unsupported when `new_with` `re` parameter is provided with `None`.");
+        }
+    }
+
+    /// Used to clear tree.
+    ///
+    /// TC: Θ(n) where n is count of nodes in tree.
+    pub fn clr(&mut self) {
+        self.rt = ab(self.al);
     }
 }
 
@@ -1636,6 +1662,61 @@ mod tests_of_units {
                 let res = trie.track(bad_key(), false);
                 assert_eq!(TraRes::UnknownForNotEntry, res);
             }
+        }
+
+        mod ext {
+            use crate::english_letters::ix;
+            use crate::{AcqRes, KeyErr, Trie};
+
+            #[test]
+            fn basic_test() {
+                let test = vec![
+                    (String::from("aa"), 13),
+                    (String::from("azbq"), 11),
+                    (String::from("by"), 329),
+                    (String::from("ybc"), 7),
+                    (String::from("ybxr"), 53),
+                    (String::from("ybxrqutmop"), 33),
+                    (String::from("ybxrqutmopfvb"), 99),
+                    (String::from("ybxrqutmoprfg"), 80),
+                    (String::from("zazazazazabyyb"), 55),
+                ];
+
+                let mut trie = Trie::new();
+                for t in test.iter() {
+                    _ = trie.ins(t.0.chars(), t.1);
+                }
+
+                let ext = trie.ext();
+                assert_eq!(test, ext);
+                assert!(ext.capacity() < 1000);
+
+                for t in test.iter() {
+                    assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(t.0.chars()));
+                }
+            }
+
+            #[test]
+            #[should_panic(
+                expected = "This method is unsupported when `new_with` `re` parameter is provided with `None`."
+            )]
+            fn re_not_provided() {
+                _ = Trie::<usize>::new_with(ix, None, 0).ext()
+            }
+        }
+
+        use crate::{AcqRes, KeyErr};
+
+        #[test]
+        fn clr() {
+            let key = || "abc".chars();
+
+            let mut trie = Trie::<usize>::new();
+            _ = trie.ins(key(), 99);
+            trie.clr();
+
+            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
+            assert_eq!(ab(ALPHABET_LEN), trie.rt);
         }
     }
 }
