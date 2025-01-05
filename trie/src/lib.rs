@@ -115,7 +115,7 @@ pub enum KeyErr {
     Unknown,
 }
 
-impl<T> From<InsRes<T>> for KeyErr {
+impl<'a, T> From<InsRes<'a, T>> for KeyErr {
     /// Return value is `KeyError` if `InsRes::Err(_)`; _panics_ otherwise.
     fn from(ir: InsRes<T>) -> Self {
         if let InsRes::Err(keer) = ir {
@@ -150,14 +150,15 @@ impl<T> From<RemRes<T>> for KeyErr {
 
 /// Insertion result enumeration.
 #[derive(Debug, PartialEq, Eq)]
-pub enum InsRes<T> {
-    /// Insertion accomplished. Optionally holds previous entry, based on its existence.
-    Ok(Option<T>),
+pub enum InsRes<'a, T> {
+    /// Insertion accomplished. Holds reference to inserted entry and
+    /// optionally previous entry, based on its existence.
+    Ok((&'a T, Option<T>)),
     /// Key error.
     Err(KeyErr),
 }
 
-impl<T> InsRes<T> {
+impl<'a, T> InsRes<'a, T> {
     /// Returns `true` if `InsRes::Ok(_)`, if not `false`.
     pub const fn is_ok(&self) -> bool {
         match self {
@@ -166,10 +167,10 @@ impl<T> InsRes<T> {
         }
     }
 
-    /// Returns `true` if `InsRes::Ok(Some(T))`, if not `false`.
+    /// Returns `true` if `InsRes::Ok((_, Some(T)))`, if not `false`.
     pub const fn is_ok_some(&self) -> bool {
         if let InsRes::Ok(opt) = self {
-            if let Some(_) = opt {
+            if let Some(_) = opt.1 {
                 return true;
             }
         }
@@ -177,12 +178,12 @@ impl<T> InsRes<T> {
         false
     }
 
-    /// Returns `T` of `InsRes::Ok(Some(T))` or _panics_ if:
+    /// Returns `T` of `InsRes::Ok((_, Some(T)))` or _panics_ if:
     /// - not that variant
     /// - `Option<T>` is `None`
     pub fn uproot_ok_some(self) -> T {
         if let InsRes::Ok(opt) = self {
-            if let Some(t) = opt {
+            if let Some(t) = opt.1 {
                 return t;
             }
         }
@@ -190,14 +191,14 @@ impl<T> InsRes<T> {
         panic!("Not InsRes::Ok(Some(T)) variant.")
     }
 
-    /// Returns `T` of `InsRes::Ok(Some(T))` and does not _panic_ (UB) if:
+    /// Returns `T` of `InsRes::Ok((_, Some(T)))` and does not _panic_ (UB) if:
     /// - not that variant
     /// - `Option<T>` is `None`
     ///
     /// Check with `std::hint::unreachable_unchecked` for more information.
     pub unsafe fn uproot_ok_some_unchecked(self) -> T {
         if let InsRes::Ok(opt) = self {
-            if let Some(t) = opt {
+            if let Some(t) = opt.1 {
                 return t;
             }
         }
@@ -472,8 +473,10 @@ impl<T> Trie<T> {
             letter = &mut alphabet[ix(c)];
         }
 
-        let prev = letter.en.replace(entry);
-        InsRes::Ok(prev)
+        let en = &mut letter.en;
+        let prev = en.replace(entry);
+        let curr = en.as_ref().unwrap();
+        InsRes::Ok((curr, prev))
     }
 
     /// Used to acquire entry of `key`.
@@ -756,7 +759,7 @@ mod tests_of_units {
         #[test]
         #[should_panic(expected = "Not InsRes::Err(_) variant.")]
         fn from_ins_res_panic() {
-            let _: KeyErr = From::from(InsRes::<usize>::Ok(None));
+            let _: KeyErr = From::from(InsRes::<usize>::Ok((&1, None)));
         }
 
         #[test]
@@ -789,18 +792,18 @@ mod tests_of_units {
 
         #[test]
         fn is_ok() {
-            assert_eq!(true, InsRes::<usize>::Ok(None).is_ok());
+            assert_eq!(true, InsRes::<usize>::Ok((&1, None)).is_ok());
             assert_eq!(false, InsRes::<usize>::Err(KeyErr::ZeroLen).is_ok());
         }
 
         #[test]
         fn is_ok_some_some() {
-            assert_eq!(true, InsRes::Ok(Some(3)).is_ok_some());
+            assert_eq!(true, InsRes::Ok((&1, Some(3))).is_ok_some());
         }
 
         #[test]
         fn is_ok_some_none() {
-            assert_eq!(false, InsRes::<usize>::Ok(None).is_ok_some());
+            assert_eq!(false, InsRes::<usize>::Ok((&1, None)).is_ok_some());
         }
 
         #[test]
@@ -811,13 +814,13 @@ mod tests_of_units {
         #[test]
         fn uproot_ok_some_some() {
             let t = 3usize;
-            assert_eq!(t, InsRes::Ok(Some(t)).uproot_ok_some());
+            assert_eq!(t, InsRes::Ok((&1, Some(t))).uproot_ok_some());
         }
 
         #[test]
         #[should_panic(expected = "Not InsRes::Ok(Some(T)) variant.")]
         fn uproot_ok_some_none() {
-            _ = InsRes::<usize>::Ok(None).uproot_ok_some()
+            _ = InsRes::<usize>::Ok((&1, None)).uproot_ok_some()
         }
 
         #[test]
@@ -829,7 +832,7 @@ mod tests_of_units {
         #[test]
         fn uproot_ok_some_unchecked() {
             let t = 3usize;
-            let uproot = unsafe { InsRes::Ok(Some(t)).uproot_ok_some_unchecked() };
+            let uproot = unsafe { InsRes::Ok((&1, Some(t))).uproot_ok_some_unchecked() };
             assert_eq!(t, uproot);
         }
     }
@@ -1021,7 +1024,7 @@ mod tests_of_units {
                 let entry = 18;
 
                 let mut trie = Trie::new();
-                assert_eq!(InsRes::Ok(None), trie.ins(keyer(), entry));
+                assert_eq!(InsRes::Ok((&entry, None)), trie.ins(keyer(), entry));
 
                 let last_ix = key.len() - 1;
                 let mut ultra_ab = &trie.rt;
@@ -1053,7 +1056,7 @@ mod tests_of_units {
                 let entry = 3;
 
                 let mut trie = Trie::new();
-                assert_eq!(InsRes::Ok(None), trie.ins("a".chars(), entry));
+                assert_eq!(InsRes::Ok((&entry, None)), trie.ins("a".chars(), entry));
                 assert_eq!(Some(entry), trie.rt[ix('a')].en);
             }
 
@@ -1065,8 +1068,11 @@ mod tests_of_units {
                 let entry_2 = 20;
 
                 let mut trie = Trie::new();
-                assert_eq!(InsRes::Ok(None), trie.ins(keyer(), entry_1));
-                assert_eq!(InsRes::Ok(Some(entry_1)), trie.ins(keyer(), entry_2));
+                assert_eq!(InsRes::Ok((&entry_1, None)), trie.ins(keyer(), entry_1));
+                assert_eq!(
+                    InsRes::Ok((&entry_2, Some(entry_1))),
+                    trie.ins(keyer(), entry_2)
+                );
 
                 let last_ix = key.len() - 1;
                 let mut ultra_ab = &trie.rt;
