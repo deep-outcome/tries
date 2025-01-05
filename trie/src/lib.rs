@@ -372,9 +372,9 @@ impl<'a, T> TraRes<'a, T> {
 /// ```
 ///
 /// When asymptotic computational complexity is not explicitly specified , it is:
-/// - s is count of `char`s iterated over
-/// - time:  Θ(s)
-/// - space: Θ(0)
+/// - c is count of `char`s iterated over.
+/// - time:  Θ(c).
+/// - space: Θ(0).
 pub struct Trie<T> {
     // tree root
     rt: Alphabet<T>,
@@ -540,8 +540,8 @@ impl<T> Trie<T> {
 
     /// Used to remove key-entry from tree.
     ///
-    /// - TC: Ω(s) or ϴ(s) / backtracing buffer capacity dependent complexity /
-    /// - SC: ϴ(s)
+    /// - TC: Ω(c) or ϴ(c) / backtracing buffer capacity dependent complexity /
+    /// - SC: ϴ(c)
     ///
     /// Check with `put_trace_cap` for details on backtracing.
     pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
@@ -592,9 +592,9 @@ impl<T> Trie<T> {
         unsafe { en.unwrap_unchecked() }
     }
 
-    // - s is count of `char`s iterated over.
-    // - TC: Ω(s) when `tracing = true`, ϴ(s) otherwise
-    // - SC: ϴ(s) when `tracing = true`, ϴ(0) otherwise
+    // - c is count of `char`s iterated over
+    // - TC: Ω(c) when `tracing = true`, ϴ(s) otherwise
+    // - SC: ϴ(c) when `tracing = true`, ϴ(0) otherwise
     fn track<'a>(
         &'a mut self,
         mut key: impl Iterator<Item = char>,
@@ -636,7 +636,7 @@ impl<T> Trie<T> {
         }
     }
 
-    /// Used to extract occurences from tree. Leaves tree empty.
+    /// Used to extract key-entry duos from tree. Leaves tree empty.
     ///
     /// Extraction is alphabetically ordered.
     ///
@@ -654,6 +654,29 @@ impl<T> Trie<T> {
             res.shrink_to_fit();
 
             self.clr();
+
+            res
+        } else {
+            panic!("This method is unsupported when `new_with` `re` parameter is provided with `None`.");
+        }
+    }
+
+    /// Used to get view onto key-entry duos in tree.
+    ///
+    /// View is alphabetically ordered.
+    ///
+    /// - TC: Ω(n) where n is count of nodes in tree.
+    /// - SC: Θ(s) where s is key lengths summation.
+    pub fn view(&self) -> Vec<(String, &T)> {
+        if let Some(re) = self.re {
+            // capacity is prebuffered to 1000
+            let mut buff = String::with_capacity(1000);
+
+            // capacity is prebuffered to 1000
+            let mut res = Vec::with_capacity(1000);
+
+            view(&self.rt, &mut buff, re, &mut res);
+            res.shrink_to_fit();
 
             res
         } else {
@@ -1702,6 +1725,47 @@ mod tests_of_units {
             )]
             fn re_not_provided() {
                 _ = Trie::<usize>::new_with(ix, None, 0).ext()
+            }
+        }
+
+        mod view {
+            use crate::english_letters::ix;
+            use crate::{AcqRes, Trie};
+
+            #[test]
+            fn basic_test() {
+                let test = vec![
+                    (String::from("aa"), &13),
+                    (String::from("azbq"), &11),
+                    (String::from("by"), &329),
+                    (String::from("ybc"), &7),
+                    (String::from("ybxr"), &53),
+                    (String::from("ybxrqutmop"), &33),
+                    (String::from("ybxrqutmopfvb"), &99),
+                    (String::from("ybxrqutmoprfg"), &80),
+                    (String::from("zazazazazabyyb"), &55),
+                ];
+
+                let mut trie = Trie::new();
+                for t in test.iter() {
+                    _ = trie.ins(t.0.chars(), *t.1);
+                }
+
+                let view = trie.view();
+                assert_eq!(test, view);
+                assert!(view.capacity() < 1000);
+
+                for t in test.iter() {
+                    assert_eq!(AcqRes::Ok(t.1), trie.acq(t.0.chars()));
+                }
+            }
+
+            #[test]
+            #[should_panic(
+                expected = "This method is unsupported when `new_with` `re` parameter is provided with `None`."
+            )]
+            fn re_not_provided() {
+                _ = Trie::<usize>::new_with(ix, None, 0).view()
             }
         }
 
