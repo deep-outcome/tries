@@ -555,4 +555,22 @@ mod tests_of_units {
             assert!(node.entry.is_none());
         }
     }
+
+    mod readme {
+        use crate::{Key, Trie};
+
+        #[test]
+        fn test() {
+            let mut trie = Trie::new();
+
+            let keyword = Key::new("Keyword").unwrap();
+            trie.insert(0usize, &keyword);
+
+            let key = Key::new("Key").unwrap();
+            trie.insert(0usize, &key);
+
+            assert!(trie.delete(&key).is_ok());
+            assert!(trie.member(&key).is_none());
+        }
+    }
 }
