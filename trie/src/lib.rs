@@ -191,9 +191,9 @@ impl<T> From<RemRes<T>> for KeyErr {
 /// Insertion result enumeration.
 #[derive(Debug, PartialEq, Eq)]
 pub enum InsRes<'a, T> {
-    /// Insertion accomplished. Holds reference to inserted entry and
-    /// optionally previous entry, based on its existence.
-    Ok((&'a T, Option<T>)),
+    /// Insertion accomplished. Holds mutable reference to inserted
+    /// entry and optionally previous entry, based on its existence.
+    Ok((&'a mut T, Option<T>)),
     /// Key error.
     Err(KeyErr),
 }
@@ -218,6 +218,16 @@ impl<'a, T> InsRes<'a, T> {
         false
     }
 
+    /// Returns `(&mut T, Option<T>)` of `InsRes::Ok((&mut T, Option<T>))`
+    /// or _panics_ if not that variant.
+    pub fn uproot_ok(self) -> (&'a mut T, Option<T>) {
+        if let InsRes::Ok(ok) = self {
+            return ok;
+        }
+
+        panic!("Not InsRes::Ok(_) variant.")
+    }
+
     /// Returns `T` of `InsRes::Ok((_, Some(T)))` or _panics_ if:
     /// - not that variant
     /// - `Option<T>` is `None`
@@ -229,6 +239,19 @@ impl<'a, T> InsRes<'a, T> {
         }
 
         panic!("Not InsRes::Ok(Some(T)) variant.")
+    }
+
+    /// Returns `(&mut T, Option<T>)` of `InsRes::Ok((&mut T, Option<T>))`
+    /// and does not _panic_ (UB) if not that variant.
+    ///
+    /// Check with `std::hint::unreachable_unchecked` for more information.
+    pub fn uproot_ok_unchecked(self) -> (&'a mut T, Option<T>) {
+        if let InsRes::Ok(ok) = self {
+            return ok;
+        }
+
+        // SAFETY: the safety contract must be upheld by the caller.
+        unsafe { std::hint::unreachable_unchecked() }
     }
 
     /// Returns `T` of `InsRes::Ok((_, Some(T)))` and does not _panic_ (UB) if:
@@ -515,7 +538,7 @@ impl<T> Trie<T> {
 
         let en = &mut letter.en;
         let prev = en.replace(entry);
-        let curr = en.as_ref().unwrap();
+        let curr = en.as_mut().unwrap();
         InsRes::Ok((curr, prev))
     }
 
@@ -1066,7 +1089,7 @@ mod tests_of_units {
         #[test]
         #[should_panic(expected = "Not InsRes::Err(_) variant.")]
         fn from_ins_res_panic() {
-            let _: KeyErr = From::from(InsRes::<usize>::Ok((&1, None)));
+            let _: KeyErr = From::from(InsRes::<usize>::Ok((&mut 1, None)));
         }
 
         #[test]
@@ -1099,18 +1122,18 @@ mod tests_of_units {
 
         #[test]
         fn is_ok() {
-            assert_eq!(true, InsRes::<usize>::Ok((&1, None)).is_ok());
+            assert_eq!(true, InsRes::<usize>::Ok((&mut 1, None)).is_ok());
             assert_eq!(false, InsRes::<usize>::Err(KeyErr::ZeroLen).is_ok());
         }
 
         #[test]
         fn is_ok_some_some() {
-            assert_eq!(true, InsRes::Ok((&1, Some(3))).is_ok_some());
+            assert_eq!(true, InsRes::Ok((&mut 1, Some(3))).is_ok_some());
         }
 
         #[test]
         fn is_ok_some_none() {
-            assert_eq!(false, InsRes::<usize>::Ok((&1, None)).is_ok_some());
+            assert_eq!(false, InsRes::<usize>::Ok((&mut 1, None)).is_ok_some());
         }
 
         #[test]
@@ -1119,15 +1142,29 @@ mod tests_of_units {
         }
 
         #[test]
+        fn uproot_ok_ok() {
+            let t = 3usize;
+            let proof = (&mut 1, Some(t));
+            let test = (&mut 1, Some(t));
+            assert_eq!(proof, InsRes::Ok(test).uproot_ok());
+        }
+
+        #[test]
+        #[should_panic(expected = "Not InsRes::Ok(_) variant.")]
+        fn uproot_ok_not_ok() {
+            _ = InsRes::<usize>::Err(KeyErr::ZeroLen).uproot_ok();
+        }
+
+        #[test]
         fn uproot_ok_some_some() {
             let t = 3usize;
-            assert_eq!(t, InsRes::Ok((&1, Some(t))).uproot_ok_some());
+            assert_eq!(t, InsRes::Ok((&mut 1, Some(t))).uproot_ok_some());
         }
 
         #[test]
         #[should_panic(expected = "Not InsRes::Ok(Some(T)) variant.")]
         fn uproot_ok_some_none() {
-            _ = InsRes::<usize>::Ok((&1, None)).uproot_ok_some()
+            _ = InsRes::<usize>::Ok((&mut 1, None)).uproot_ok_some()
         }
 
         #[test]
@@ -1137,9 +1174,17 @@ mod tests_of_units {
         }
 
         #[test]
+        fn uproot_ok_unchecked() {
+            let t = 3usize;
+            let proof = (&mut 1, Some(t));
+            let test = (&mut 1, Some(t));
+            assert_eq!(proof, InsRes::Ok(test).uproot_ok_unchecked());
+        }
+
+        #[test]
         fn uproot_ok_some_unchecked() {
             let t = 3usize;
-            let uproot = unsafe { InsRes::Ok((&1, Some(t))).uproot_ok_some_unchecked() };
+            let uproot = unsafe { InsRes::Ok((&mut 1, Some(t))).uproot_ok_some_unchecked() };
             assert_eq!(t, uproot);
         }
     }
@@ -1328,10 +1373,15 @@ mod tests_of_units {
             fn basic_test() {
                 let key = "impreciseness";
                 let keyer = || key.chars();
-                let entry = 18;
+                let mut entry = 18;
+                let update = 19;
 
                 let mut trie = Trie::new();
-                assert_eq!(InsRes::Ok((&entry, None)), trie.ins(keyer(), entry));
+                let ins_res = trie.ins(keyer(), entry.clone());
+                assert_eq!(InsRes::Ok((&mut entry, None)), ins_res);
+
+                let entry_mut = ins_res.uproot_ok().0;
+                *entry_mut = update;
 
                 let last_ix = key.len() - 1;
                 let mut ultra_ab = &trie.rt;
@@ -1343,7 +1393,7 @@ mod tests_of_units {
                     assert_eq!(terminal_it, infra_ab.is_none());
 
                     if terminal_it {
-                        assert_eq!(Some(entry), l.en)
+                        assert_eq!(Some(update), l.en)
                     } else {
                         ultra_ab = unsafe { infra_ab.unwrap_unchecked() };
                     }
@@ -1360,10 +1410,11 @@ mod tests_of_units {
 
             #[test]
             fn singular_key() {
-                let entry = 3;
+                let mut entry = 3;
 
                 let mut trie = Trie::new();
-                assert_eq!(InsRes::Ok((&entry, None)), trie.ins("a".chars(), entry));
+                let ins_res = trie.ins("a".chars(), entry.clone());
+                assert_eq!(InsRes::Ok((&mut entry, None)), ins_res);
                 assert_eq!(Some(entry), trie.rt[ix('a')].en);
             }
 
@@ -1371,15 +1422,15 @@ mod tests_of_units {
             fn double_insert() {
                 let key = "impreciseness";
                 let keyer = || key.chars();
-                let entry_1 = 10;
-                let entry_2 = 20;
+                let mut entry_1 = 10;
+                let mut entry_2 = 20;
 
                 let mut trie = Trie::new();
-                assert_eq!(InsRes::Ok((&entry_1, None)), trie.ins(keyer(), entry_1));
-                assert_eq!(
-                    InsRes::Ok((&entry_2, Some(entry_1))),
-                    trie.ins(keyer(), entry_2)
-                );
+                let ins_res_e1 = trie.ins(keyer(), entry_1.clone());
+                assert_eq!(InsRes::Ok((&mut entry_1, None)), ins_res_e1);
+
+                let ins_res_e2 = trie.ins(keyer(), entry_2.clone());
+                assert_eq!(InsRes::Ok((&mut entry_2, Some(entry_1))), ins_res_e2);
 
                 let last_ix = key.len() - 1;
                 let mut ultra_ab = &trie.rt;
