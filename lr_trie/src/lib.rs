@@ -1236,4 +1236,19 @@ mod tests_of_units {
             }
         }
     }
+
+    mod readme {
+        use crate::{KeyEntry, LeftRight, LrTrie};
+
+        #[test]
+        fn test() {
+            let mut trie = LrTrie::new();
+            let one = KeyEntry::new("emoción").unwrap();
+            let another = KeyEntry::new("emotion").unwrap();
+
+            trie.insert(&one, &another);
+            assert!(trie.member(&one, LeftRight::Left).is_some());
+            assert!(trie.member(&another, LeftRight::Left).is_none());
+        }
+    }
 }
