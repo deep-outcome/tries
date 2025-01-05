@@ -21,7 +21,7 @@ fn ix(c: char) -> usize {
 
 #[test]
 fn custom_ab() {
-    let mut trie = Trie::new_with(ix, ALPHABET_LEN as usize);
+    let mut trie = Trie::new_with(ix, None, ALPHABET_LEN as usize);
 
     let kv_1 = ("AZ", 1);
     let kv_2 = ("az", 2);

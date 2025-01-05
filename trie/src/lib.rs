@@ -39,6 +39,17 @@ type Alphabet<T> = Box<[Letter<T>]>;
 /// For details see `english_letters::ix` implementation.
 pub type Ix = fn(char) -> usize;
 
+/// Reversal index conversion function. Symmetrically mirrors `Ix` function.
+///
+/// For details see `english_letters::re` implementation.
+pub type Re = fn(usize) -> char;
+
+/// Tuple-list of key-entry duos removed from tree.
+pub type Extraction<T> = Vec<(String, T)>;
+
+/// Tuple-list of key-entry duos viewed from tree.
+pub type View<'a, T> = Vec<(String, &'a T)>;
+
 /// Alphabet function, tree arms generation of length specified.
 fn ab<T>(len: usize) -> Alphabet<T> {
     let mut ab = Vec::new();
@@ -67,19 +78,31 @@ fn ab<T>(len: usize) -> Alphabet<T> {
 /// For details see `Trie::new_with()`.
 pub mod english_letters {
 
+    #[allow(non_upper_case_globals)]
+    const a: usize = 'a' as usize;
+
     /// 26, small letters count.
     pub const ALPHABET_LEN: usize = 26;
 
     /// Index conversion function.
     pub fn ix(c: char) -> usize {
-        #[allow(non_upper_case_globals)]
-        const a: usize = 'a' as usize;
-
         let code_point = c as usize;
         match code_point {
             c if c > 96 && c < 123 => c - a,
             _ => panic!("Index conversion failed because code point {code_point} is unsupported."),
         }
+    }
+
+    /// Index reversal conversion function.
+    pub fn re(i: usize) -> char {
+        let code_point = match i {
+            i if i < 26 => i + a,
+            _ => {
+                panic!("Char conversion failed because index `{i}` conversion is not supported.")
+            }
+        };
+
+        code_point as u8 as char
     }
 }
 
@@ -316,6 +339,8 @@ pub struct Trie<T> {
     rt: Alphabet<T>,
     // index fn
     ix: Ix,
+    // rev index fn
+    re: Option<Re>,
     // alphabet len
     al: usize,
     // backtrace buff
@@ -324,9 +349,13 @@ pub struct Trie<T> {
 
 impl<T> Trie<T> {
     /// Constructs default version of `Trie`, i.e. via
-    /// `fn new_with()` with `english_letters::ALPHABET_LEN` and `english_letters::ix`.
+    /// `fn new_with()` with `english_letters::{ix, re, ALPHABET_LEN}`.
     pub fn new() -> Self {
-        Self::new_with(english_letters::ix, english_letters::ALPHABET_LEN)
+        Self::new_with(
+            english_letters::ix,
+            Some(english_letters::re),
+            english_letters::ALPHABET_LEN,
+        )
     }
 
     /// Allows to use custom alphabet different from default alphabet.
@@ -342,9 +371,19 @@ impl<T> Trie<T> {
     ///    }
     /// }
     ///
+    ///
+    /// // if `fn Trie::ext` or `fn Trie::view` will not be used, pass `None` for `re`
+    /// fn re(i: usize) -> char {
+    ///     match i {
+    ///         0 => '&',
+    ///         1 => '|',
+    ///        _ => panic!("Only `0` or `1`."),
+    ///     }
+    /// }    
+    ///
     /// let ab_len = 2;
     ///
-    /// let mut trie = Trie::new_with(ix, ab_len);
+    /// let mut trie = Trie::new_with(ix, Some(re), ab_len);
     /// let aba = "&|&";
     /// let bab = "|&|";
     /// _ = trie.ins(aba.chars(), 1);
@@ -352,10 +391,11 @@ impl<T> Trie<T> {
     ///
     /// assert_eq!(&1, trie.acq(aba.chars()).uproot());
     /// assert_eq!(&2, trie.acq(bab.chars()).uproot());
-    pub fn new_with(ix: Ix, ab_len: usize) -> Self {
+    pub fn new_with(ix: Ix, re: Option<Re>, ab_len: usize) -> Self {
         Self {
             rt: ab(ab_len),
             ix,
+            re,
             al: ab_len,
             tr: Vec::new(),
         }
@@ -684,6 +724,24 @@ mod tests_of_units {
                 ucs
             }
         }
+
+        mod re {
+            use crate::english_letters::re;
+
+            #[test]
+            fn ixes() {
+                assert_eq!('a', re(0));
+                assert_eq!('z', re(25));
+            }
+
+            #[test]
+            #[should_panic(
+                expected = "Char conversion failed because index `26` conversion is not supported."
+            )]
+            fn unsupported_ix() {
+                _ = re(26)
+            }
+        }
     }
 
     mod key_err {
@@ -863,7 +921,7 @@ mod tests_of_units {
     }
 
     mod trie {
-        use crate::english_letters::{ix, ALPHABET_LEN};
+        use crate::english_letters::{ix, re, ALPHABET_LEN};
         use crate::{ab, Trie};
 
         #[test]
@@ -871,6 +929,7 @@ mod tests_of_units {
             let trie = Trie::<usize>::new();
             assert_eq!(ALPHABET_LEN, trie.al);
             assert_eq!(ix as usize, trie.ix as usize);
+            assert_eq!(re as usize, trie.re.unwrap() as usize);
         }
 
         #[test]
@@ -879,12 +938,17 @@ mod tests_of_units {
                 1
             }
 
+            fn test_re(_i: usize) -> char {
+                '1'
+            }
+
             let ab_len = 9;
-            let trie = Trie::<usize>::new_with(test_ix, ab_len);
+            let trie = Trie::<usize>::new_with(test_ix, Some(test_re), ab_len);
 
             assert_eq!(ab(ab_len), trie.rt);
             assert_eq!(ab_len, trie.al);
             assert_eq!(test_ix as usize, trie.ix as usize);
+            assert_eq!(test_re as usize, trie.re.unwrap() as usize);
             assert_eq!(0, trie.tr.capacity());
         }
 
@@ -1119,7 +1183,7 @@ mod tests_of_units {
                 let key_1_val = 50;
                 let key_2_val = 60;
 
-                let mut trie = Trie::new_with(ix, 100);
+                let mut trie = Trie::new_with(ix, None, 100);
                 _ = trie.ins(key_1(), key_1_val);
                 _ = trie.ins(key_2(), key_2_val);
 

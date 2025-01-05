@@ -60,7 +60,7 @@ fn ix(c: char) -> usize {
 
 #[test]
 fn test() {
-    let mut trie = Trie::new_with(ix, ALPHABET_LEN as usize);
+    let mut trie = Trie::new_with(ix, None, ALPHABET_LEN as usize);
 
     let kv_1 = ("AZ", 1);
     let kv_2 = ("az", 2);
