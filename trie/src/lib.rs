@@ -73,6 +73,29 @@ fn ab<T>(len: usize) -> Alphabet<T> {
     ab.into_boxed_slice()
 }
 
+// TC: Ω(n ⋅alphabet size) ⇒ Ω(n), n = nodes count
+// SC: Θ(s +n) ⇒ Θ(s), n = nodes count, s = key lengths sum
+// to lower estimation add unpredictible count of string clonings
+// and buffer (capacity-) reallocations
+fn ext<T>(ab: &mut Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(String, T)>) {
+    for ix in 0..ab.len() {
+        buff.push(re(ix));
+
+        let letter = &mut ab[ix];
+
+        if let Some(e) = letter.en.take() {
+            let key = buff.clone();
+            o.push((key, e));
+        }
+
+        if let Some(ab) = letter.ab.as_mut() {
+            ext(ab, buff, re, o);
+        }
+
+        _ = buff.pop();
+    }
+}
+
 /// Module for working with English alphabet small letters, a-z.
 ///
 /// For details see `Trie::new_with()`.
@@ -681,6 +704,112 @@ mod tests_of_units {
         fn zero_len() {
             let ab = ab_fn::<usize>(0);
             assert_eq!(0, ab.len());
+        }
+    }
+
+    mod ext {
+
+        use crate::english_letters::re;
+        use crate::{ext, AcqRes, KeyErr, Trie};
+
+        #[test]
+        fn basic_test() {
+            let mut trie = Trie::new();
+
+            let a = || "a".chars();
+            let z = || "z".chars();
+
+            _ = trie.ins(a(), 1usize);
+            _ = trie.ins(z(), 2usize);
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            ext(&mut trie.rt, &mut buff, re, &mut test);
+
+            let proof = vec![(String::from("a"), 1), (String::from("z"), 2)];
+            assert_eq!(proof, test);
+
+            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(a()));
+            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(z()));
+        }
+
+        #[test]
+        fn nesting() {
+            let mut trie = Trie::new();
+
+            let entries = [
+                ("a", 3),
+                ("az", 5),
+                ("b", 5),
+                ("by", 8),
+                ("y", 10),
+                ("yb", 12),
+                ("z", 99),
+                ("za", 103),
+            ];
+
+            for e in entries {
+                _ = trie.ins(e.0.chars(), e.1);
+            }
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            ext(&mut trie.rt, &mut buff, re, &mut test);
+
+            let proof = vec![
+                (String::from("a"), 3),
+                (String::from("az"), 5),
+                (String::from("b"), 5),
+                (String::from("by"), 8),
+                (String::from("y"), 10),
+                (String::from("yb"), 12),
+                (String::from("z"), 99),
+                (String::from("za"), 103),
+            ];
+
+            assert_eq!(proof, test);
+        }
+
+        #[test]
+        fn in_depth_recursion() {
+            let mut trie = Trie::new();
+
+            let paths = [
+                ("aa", 13),
+                ("azbq", 11),
+                ("by", 329),
+                ("zazazazazabyyb", 55),
+                ("ybc", 7),
+                ("ybxr", 53),
+                ("ybcrqutmop", 33),
+                ("ybcrqutmopfvb", 99),
+                ("ybcrqutmoprfg", 80),
+            ];
+
+            for p in paths {
+                _ = trie.ins(p.0.chars(), p.1);
+            }
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            ext(&mut trie.rt, &mut buff, re, &mut test);
+
+            let proof = vec![
+                (String::from("aa"), 13),
+                (String::from("azbq"), 11),
+                (String::from("by"), 329),
+                (String::from("ybc"), 7),
+                (String::from("ybcrqutmop"), 33),
+                (String::from("ybcrqutmopfvb"), 99),
+                (String::from("ybcrqutmoprfg"), 80),
+                (String::from("ybxr"), 53),
+                (String::from("zazazazazabyyb"), 55),
+            ];
+
+            assert_eq!(proof, test);
         }
     }
 
