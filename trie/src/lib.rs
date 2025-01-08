@@ -347,6 +347,18 @@ impl<'a, T> AcqMutRes<'a, T> {
     }
 }
 
+impl<T> Clone for RemRes<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        match self {
+            Self::Ok(t) => Self::Ok(t.clone()),
+            Self::Err(e) => Self::Err(e.clone()),
+        }
+    }
+}
+
 /// Removal result enumeration.
 #[derive(Debug, PartialEq, Eq)]
 pub enum RemRes<T> {
@@ -1362,6 +1374,23 @@ mod tests_of_units {
             let res = RemRes::Ok(t);
             let uproot = unsafe { res.uproot_unchecked() };
             assert_eq!(t, uproot);
+        }
+
+        mod clone {
+            use crate::{KeyErr, RemRes};
+
+            #[test]
+            fn ok() {
+                let val = 11;
+                assert_eq!(RemRes::Ok(val), RemRes::Ok(val).clone());
+            }
+
+            #[test]
+            fn err() {
+                let e = KeyErr::ZeroLen;
+                let proof = RemRes::<usize>::Err(e.clone());
+                assert_eq!(proof, RemRes::Err(e).clone());
+            }
         }
     }
 
