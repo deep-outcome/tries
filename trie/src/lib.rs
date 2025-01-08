@@ -350,6 +350,7 @@ impl<T> RemRes<T> {
 #[cfg_attr(test, derive(PartialEq, Debug))]
 enum TraRes<'a, T> {
     Ok(&'a Letter<T>),
+    OkMut(&'a mut Letter<T>),
     ZeroLen,
     UnknownForNotEntry,
     UnknownForAbsentPath,
@@ -362,6 +363,28 @@ impl<'a, T> TraRes<'a, T> {
             TraRes::UnknownForNotEntry | TraRes::UnknownForAbsentPath => KeyErr::Unknown,
             _ => panic!("Unsupported arm match."),
         }
+    }
+}
+
+/// track strain discrete values
+mod tsdv {
+    pub const NON: u8 = 1;
+    pub const TRA: u8 = 2;
+    pub const REF: u8 = 4;
+    pub const MUT: u8 = 8;
+}
+
+#[repr(u8)]
+#[derive(Clone)]
+enum TraStrain {
+    NonRef = tsdv::NON | tsdv::REF,
+    TraRef = tsdv::TRA | tsdv::REF,
+    TraMut = tsdv::TRA | tsdv::MUT,
+}
+
+impl TraStrain {
+    fn has(self, f: u8) -> bool {
+        self as u8 & f == f
     }
 }
 
@@ -546,7 +569,7 @@ impl<T> Trie<T> {
     pub fn acq(&self, key: impl Iterator<Item = char>) -> AcqRes<T> {
         let this = unsafe { self.as_mut() };
 
-        match this.track(key, false) {
+        match this.track(key, TraStrain::NonRef) {
             TraRes::Ok(l) => {
                 let en = l.en.as_ref();
                 AcqRes::Ok(unsafe { en.unwrap_unchecked() })
@@ -568,7 +591,7 @@ impl<T> Trie<T> {
     ///
     /// Check with `put_trace_cap` for details on backtracing.
     pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
-        let res = match self.track(key, true) {
+        let res = match self.track(key, TraStrain::TraRef) {
             TraRes::Ok(_) => {
                 let en = Self::rem_actual(self);
                 RemRes::Ok(en)
@@ -621,7 +644,7 @@ impl<T> Trie<T> {
     fn track<'a>(
         &'a mut self,
         mut key: impl Iterator<Item = char>,
-        tracing: bool,
+        ts: TraStrain,
     ) -> TraRes<'a, T> {
         let c = key.next();
 
@@ -636,6 +659,7 @@ impl<T> Trie<T> {
 
         let mut letter = &mut self.rt[ix(c)];
 
+        let tracing = TraStrain::has(ts.clone(), tsdv::TRA);
         loop {
             if tracing {
                 tr.push(letter)
@@ -1254,7 +1278,7 @@ mod tests_of_units {
         }
     }
 
-    mod track_res {
+    mod tra_res {
         use crate::{KeyErr, Letter, TraRes};
 
         #[test]
@@ -1270,8 +1294,26 @@ mod tests_of_units {
         #[test]
         #[should_panic(expected = "Unsupported arm match.")]
         fn key_err_unsupported() {
-            let letter = Letter::<usize>::new();
-            _ = TraRes::Ok(&letter).key_err()
+            let mut letter = Letter::<usize>::new();
+            _ = TraRes::Ok(&mut letter).key_err()
+        }
+    }
+
+    mod tra_strain {
+        use crate::{tsdv, TraStrain};
+
+        #[test]
+        fn has_has() {
+            for f in [tsdv::NON, tsdv::REF] {
+                assert_eq!(true, TraStrain::has(TraStrain::NonRef, f));
+            }
+        }
+
+        #[test]
+        fn has_has_not() {
+            for f in [tsdv::NON, tsdv::REF] {
+                assert_eq!(false, TraStrain::has(TraStrain::TraMut, f));
+            }
         }
     }
 
@@ -1515,7 +1557,7 @@ mod tests_of_units {
 
         mod rem_actual {
             use crate::english_letters::ix;
-            use crate::{AcqRes, KeyErr, TraRes, Trie};
+            use crate::{AcqRes, KeyErr, TraRes, TraStrain, Trie};
 
             #[test]
             fn basic_test() {
@@ -1525,7 +1567,7 @@ mod tests_of_units {
                 let mut trie = Trie::new();
                 _ = trie.ins(key(), entry);
 
-                _ = trie.track(key(), true);
+                _ = trie.track(key(), TraStrain::TraRef);
 
                 assert_eq!(entry, Trie::rem_actual(&mut trie));
 
@@ -1551,7 +1593,7 @@ mod tests_of_units {
                 _ = trie.ins(key_1(), key_1_val);
                 _ = trie.ins(key_2(), key_2_val);
 
-                _ = trie.track(key_1(), true);
+                _ = trie.track(key_1(), TraStrain::TraRef);
 
                 assert_eq!(key_1_val, Trie::rem_actual(&mut trie));
                 assert!(trie.acq(key_2()).is_ok());
@@ -1569,7 +1611,7 @@ mod tests_of_units {
                 let inner = || "key".chars();
                 _ = trie.ins(inner(), inner_entry);
 
-                _ = trie.track(inner(), true);
+                _ = trie.track(inner(), TraStrain::TraRef);
 
                 assert_eq!(inner_entry, Trie::rem_actual(&mut trie));
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(inner()));
@@ -1588,7 +1630,7 @@ mod tests_of_units {
                 let test_entry = 25;
                 _ = trie.ins(test(), test_entry);
 
-                _ = trie.track(test(), true);
+                _ = trie.track(test(), TraStrain::TraRef);
 
                 assert_eq!(test_entry, Trie::rem_actual(&mut trie));
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(test()));
@@ -1607,7 +1649,7 @@ mod tests_of_units {
                 let test_entry = 22;
                 _ = trie.ins(test(), test_entry);
 
-                _ = trie.track(test(), true);
+                _ = trie.track(test(), TraStrain::TraRef);
 
                 assert_eq!(test_entry, Trie::rem_actual(&mut trie));
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(test()));
@@ -1627,13 +1669,13 @@ mod tests_of_units {
                 let under_entry = 60;
                 _ = trie.ins(under(), under_entry);
 
-                _ = trie.track(under(), true);
+                _ = trie.track(under(), TraStrain::TraRef);
 
                 assert_eq!(under_entry, Trie::rem_actual(&mut trie));
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(under()));
                 assert_eq!(AcqRes::Ok(&above_entry), trie.acq(above()));
 
-                let res = trie.track(above(), false);
+                let res = trie.track(above(), TraStrain::NonRef);
                 if let TraRes::Ok(l) = res {
                     #[cfg(feature = "test-ext")]
                     assert_eq!('r', l.val);
@@ -1645,12 +1687,12 @@ mod tests_of_units {
         }
 
         mod track {
-            use crate::{TraRes, Trie};
+            use crate::{TraRes, TraStrain, Trie};
 
             #[test]
             fn zero_key() {
                 let mut trie = Trie::<usize>::new();
-                let res = trie.track("".chars(), false);
+                let res = trie.track("".chars(), TraStrain::NonRef);
                 assert_eq!(TraRes::ZeroLen, res);
             }
 
@@ -1662,7 +1704,7 @@ mod tests_of_units {
                 let mut trie = Trie::<usize>::new();
 
                 _ = trie.ins(key(), 100);
-                let res = trie.track(key(), true);
+                let res = trie.track(key(), TraStrain::TraRef);
 
                 if let TraRes::Ok(l) = res {
                     let l_val = l.val;
@@ -1685,7 +1727,7 @@ mod tests_of_units {
 
                 let mut trie = Trie::<usize>::new();
                 _ = trie.ins(key(), 999);
-                _ = trie.track(key(), true);
+                _ = trie.track(key(), TraStrain::TraRef);
 
                 let proof = key().collect::<Vec<char>>();
                 let tr = &trie.tr;
@@ -1707,7 +1749,7 @@ mod tests_of_units {
 
                 let mut trie = Trie::<usize>::new();
                 _ = trie.ins(key(), 444);
-                let res = trie.track(key(), false);
+                let res = trie.track(key(), TraStrain::NonRef);
 
                 match res {
                     TraRes::Ok(l) => assert_eq!(last, l.val),
@@ -1722,7 +1764,7 @@ mod tests_of_units {
 
                 let mut trie = Trie::new();
                 _ = trie.ins(key(), 500);
-                let res = trie.track(bad_key(), false);
+                let res = trie.track(bad_key(), TraStrain::NonRef);
                 assert_eq!(TraRes::UnknownForAbsentPath, res);
             }
 
@@ -1733,7 +1775,7 @@ mod tests_of_units {
 
                 let mut trie = Trie::new();
                 _ = trie.ins(key(), 777);
-                let res = trie.track(bad_key(), false);
+                let res = trie.track(bad_key(), TraStrain::NonRef);
                 assert_eq!(TraRes::UnknownForNotEntry, res);
             }
         }
