@@ -147,7 +147,7 @@ pub mod english_letters {
 }
 
 /// Key error enumeration.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum KeyErr {
     /// Zero key usage.
     ZeroLen,
@@ -272,7 +272,7 @@ impl<'a, T> InsRes<'a, T> {
 }
 
 /// Acquisition result enumeration.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AcqRes<'a, T> {
     /// Acquisition accomplished.
     Ok(&'a T),
@@ -293,7 +293,7 @@ impl<'a, T> AcqRes<'a, T> {
     pub const fn uproot(&self) -> &T {
         match self {
             AcqRes::Ok(t) => t,
-            _ => panic!("Not AcqRes::Ok(&T) variant."),
+            _ => panic!("Not AcqRes::Ok(_) variant."),
         }
     }
 
@@ -303,6 +303,44 @@ impl<'a, T> AcqRes<'a, T> {
     pub const unsafe fn uproot_unchecked(&self) -> &T {
         match self {
             AcqRes::Ok(t) => t,
+            // SAFETY: the safety contract must be upheld by the caller.
+            _ => unsafe { std::hint::unreachable_unchecked() },
+        }
+    }
+}
+
+/// Acquisition result enumeration.
+#[derive(Debug, PartialEq, Eq)]
+pub enum AcqMutRes<'a, T> {
+    /// Acquisition accomplished.
+    Ok(&'a mut T),
+    /// Key error.
+    Err(KeyErr),
+}
+
+impl<'a, T> AcqMutRes<'a, T> {
+    /// Returns `true` if `AcqMutRes::Ok(_)`, if not `false`.
+    pub const fn is_ok(&self) -> bool {
+        match self {
+            AcqMutRes::Ok(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Returns `&mut T` of `AcqMutRes::Ok(&mut T)` or _panics_ if not that variant.
+    pub const fn uproot(&mut self) -> &mut T {
+        match self {
+            AcqMutRes::Ok(t) => t,
+            _ => panic!("Not AcqMutRes::Ok(_) variant."),
+        }
+    }
+
+    /// Returns `&mut T` of `AcqMutRes::Ok(&mut T)` and does not _panic_ if not that variant (UB).
+    ///
+    /// Check with `std::hint::unreachable_unchecked` for more information.
+    pub const unsafe fn uproot_unchecked(&mut self) -> &mut T {
+        match self {
+            AcqMutRes::Ok(t) => t,
             // SAFETY: the safety contract must be upheld by the caller.
             _ => unsafe { std::hint::unreachable_unchecked() },
         }
@@ -378,8 +416,8 @@ mod tsdv {
 #[derive(Clone)]
 enum TraStrain {
     NonRef = tsdv::NON | tsdv::REF,
+    NonMut = tsdv::NON | tsdv::MUT,
     TraRef = tsdv::TRA | tsdv::REF,
-    TraMut = tsdv::TRA | tsdv::MUT,
 }
 
 impl TraStrain {
@@ -565,7 +603,7 @@ impl<T> Trie<T> {
         InsRes::Ok((curr, prev))
     }
 
-    /// Used to acquire entry of `key`.
+    /// Used to acquire reference to entry of `key`.
     pub fn acq(&self, key: impl Iterator<Item = char>) -> AcqRes<T> {
         let this = unsafe { self.as_mut() };
 
@@ -575,6 +613,17 @@ impl<T> Trie<T> {
                 AcqRes::Ok(unsafe { en.unwrap_unchecked() })
             }
             res => AcqRes::Err(res.key_err()),
+        }
+    }
+
+    /// Used to acquire mutable reference to entry of `key`.
+    pub fn acq_mut(&mut self, key: impl Iterator<Item = char>) -> AcqMutRes<T> {
+        match self.track(key, TraStrain::NonMut) {
+            TraRes::OkMut(l) => {
+                let en = l.en.as_mut();
+                AcqMutRes::Ok(unsafe { en.unwrap_unchecked() })
+            }
+            res => AcqMutRes::Err(res.key_err()),
         }
     }
 
@@ -677,7 +726,14 @@ impl<T> Trie<T> {
         }
 
         if letter.en() {
-            TraRes::Ok(letter)
+            if TraStrain::has(ts.clone(), tsdv::REF) {
+                TraRes::Ok(letter)
+            } else {
+                #[cfg(test)]
+                assert_eq!(true, TraStrain::has(ts, tsdv::MUT));
+
+                TraRes::OkMut(letter)
+            }
         } else {
             TraRes::UnknownForNotEntry
         }
@@ -1232,7 +1288,7 @@ mod tests_of_units {
         }
 
         #[test]
-        #[should_panic(expected = "Not AcqRes::Ok(&T) variant.")]
+        #[should_panic(expected = "Not AcqRes::Ok(_) variant.")]
         fn uproot_panic() {
             _ = AcqRes::<usize>::Err(KeyErr::ZeroLen).uproot()
         }
@@ -1243,6 +1299,37 @@ mod tests_of_units {
             let res = AcqRes::Ok(proof);
             let test = unsafe { res.uproot_unchecked() };
             assert_eq!(proof, test);
+        }
+    }
+
+    mod acq_mut_res {
+
+        use crate::{AcqMutRes, KeyErr};
+
+        #[test]
+        fn is_ok() {
+            assert_eq!(true, AcqMutRes::Ok(&mut 3).is_ok());
+            assert_eq!(false, AcqMutRes::<usize>::Err(KeyErr::ZeroLen).is_ok());
+        }
+
+        #[test]
+        fn uproot() {
+            let t = &mut 3;
+            assert_eq!(&mut 3, AcqMutRes::Ok(t).uproot());
+        }
+
+        #[test]
+        #[should_panic(expected = "Not AcqMutRes::Ok(_) variant.")]
+        fn uproot_panic() {
+            _ = AcqMutRes::<usize>::Err(KeyErr::ZeroLen).uproot()
+        }
+
+        #[test]
+        fn uproot_unchecked() {
+            let mref = &mut 3usize;
+            let mut res = AcqMutRes::Ok(mref);
+            let test = unsafe { res.uproot_unchecked() };
+            assert_eq!(&mut 3, test);
         }
     }
 
@@ -1311,8 +1398,8 @@ mod tests_of_units {
 
         #[test]
         fn has_has_not() {
-            for f in [tsdv::NON, tsdv::REF] {
-                assert_eq!(false, TraStrain::has(TraStrain::TraMut, f));
+            for f in [tsdv::NON, tsdv::MUT] {
+                assert_eq!(false, TraStrain::has(TraStrain::TraRef, f));
             }
         }
     }
@@ -1513,6 +1600,31 @@ mod tests_of_units {
                 let trie = Trie::<usize>::new();
                 let test = trie.acq("".chars());
                 let proof = AcqRes::Err(KeyErr::ZeroLen);
+                assert_eq!(proof, test);
+            }
+        }
+
+        mod acq_mut {
+            use crate::{AcqMutRes, KeyErr, Trie};
+
+            #[test]
+            fn known_unknown() {
+                let a = || "a".chars();
+                let b = || "b".chars();
+                let mut v = 10;
+
+                let mut trie = Trie::new();
+                _ = trie.ins(a(), v);
+
+                assert_eq!(AcqMutRes::Ok(&mut v), trie.acq_mut(a()));
+                assert_eq!(AcqMutRes::Err(KeyErr::Unknown), trie.acq_mut(b()));
+            }
+
+            #[test]
+            fn zero_key() {
+                let mut trie = Trie::<usize>::new();
+                let test = trie.acq_mut("".chars());
+                let proof = AcqMutRes::Err(KeyErr::ZeroLen);
                 assert_eq!(proof, test);
             }
         }
@@ -1742,7 +1854,6 @@ mod tests_of_units {
             }
 
             #[test]
-            #[cfg(feature = "test-ext")]
             fn ok() {
                 let key = || "wordbook".chars();
                 let last = 'k';
@@ -1754,6 +1865,21 @@ mod tests_of_units {
                 match res {
                     TraRes::Ok(l) => assert_eq!(last, l.val),
                     _ => panic!("TraRes::Ok(_) was expected, instead {:?}.", res),
+                }
+            }
+
+            #[test]
+            fn okmut() {
+                let key = || "wordbook".chars();
+                let last = 'k';
+
+                let mut trie = Trie::<usize>::new();
+                _ = trie.ins(key(), 444);
+                let res = trie.track(key(), TraStrain::NonMut);
+
+                match res {
+                    TraRes::OkMut(l) => assert_eq!(last, l.val),
+                    _ => panic!("TraRes::OkMut(_) was expected, instead {:?}.", res),
                 }
             }
 
