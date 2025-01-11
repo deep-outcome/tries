@@ -1,8 +1,9 @@
 - improve path generations (internal buffer)
 - replace rev with double-ended iterator approach!
 - trie performant key handling
-- extract all
+- extract + view
 - clear
+- acq mut
 
 - opts    
     ▪ reduce memory demands by raw pointers (fruitfull?)
