@@ -654,7 +654,10 @@ impl<T> Trie<T> {
     pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
         let res = match self.track(key, TraStrain::TraRef) {
             TraRes::Ok(_) => {
-                let en = Self::rem_actual(self);
+                let en = self.rem_actual(
+                    #[cfg(test)]
+                    &mut false,
+                );
                 RemRes::Ok(en)
             }
             res => RemRes::Err(res.key_err()),
@@ -664,7 +667,7 @@ impl<T> Trie<T> {
         res
     }
 
-    fn rem_actual(&mut self) -> T {
+    fn rem_actual(&mut self, #[cfg(test)] en_esc: &mut bool) -> T {
         let mut trace = self.tr.iter_mut().map(|x| unsafe { x.as_mut() }.unwrap());
         let entry = trace.next_back().unwrap();
 
@@ -691,6 +694,11 @@ impl<T> Trie<T> {
                 }
 
                 if l.en() {
+                    #[cfg(test)]
+                    {
+                        *en_esc = true;
+                    }
+
                     break;
                 }
             }
@@ -700,7 +708,7 @@ impl<T> Trie<T> {
     }
 
     // - c is count of `char`s iterated over
-    // - TC: Ω(c) when `tracing = true`, ϴ(s) otherwise
+    // - TC: Ω(c) when `tracing = true`, ϴ(c) otherwise
     // - SC: ϴ(c) when `tracing = true`, ϴ(0) otherwise
     fn track<'a>(
         &'a mut self,
@@ -1710,7 +1718,7 @@ mod tests_of_units {
 
                 _ = trie.track(key(), TraStrain::TraRef);
 
-                assert_eq!(entry, Trie::rem_actual(&mut trie));
+                assert_eq!(entry, trie.rem_actual(&mut false));
 
                 let a = &trie.rt[ix('a')];
                 assert_eq!(false, a.ab());
@@ -1736,7 +1744,8 @@ mod tests_of_units {
 
                 _ = trie.track(key_1(), TraStrain::TraRef);
 
-                assert_eq!(key_1_val, Trie::rem_actual(&mut trie));
+                assert_eq!(key_1_val, trie.rem_actual(&mut false));
+
                 assert!(trie.acq(key_2()).is_ok());
             }
 
@@ -1754,7 +1763,8 @@ mod tests_of_units {
 
                 _ = trie.track(inner(), TraStrain::TraRef);
 
-                assert_eq!(inner_entry, Trie::rem_actual(&mut trie));
+                assert_eq!(inner_entry, trie.rem_actual(&mut false));
+
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(inner()));
                 assert_eq!(AcqRes::Ok(&outer_entry), trie.acq(outer()));
             }
@@ -1773,7 +1783,10 @@ mod tests_of_units {
 
                 _ = trie.track(test(), TraStrain::TraRef);
 
-                assert_eq!(test_entry, Trie::rem_actual(&mut trie));
+                let mut en_esc = false;
+                assert_eq!(test_entry, trie.rem_actual(&mut en_esc));
+                assert_eq!(false, en_esc);
+
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(test()));
                 assert_eq!(AcqRes::Ok(&peer_entry), trie.acq(peer()));
             }
@@ -1792,12 +1805,14 @@ mod tests_of_units {
 
                 _ = trie.track(test(), TraStrain::TraRef);
 
-                assert_eq!(test_entry, Trie::rem_actual(&mut trie));
+                let mut en_esc = false;
+                assert_eq!(test_entry, trie.rem_actual(&mut en_esc));
+                assert_eq!(false, en_esc);
+
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(test()));
                 assert_eq!(AcqRes::Ok(&peer_entry), trie.acq(peer()));
             }
 
-            // indemonstrable, shortcut would be "executed" anyway in next iteration
             #[test]
             fn entry_under_entry() {
                 let mut trie = Trie::new();
@@ -1812,7 +1827,10 @@ mod tests_of_units {
 
                 _ = trie.track(under(), TraStrain::TraRef);
 
-                assert_eq!(under_entry, Trie::rem_actual(&mut trie));
+                let mut en_esc = false;
+                assert_eq!(under_entry, trie.rem_actual(&mut en_esc));
+                assert_eq!(true, en_esc);
+
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(under()));
                 assert_eq!(AcqRes::Ok(&above_entry), trie.acq(above()));
 
@@ -1883,6 +1901,7 @@ mod tests_of_units {
             }
 
             #[test]
+            #[cfg(feature = "test-ext")]
             fn ok() {
                 let key = || "wordbook".chars();
                 let last = 'k';
@@ -1898,6 +1917,7 @@ mod tests_of_units {
             }
 
             #[test]
+            #[cfg(feature = "test-ext")]
             fn okmut() {
                 let key = || "wordbook".chars();
                 let last = 'k';
@@ -2034,3 +2054,4 @@ mod tests_of_units {
 }
 
 // cargo test --features test-ext --release
+// cargo test --release
