@@ -95,11 +95,11 @@ impl<T> Trie<T> {
             return Ok(());
         }
 
-        let mut path_rev = path.iter().rev();
-        _ = path_rev.next();
+        let mut path = path.iter();
+        _ = path.next_back();
 
         let mut subnode_key = entry_pn.0;
-        while let Some((c, n)) = path_rev.next() {
+        while let Some((c, n)) = path.next_back() {
             let n_mut = unsafe { as_mut(*n) }; // Sounds.
 
             let n_links = n_mut.links.as_mut().unwrap();
@@ -574,3 +574,5 @@ mod tests_of_units {
         }
     }
 }
+
+// cargo test --release
