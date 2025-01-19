@@ -715,16 +715,17 @@ mod tests_of_units {
 
         #[test]
         fn test() {
-            let mut trie = Trie::new();
+            let mut trie = Trie::<char>::new();
 
-            let keyword = Key("Keyword");
-            trie.insert(0usize, &keyword);
+            let some = Key("información meteorológica");
+            trie.insert('🌩', &some);
 
-            let key = Key("Key");
-            trie.insert(0usize, &key);
+            let one_more = Key("alimentación RSS");
+            trie.insert('😋', &one_more);
 
-            assert!(trie.delete(&key).is_ok());
-            assert!(trie.member(&key).is_none());
+            assert!(trie.delete(&one_more).is_ok());
+            assert!(trie.member(&one_more).is_none());
+            assert_eq!(Some(&'🌩'), trie.member(&some));
         }
     }
 }
