@@ -9,3 +9,4 @@
     ▪ reduce memory demands by raw pointers (fruitfull?)
     ▪ pseudo-root for all
     ▪ keys and values methods for tries
+    ▪ view_mut methods
