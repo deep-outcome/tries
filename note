@@ -1,6 +1,6 @@
 - improve path generations (internal buffer)
 - replace rev with double-ended iterator approach!
-- trie performant key handling
+- iterator key
 - extract + view
 - clear
 - acq mut
