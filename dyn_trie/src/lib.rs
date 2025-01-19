@@ -1,33 +1,23 @@
+//! Dynamic trie in contrast to classic trie does not have fixed size alphabet associated with node.
+//!
+//! Each node has dynamic alphabet of size as to satisfy exactly associated branches.
+
 use std::collections::hash_map::HashMap;
 
 type Links<T> = HashMap<char, Node<T>>;
-type Path<'a, T> = Vec<PathNode<'a, T>>;
-type PathNode<'a, T> = (char, &'a Node<T>);
-
-fn entry_path_node<'a, T>(path: &Path<'a, T>, key: &Key) -> Option<PathNode<'a, T>> {
-    let key_len = key.1;
-    if path.len() < key_len + 1 {
-        None
-    } else {
-        let epn = path[key_len];
-        if epn.1.entry() {
-            Some(epn)
-        } else {
-            None
-        }
-    }
-}
 
 /// Retrieval tree implementation allowing for mapping any `T` to any string.
 ///
-/// Every node is `char` as defined by Rust lang and uses `std::collections::HashMap`
+/// Every node occurs per `char` as defined by Rust lang and uses `std::collections::HashMap`
 /// to linking subnodes. Thus all methods complexity is respective to hashmap methods complexity.
 pub struct Trie<T> {
     root: Node<T>,
+    // backtrace buff
+    btr: Vec<(char, *mut Node<T>)>,
 }
 
 /// Key validated for usage with `Trie`.
-pub struct Key<'a>(&'a str, usize);
+pub struct Key<'a>(&'a str);
 
 impl<'a> Key<'a> {
     /// `None` for 0-len `key`.
@@ -35,8 +25,7 @@ impl<'a> Key<'a> {
         if key.len() == 0 {
             None
         } else {
-            let len = key.chars().count();
-            Some(Self(key, len))
+            Some(Self(key))
         }
     }
 }
@@ -56,6 +45,7 @@ impl<T> Trie<T> {
     pub fn new() -> Trie<T> {
         Trie {
             root: Node::<T>::empty(),
+            btr: Vec::new(),
         }
     }
 
@@ -69,87 +59,180 @@ impl<T> Trie<T> {
         node.entry = Some(entry);
     }
 
-    /// `None` for unknown key.
-    pub fn member(&self, key: &Key) -> Option<&T> {
-        let path = self.path(key);
-        let epn = entry_path_node(&path, key);
+    /// `None` for unknown/zero-length key.
+    pub fn member(&self, key: &Key) -> Option<&T> {        
+        let this = unsafe { self.as_mut() };        
+        let res = this.track(key, false);
 
-        if let Some(epn) = epn {
-            epn.1.entry.as_ref()
+        if let TraRes::Ok(en) = res {
+            en.entry.as_ref()
         } else {
             None
         }
     }
 
-    /// `Err` for unknown key.
+    unsafe fn as_mut(&self) -> &mut Self {
+        let ptr: *const Self = self;
+        ptr.cast_mut().as_mut().unwrap()
+    }
+
+    /// `Err` for unknown/zero-length key.
     pub fn delete(&mut self, key: &Key) -> Result<(), ()> {
-        let path = self.path(key);
-        let entry_pn = match entry_path_node(&path, key) {
-            Some(epn) => epn,
-            _ => return Err(()),
+        let tra_res = self.track(key, true);
+        let res = if let TraRes::Ok(_) = tra_res {
+            self.delete_actual(
+                #[cfg(test)]
+                &mut 0,
+            );
+            Result::Ok(())
+        } else {
+            Result::Err(())
         };
 
-        let entry_n = entry_pn.1;
-        if entry_n.links() {
-            unsafe { as_mut(entry_n) }.entry = None; // Sounds.
-            return Ok(());
-        }
+        self.btr.clear();
+        res
+    }
 
-        let mut path = path.iter();
-        _ = path.next_back();
+    fn delete_actual(&mut self, #[cfg(test)] esc_code: &mut usize) {
+        let mut trace = self.btr.iter();
+        let en_duo = trace.next_back().unwrap();
+        let mut node = unsafe { en_duo.1.as_mut() }.unwrap();
 
-        let mut subnode_key = entry_pn.0;
-        while let Some((c, n)) = path.next_back() {
-            let n_mut = unsafe { as_mut(*n) }; // Sounds.
+        if node.links() {
+            node.entry = None;
 
-            let n_links = n_mut.links.as_mut().unwrap();
-            _ = n_links.remove(&subnode_key);
-
-            let c = *c;
-            if n_links.len() == 0 {
-                n_mut.links = None;
-            } else {
-                return Ok(());
+            #[cfg(test)]
+            {
+                *esc_code = 1;
             }
 
-            if n.entry() {
-                return Ok(());
-            }
-
-            subnode_key = c;
+            return;
         }
 
-        return Ok(());
+        // subnode key
+        let mut sn_key = en_duo.0;
+        while let Some((c, n)) = trace.next_back() {
+            node = unsafe { n.as_mut() }.unwrap();
+            let links = node.links.as_mut().unwrap();
+            _ = links.remove(&sn_key);
+            
+            if links.len() > 0 {
+                #[cfg(test)]
+                {
+                    *esc_code = 2;
+                }
 
-        unsafe fn as_mut<T>(node: &Node<T>) -> &mut Node<T> {
-            let ptr: *const Node<T> = node;
-            let mut_ptr: *mut Node<T> = std::mem::transmute(ptr);
-            mut_ptr.as_mut().unwrap()
+                return;
+            }
+
+            if node.entry() {
+                #[cfg(test)]
+                {
+                    *esc_code = 3;
+                }
+
+                break;
+            }
+
+            sn_key = *c;
+        }
+
+        node.links = None;
+        #[cfg(test)]
+        {
+            if *esc_code != 3 {
+                *esc_code = 4;
+            }
         }
     }
 
-    fn path(&self, key: &Key) -> Vec<PathNode<'_, T>> {
-        let root = &self.root;
-        let mut links = root.links.as_ref();
+    // - c is count of `char`s iterated over
+    // - TC: Ω(c) when `tracing = true`, ϴ(c) otherwise
+    // - SC: ϴ(c) when `tracing = true`, ϴ(0) otherwise
+    fn track<'a>(&'a mut self, key: &Key, tracing: bool) -> TraRes<'a, T> {
+        
+        let mut node = &mut self.root;
+        let tr = &mut self.btr;
 
-        let mut path = Vec::with_capacity(key.1 + 1);
-        path.push((NULL, root));
+        if tracing {
+            tr.push((NULL, node));
+        }
 
         for c in key.chars() {
-            if let Some(l) = links {
-                if let Some(node) = l.get(&c) {
-                    path.push((c, node));
-                    links = node.links.as_ref();
+            if let Some(l) = node.links.as_mut() {
+                if let Some(n) = l.get_mut(&c) {
+                    if tracing {
+                        tr.push((c, n));
+                    }
+
+                    node = n;
 
                     continue;
                 }
             }
 
-            break;
+            return TraRes::UnknownForAbsentPath;
         }
 
-        path
+        if node.entry() {
+            TraRes::Ok(node)
+        } else {
+            TraRes::UnknownForNotEntry
+        }
     }
+
+    /// `Trie` uses internal buffer, to avoid excessive allocations and copying, which grows
+    /// over time due backtracing in `delete` method which backtraces whole path from entry
+    /// node to root node.
+    ///
+    /// Use this method to shrink or extend it to fit actual program needs. Neither shrinking nor extending
+    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal `delete` performance, set `approx_cap` to, at least, key length.
+    ///
+    /// Some high value is sufficient anyway. Since buffer continuous
+    /// usage, its capacity will likely expand at some point in time to size sufficient to all keys.
+    ///
+    /// Return value is actual buffer capacity.
+    ///
+    /// **Note:** While `String` is UTF8 encoded, its byte length does not have to equal its `char` count
+    /// which is either equal or lesser.
+    /// ```
+    /// let star = "⭐";
+    /// assert_eq!(3, star.len());
+    /// assert_eq!(1, star.chars().count());
+    ///
+    /// let yes = "sí";
+    /// assert_eq!(3, yes.len());
+    /// assert_eq!(2, yes.chars().nth(1).unwrap().len_utf8());
+    ///
+    /// let abc = "abc";
+    /// assert_eq!(3, abc.len());
+    /// ```
+    pub fn put_trace_cap(&mut self, approx_cap: usize) -> usize {
+        let tr = &mut self.btr;
+        let cp = tr.capacity();
+
+        if cp < approx_cap {
+            tr.reserve(approx_cap);
+        } else if cp > approx_cap {
+            *tr = Vec::with_capacity(approx_cap);
+        }
+
+        tr.capacity()
+    }
+
+    /// Return value is internal backtracing buffer capacity.
+    ///
+    /// Check with `fn put_trace_cap` for details.
+    pub fn acq_trace_cap(&self) -> usize {
+        self.btr.capacity()
+    }
+}
+
+#[cfg_attr(test, derive(PartialEq, Debug))]
+enum TraRes<'a, T> {
+    Ok(&'a Node<T>),    
+    UnknownForNotEntry,
+    UnknownForAbsentPath,
 }
 
 #[cfg_attr(test, derive(PartialEq, Clone))]

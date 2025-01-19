@@ -2,7 +2,7 @@
 
 Dynamic trie is trie that allows mapping of any T to any string with asymptotical computational complexity based on that of `std::collections::HashMap`.
 
-Node occurs for each `char` as defined by Rust language.
+Node occurs for each `char` in string as defined by Rust language.
 
 ```rust
 let mut trie = Trie::new();
