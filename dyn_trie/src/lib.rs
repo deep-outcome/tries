@@ -572,7 +572,7 @@ mod tests_of_units {
 
             #[test]
             fn ok() {
-                let key = Key("wordbook");
+                let key = Key("información meteorológica");
                 let entry = 444;
 
                 let mut trie = Trie::<usize>::new();
