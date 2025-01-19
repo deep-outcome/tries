@@ -8,7 +8,7 @@ type Links<T> = HashMap<char, Node<T>>;
 
 /// Retrieval tree implementation allowing for mapping any `T` to any string.
 ///
-/// Every node occurs per `char` as defined by Rust lang and uses `std::collections::HashMap`
+/// Node occurs per every `char` as defined by Rust lang and uses `std::collections::HashMap`
 /// to linking subnodes. Thus all methods complexity is respective to hashmap methods complexity.
 pub struct Trie<T> {
     root: Node<T>,
@@ -49,6 +49,7 @@ impl<T> Trie<T> {
         }
     }
 
+    /// Inserts entry into tree.
     pub fn insert(&mut self, entry: T, key: &Key) {
         let mut node = &mut self.root;
         for c in key.chars() {
@@ -60,6 +61,8 @@ impl<T> Trie<T> {
     }
 
     /// `None` for unknown key.
+    ///
+    /// Return value is optional view onto entry in tree.
     pub fn member(&self, key: &Key) -> Option<&T> {
         let this = unsafe { self.as_mut() };
         let res = this.track(key, false);
