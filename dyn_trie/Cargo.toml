@@ -1,10 +1,10 @@
 [package]
 name = "dyn_trie"
-version = "1.1.1"
+version = "2.0.0"
 edition = "2021"
 keywords = [ "digital-tree", "prefix-tree", "trie", "retrieval-tree" ]
 authors = [ "software9119.technology" ]
-description = "Dynamic trie is trie capable of mapping any T to any string."
+description = "Dynamic trie is trie capable of mapping any T to any char iterator."
 repository = "https://github.com/deep-outcome/tries/tree/main/dyn_trie"
 license = "MIT"
 categories = [ "data-structures" ]
