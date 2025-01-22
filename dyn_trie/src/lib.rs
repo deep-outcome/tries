@@ -4,6 +4,9 @@
 
 use std::collections::hash_map::HashMap;
 
+mod res;
+pub use res::{AcqMutRes, AcqRes, InsRes, KeyErr, RemRes};
+
 type Links<T> = HashMap<char, Node<T>>;
 
 /// Retrieval tree implementation allowing for mapping any `T` to any `impl Iterator<Item = char>` type.
@@ -27,14 +30,25 @@ impl<T> Trie<T> {
     }
 
     /// Inserts entry into tree.
-    pub fn insert(&mut self, entry: T, mut key: impl Iterator<Item = char>) {
-        let mut node = &mut self.root;
-        while let Some(c) = key.next() {
-            let links = node.links.get_or_insert_with(|| Links::new());
-            node = links.entry(c).or_insert(Node::<T>::empty());
+    pub fn insert(&mut self, entry: T, mut key: impl Iterator<Item = char>) -> InsRes<T> {
+        let mut next = key.next();
+
+        if next.is_none() {
+            return InsRes::Err(KeyErr::ZeroLen);
         }
 
-        node.entry = Some(entry);
+        let mut node = &mut self.root;
+        while let Some(c) = next {
+            let links = node.links.get_or_insert_with(|| Links::new());
+            node = links.entry(c).or_insert(Node::<T>::empty());
+
+            next = key.next();
+        }
+
+        let en = &mut node.entry;
+        let prev = en.replace(entry);
+        let curr = en.as_mut().unwrap();
+        InsRes::Ok((curr, prev))
     }
 
     /// `None` for unknown key.
@@ -278,36 +292,42 @@ mod tests_of_units {
         }
 
         mod insert {
-            use crate::Trie;
+            use crate::{InsRes, KeyErr, Trie};
+
+            #[test]
+            fn zero_length_key() {
+                let mut trie = Trie::new();
+                let proof = InsRes::Err(KeyErr::ZeroLen);
+                let test = trie.insert(0usize, "".chars());
+                assert_eq!(proof, test);
+            }
 
             #[test]
             fn basic_test() {
                 const KEY: &str = "touchstone";
 
                 let mut trie = Trie::new();
-                trie.insert(3usize, KEY.chars());
+                let res = trie.insert(3usize, KEY.chars());
+                assert_eq!(InsRes::Ok((&mut 3, None)), res);
+
+                let links = &trie.root.links.as_ref();
+                assert_eq!(true, links.is_some());
+                let mut links = links.unwrap();
 
                 let last_node_ix = KEY.len() - 1;
-
-                let mut links = trie.root.links.as_ref().unwrap();
-
                 for (ix, c) in KEY.chars().enumerate() {
                     let node = &links.get(&c);
 
                     assert!(node.is_some());
                     let node = node.unwrap();
 
-                    if ix < last_node_ix {
-                        let temp = &node.links;
-                        assert!(!node.entry());
-                        assert!(temp.is_some());
-                        links = temp.as_ref().unwrap();
+                    if ix == last_node_ix {
+                        assert_eq!(false, node.links());
+                        assert_eq!(Some(3), node.entry);
                     } else {
-                        assert!(!node.links());
-
-                        let entry = node.entry;
-                        assert!(entry.is_some());
-                        assert_eq!(3usize, entry.unwrap());
+                        assert_eq!(false, node.entry());
+                        assert_eq!(true, node.links());
+                        links = node.links.as_ref().unwrap();
                     }
                 }
             }
@@ -316,13 +336,69 @@ mod tests_of_units {
             fn existing_path_insert() {
                 let existing = || "touchstone".chars();
                 let new = || "touch".chars();
+                let mut exi_val = 3;
+                let mut new_val = 4;
+
+                let mut trie = Trie::<usize>::new();
+
+                let res = trie.insert(exi_val, existing());
+                assert_eq!(InsRes::Ok((&mut exi_val, None)), res);
+
+                let res = trie.insert(new_val, new());
+                assert_eq!(InsRes::Ok((&mut new_val, None)), res);
+
+                assert_eq!(Some(&exi_val), trie.member(existing()));
+                assert_eq!(Some(&new_val), trie.member(new()));
+            }
+
+            #[test]
+            fn singular_key() {
+                let mut entry = 3;
 
                 let mut trie = Trie::new();
-                trie.insert(3usize, existing());
-                trie.insert(4usize, new());
+                let res = trie.insert(entry, "a".chars());
+                assert_eq!(InsRes::Ok((&mut entry, None)), res);
 
-                assert!(trie.member(existing()).is_some());
-                assert!(trie.member(new()).is_some());
+                let links = trie.root.links;
+                assert_eq!(true, links.is_some());
+                let links = links.unwrap();
+                let node = links.get(&'a');
+                assert_eq!(true, node.is_some());
+                assert_eq!(Some(entry), node.unwrap().entry);
+            }
+
+            #[test]
+            fn double_insert() {
+                let key = "appealing delicacy";
+                let keyer = || key.chars();
+                let mut entry_1 = 10;
+                let mut entry_2 = 20;
+
+                let mut trie = Trie::new();
+                let res = trie.insert(entry_1, keyer());
+                assert_eq!(InsRes::Ok((&mut entry_1, None)), res);
+
+                let res = trie.insert(entry_2, keyer());
+                assert_eq!(InsRes::Ok((&mut entry_2, Some(entry_1))), res);
+
+                let links = &trie.root.links.as_ref();
+                assert_eq!(true, links.is_some());
+                let mut links = links.unwrap();
+
+                let last_ix = key.len() - 1;
+                for (ix, c) in keyer().enumerate() {
+                    let node = links.get(&c);
+                    assert_eq!(true, node.is_some());
+                    let node = node.unwrap();
+
+                    if ix == last_ix {
+                        assert_eq!(false, node.links());
+                        assert_eq!(Some(entry_2), node.entry)
+                    } else {
+                        assert_eq!(true, node.links());
+                        links = node.links.as_ref().unwrap();
+                    }
+                }
             }
         }
 
