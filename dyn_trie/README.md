@@ -8,12 +8,12 @@ Node occurs for each `char` as defined by Rust language.
 let mut trie = Trie::<char>::new();
 
 let some = "información meteorológica".chars();
-trie.insert('🌩', some.clone());
+trie.ins('🌩', some.clone());
 
 let one_more = "alimentación RSS".chars();
-trie.insert('😋', one_more.clone());
+trie.ins('😋', one_more.clone());
 
-assert!(trie.delete(one_more.clone()).is_ok());
-assert!(trie.member(one_more.clone()).is_none());
-assert_eq!(Some(&'🌩'), trie.member(some.clone()));
+assert!(trie.rem(one_more.clone()).is_ok());
+assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(one_more.clone()));
+assert_eq!(AcqRes::Ok(&'🌩'), trie.acq(some.clone()));
 ```
