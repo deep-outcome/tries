@@ -29,7 +29,10 @@ impl<T> Trie<T> {
         }
     }
 
-    /// Inserts entry into tree.
+    /// Return value is `InsRes::Ok((&mut T, Option<T>))` when operation accomplished. It holds previous
+    /// entry, if there was some.
+    ///
+    /// Only invalid key recognized is zero-length key.
     pub fn ins(&mut self, entry: T, mut key: impl Iterator<Item = char>) -> InsRes<T> {
         let mut next = key.next();
 
@@ -51,17 +54,16 @@ impl<T> Trie<T> {
         InsRes::Ok((curr, prev))
     }
 
-    /// `None` for unknown key.
-    ///
-    /// Return value is optional view onto entry in tree.
-    pub fn member(&self, key: impl Iterator<Item = char>) -> Option<&T> {
+    /// Acquires reference to entry associted to `key`.
+    pub fn acq(&self, key: impl Iterator<Item = char>) -> AcqRes<T> {
         let this = unsafe { self.as_mut() };
         let res = this.track(key, false);
 
         if let TraRes::Ok(en) = res {
-            en.entry.as_ref()
+            let en = en.entry.as_ref();
+            AcqRes::Ok(unsafe { en.unwrap_unchecked() })
         } else {
-            None
+            AcqRes::Err(res.key_err())
         }
     }
 
@@ -148,6 +150,12 @@ impl<T> Trie<T> {
         mut key: impl Iterator<Item = char>,
         tracing: bool,
     ) -> TraRes<'a, T> {
+        let mut next = key.next();
+
+        if next.is_none() {
+            return TraRes::ZeroLenKey;
+        }
+
         let mut node = &mut self.root;
         let tr = &mut self.btr;
 
@@ -155,7 +163,9 @@ impl<T> Trie<T> {
             tr.push((NULL, node));
         }
 
-        while let Some(c) = key.next() {
+        while let Some(c) = next {
+            next = key.next();
+
             if let Some(l) = node.links.as_mut() {
                 if let Some(n) = l.get_mut(&c) {
                     if tracing {
@@ -228,9 +238,22 @@ impl<T> Trie<T> {
 #[cfg_attr(test, derive(PartialEq, Debug))]
 enum TraRes<'a, T> {
     Ok(&'a Node<T>),
+    ZeroLenKey,
     UnknownForNotEntry,
     UnknownForAbsentPathLinks,
     UnknownForAbsentPathNode,
+}
+
+impl<'a, T> TraRes<'a, T> {
+    fn key_err(&self) -> KeyErr {
+        match self {
+            TraRes::ZeroLenKey => KeyErr::ZeroLen,
+            TraRes::UnknownForNotEntry
+            | TraRes::UnknownForAbsentPathLinks
+            | TraRes::UnknownForAbsentPathNode => KeyErr::Unknown,
+            _ => panic!("Unsupported arm match."),
+        }
+    }
 }
 
 #[cfg_attr(test, derive(PartialEq, Clone))]
@@ -292,7 +315,7 @@ mod tests_of_units {
         }
 
         mod ins {
-            use crate::{InsRes, KeyErr, Trie};
+            use crate::{AcqRes, InsRes, KeyErr, Trie};
 
             #[test]
             fn zero_length_key() {
@@ -347,8 +370,8 @@ mod tests_of_units {
                 let res = trie.ins(new_val, new());
                 assert_eq!(InsRes::Ok((&mut new_val, None)), res);
 
-                assert_eq!(Some(&exi_val), trie.member(existing()));
-                assert_eq!(Some(&new_val), trie.member(new()));
+                assert_eq!(AcqRes::Ok(&exi_val), trie.acq(existing()));
+                assert_eq!(AcqRes::Ok(&new_val), trie.acq(new()));
             }
 
             #[test]
@@ -402,9 +425,9 @@ mod tests_of_units {
             }
         }
 
-        mod member {
+        mod acq {
 
-            use crate::Trie;
+            use crate::{AcqRes, KeyErr, Trie};
 
             #[test]
             fn member() {
@@ -412,9 +435,8 @@ mod tests_of_units {
                 let mut trie = Trie::new();
                 trie.ins(27usize, key());
 
-                let member = trie.member(key());
-                assert!(member.is_some());
-                assert_eq!(27, *member.unwrap());
+                let res = trie.acq(key());
+                assert_eq!(AcqRes::Ok(&27), res);
             }
 
             #[test]
@@ -424,9 +446,16 @@ mod tests_of_units {
                 trie.ins(0usize, key.chars());
 
                 for key in ["Key", "Opener"] {
-                    let member = trie.member(key.chars());
-                    assert!(member.is_none());
+                    let res = trie.acq(key.chars());
+                    assert_eq!(AcqRes::Err(KeyErr::Unknown), res);
                 }
+            }
+
+            #[test]
+            fn zero_length_key() {
+                let trie = Trie::<usize>::new();
+                let res = trie.acq("".chars());
+                assert_eq!(AcqRes::Err(KeyErr::ZeroLen), res);
             }
         }
 
@@ -439,7 +468,7 @@ mod tests_of_units {
         }
 
         mod delete {
-            use crate::Trie;
+            use crate::{AcqRes, KeyErr, Trie};
 
             #[test]
             fn known_unknown() {
@@ -453,7 +482,7 @@ mod tests_of_units {
 
                 assert_eq!(Result::Ok(()), trie.delete(known()));
                 assert_eq!(0, trie.btr.len());
-                assert_eq!(None, trie.member(known()));
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(known()));
 
                 assert_eq!(Result::Err(()), trie.delete(unknown()));
                 assert_eq!(0, trie.btr.len());
@@ -465,7 +494,7 @@ mod tests_of_units {
         // path to another entry where path len varies 0…m
         mod delete_actual {
 
-            use crate::Trie;
+            use crate::{AcqRes, KeyErr, Trie};
 
             #[test]
             fn basic_test() {
@@ -476,8 +505,8 @@ mod tests_of_units {
                 _ = trie.ins(entry, key());
                 _ = trie.track(key(), true);
 
-                _ = trie.delete_actual(&mut 0);
-                assert_eq!(None, trie.member(key()));
+                trie.delete_actual(&mut 0);
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
             }
 
             #[test]
@@ -492,11 +521,11 @@ mod tests_of_units {
 
                 let mut esc_code = 0;
                 _ = trie.track(inner(), true);
-                _ = trie.delete_actual(&mut esc_code);
+                trie.delete_actual(&mut esc_code);
                 assert_eq!(1, esc_code);
 
-                assert_eq!(None, trie.member(inner()));
-                assert!(trie.member(outer()).is_some());
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(inner()));
+                assert_eq!(true, trie.acq(outer()).is_ok());
             }
 
             #[test]
@@ -507,10 +536,10 @@ mod tests_of_units {
 
                 let mut esc_code = 0;
                 _ = trie.track(key(), true);
-                _ = trie.delete_actual(&mut esc_code);
+                trie.delete_actual(&mut esc_code);
                 assert_eq!(4, esc_code);
 
-                assert_eq!(None, trie.member(key()));
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
                 assert_eq!(None, trie.root.links);
             }
 
@@ -525,11 +554,11 @@ mod tests_of_units {
 
                 let mut esc_code = 0;
                 _ = trie.track(keyword(), true);
-                _ = trie.delete_actual(&mut esc_code);
+                trie.delete_actual(&mut esc_code);
                 assert_eq!(2, esc_code);
 
-                assert_eq!(None, trie.member(keyword()));
-                assert!(trie.member(dissimilar()).is_some());
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(keyword()));
+                assert_eq!(true, trie.acq(dissimilar()).is_ok());
             }
 
             #[test]
@@ -542,11 +571,11 @@ mod tests_of_units {
 
                 let mut esc_code = 0;
                 _ = trie.track(under(), true);
-                _ = trie.delete_actual(&mut esc_code);
+                trie.delete_actual(&mut esc_code);
                 assert_eq!(3, esc_code);
 
-                assert_eq!(None, trie.member(under()));
-                assert!(trie.member(above()).is_some());
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(under()));
+                assert_eq!(true, trie.acq(above()).is_ok());
 
                 _ = trie.track(above(), true);
                 let btr = &trie.btr;
@@ -607,6 +636,13 @@ mod tests_of_units {
                     TraRes::Ok(l) => assert_eq!(Some(entry), l.entry),
                     _ => panic!("`Not TraRes::Ok(_)`, but {:?}.", res),
                 }
+            }
+
+            #[test]
+            fn zero_length_key() {
+                let mut trie = Trie::<usize>::new();
+                let res = trie.track("".chars(), false);
+                assert_eq!(TraRes::ZeroLenKey, res);
             }
 
             #[test]
@@ -703,6 +739,31 @@ mod tests_of_units {
         }
     }
 
+    mod tra_res {
+        use crate::{KeyErr, Node, TraRes};
+
+        #[test]
+        fn key_err_supported() {
+            assert_eq!(KeyErr::ZeroLen, TraRes::<u8>::ZeroLenKey.key_err());
+            assert_eq!(KeyErr::Unknown, TraRes::<u8>::UnknownForNotEntry.key_err());
+            assert_eq!(
+                KeyErr::Unknown,
+                TraRes::<u8>::UnknownForAbsentPathLinks.key_err()
+            );
+            assert_eq!(
+                KeyErr::Unknown,
+                TraRes::<u8>::UnknownForAbsentPathNode.key_err()
+            );
+        }
+
+        #[test]
+        #[should_panic(expected = "Unsupported arm match.")]
+        fn key_err_unsupported() {
+            let mut n = Node::<usize>::empty();
+            _ = TraRes::Ok(&mut n).key_err()
+        }
+    }
+
     mod node {
 
         use crate::{Links, Node};
@@ -735,7 +796,7 @@ mod tests_of_units {
     }
 
     mod readme {
-        use crate::Trie;
+        use crate::{AcqRes, KeyErr, Trie};
 
         #[test]
         fn test() {
@@ -748,8 +809,8 @@ mod tests_of_units {
             trie.ins('😋', one_more.clone());
 
             assert!(trie.delete(one_more.clone()).is_ok());
-            assert!(trie.member(one_more.clone()).is_none());
-            assert_eq!(Some(&'🌩'), trie.member(some.clone()));
+            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(one_more.clone()));
+            assert_eq!(AcqRes::Ok(&'🌩'), trie.acq(some.clone()));
         }
     }
 }
