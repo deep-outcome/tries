@@ -4,9 +4,13 @@
 - extract + view
 - clear
 - acq mut
+- readme samples in unit tests
 
 - opts    
     ▪ reduce memory demands by raw pointers (fruitfull?)
     ▪ pseudo-root for all
     ▪ keys and values methods for tries
     ▪ view_mut methods
+
+- reckoning
+    ▪ crate with traits implemented by tries

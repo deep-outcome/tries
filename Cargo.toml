@@ -4,5 +4,5 @@ resolver = "2"
 members = [
   "trie",
   "dyn_trie",
-  "lr_trie"
-]
+  "lr_trie",
+  "res"]
