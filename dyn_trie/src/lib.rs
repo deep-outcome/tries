@@ -75,36 +75,35 @@ impl<T> Trie<T> {
     /// Removes key-entry duo from tree.
     ///
     /// Check with `put_trace_cap` also.
-    pub fn rem(&mut self, key: impl Iterator<Item = char>) -> Result<(), ()> {
+    pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
         let tra_res = self.track(key, true);
         let res = if let TraRes::Ok(_) = tra_res {
-            self.rem_actual(
+            let en = self.rem_actual(
                 #[cfg(test)]
                 &mut 0,
             );
-            Result::Ok(())
+            RemRes::Ok(en)
         } else {
-            Result::Err(())
+            RemRes::Err(tra_res.key_err())
         };
 
         self.btr.clear();
         res
     }
 
-    fn rem_actual(&mut self, #[cfg(test)] esc_code: &mut usize) {
+    fn rem_actual(&mut self, #[cfg(test)] esc_code: &mut usize) -> T {
         let mut trace = self.btr.iter();
         let en_duo = trace.next_back().unwrap();
         let mut node = unsafe { en_duo.1.as_mut() }.unwrap();
 
+        let entry = node.entry.take().unwrap();
         if node.links() {
-            node.entry = None;
-
             #[cfg(test)]
             {
                 *esc_code = 1;
             }
 
-            return;
+            return entry;
         }
 
         // subnode key
@@ -120,7 +119,7 @@ impl<T> Trie<T> {
                     *esc_code = 2;
                 }
 
-                return;
+                return entry;
             }
 
             if node.entry() {
@@ -142,6 +141,8 @@ impl<T> Trie<T> {
                 *esc_code = 4;
             }
         }
+
+        entry
     }
 
     // - c is count of `char`s iterated over
@@ -470,7 +471,7 @@ mod tests_of_units {
         }
 
         mod rem {
-            use crate::{AcqRes, KeyErr, Trie};
+            use crate::{AcqRes, KeyErr, RemRes, Trie};
 
             #[test]
             fn known_unknown() {
@@ -482,12 +483,19 @@ mod tests_of_units {
                 let known_entry = 13;
                 _ = trie.ins(known_entry, known());
 
-                assert_eq!(Result::Ok(()), trie.rem(known()));
+                assert_eq!(RemRes::Ok(known_entry), trie.rem(known()));
                 assert_eq!(0, trie.btr.len());
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(known()));
 
-                assert_eq!(Result::Err(()), trie.rem(unknown()));
+                assert_eq!(RemRes::Err(KeyErr::Unknown), trie.rem(unknown()));
                 assert_eq!(0, trie.btr.len());
+            }
+
+            #[test]
+            fn zero_length_key() {
+                let mut trie = Trie::<usize>::new();
+                let res = trie.rem("".chars());
+                assert_eq!(RemRes::Err(KeyErr::ZeroLen), res);
             }
         }
 
@@ -507,7 +515,7 @@ mod tests_of_units {
                 _ = trie.ins(entry, key());
                 _ = trie.track(key(), true);
 
-                trie.rem_actual(&mut 0);
+                assert_eq!(entry, trie.rem_actual(&mut 0));
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
             }
 
@@ -519,11 +527,12 @@ mod tests_of_units {
                 trie.ins(0usize, outer());
 
                 let inner = || "Key".chars();
-                trie.ins(0usize, inner());
+                trie.ins(1usize, inner());
 
                 let mut esc_code = 0;
                 _ = trie.track(inner(), true);
-                trie.rem_actual(&mut esc_code);
+
+                assert_eq!(1, trie.rem_actual(&mut esc_code));
                 assert_eq!(1, esc_code);
 
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(inner()));
@@ -534,11 +543,11 @@ mod tests_of_units {
             fn links_removal() {
                 let key = || "Keyword".chars();
                 let mut trie = Trie::new();
-                trie.ins(0usize, key());
+                trie.ins(1usize, key());
 
                 let mut esc_code = 0;
                 _ = trie.track(key(), true);
-                trie.rem_actual(&mut esc_code);
+                assert_eq!(1, trie.rem_actual(&mut esc_code));
                 assert_eq!(4, esc_code);
 
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
@@ -552,11 +561,11 @@ mod tests_of_units {
 
                 let mut trie = Trie::new();
                 trie.ins(0usize, dissimilar());
-                trie.ins(0usize, keyword());
+                trie.ins(1usize, keyword());
 
                 let mut esc_code = 0;
                 _ = trie.track(keyword(), true);
-                trie.rem_actual(&mut esc_code);
+                assert_eq!(1, trie.rem_actual(&mut esc_code));
                 assert_eq!(2, esc_code);
 
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(keyword()));
@@ -569,11 +578,11 @@ mod tests_of_units {
                 let under = || "keyworders".chars();
                 let mut trie = Trie::new();
                 trie.ins(0usize, above());
-                trie.ins(0usize, under());
+                trie.ins(1usize, under());
 
                 let mut esc_code = 0;
                 _ = trie.track(under(), true);
-                trie.rem_actual(&mut esc_code);
+                assert_eq!(1, trie.rem_actual(&mut esc_code));
                 assert_eq!(3, esc_code);
 
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(under()));
