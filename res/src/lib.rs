@@ -31,6 +31,17 @@ impl<'a, T> From<AcqRes<'a, T>> for KeyErr {
     }
 }
 
+impl<'a, T> From<AcqMutRes<'a, T>> for KeyErr {
+    /// Return value is `KeyError` if `AcqMutRes::Err(_)`; _panics_ otherwise.
+    fn from(ar: AcqMutRes<T>) -> Self {
+        if let AcqMutRes::Err(keer) = ar {
+            keer
+        } else {
+            panic!("Not AcqMutRes::Err(_) variant.")
+        }
+    }
+}
+
 impl<T> From<RemRes<T>> for KeyErr {
     /// Return value is `KeyError` if `RemRes::Err(_)`; _panics_ otherwise.
     fn from(rr: RemRes<T>) -> Self {
@@ -254,7 +265,7 @@ impl<T> RemRes<T> {
 #[cfg(test)]
 mod tests_of_units {
     mod key_err {
-        use super::super::{AcqRes, InsRes, KeyErr, RemRes};
+        use super::super::{AcqMutRes, AcqRes, InsRes, KeyErr, RemRes};
 
         #[test]
         fn from_ins_res() {
@@ -278,6 +289,18 @@ mod tests_of_units {
         #[should_panic(expected = "Not AcqRes::Err(_) variant.")]
         fn from_acq_res_panic() {
             let _: KeyErr = From::from(AcqRes::<usize>::Ok(&3));
+        }
+
+        #[test]
+        fn from_acq_mut_res() {
+            let from = From::from(AcqMutRes::<usize>::Err(KeyErr::Unknown));
+            assert_eq!(KeyErr::Unknown, from);
+        }
+
+        #[test]
+        #[should_panic(expected = "Not AcqMutRes::Err(_) variant.")]
+        fn from_acq_mut_res_panic() {
+            let _: KeyErr = From::from(AcqMutRes::<usize>::Ok(&mut 3));
         }
 
         #[test]
