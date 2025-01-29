@@ -5,7 +5,7 @@
 use std::collections::hash_map::HashMap;
 
 mod res;
-pub use res::{AcqMutRes, AcqRes, InsRes, KeyErr, RemRes};
+pub use res::{AcqRes, InsRes, KeyErr, RemRes};
 
 type Links<T> = HashMap<char, Node<T>>;
 
@@ -30,7 +30,7 @@ impl<T> Trie<T> {
     }
 
     /// Inserts entry into tree.
-    pub fn insert(&mut self, entry: T, mut key: impl Iterator<Item = char>) -> InsRes<T> {
+    pub fn ins(&mut self, entry: T, mut key: impl Iterator<Item = char>) -> InsRes<T> {
         let mut next = key.next();
 
         if next.is_none() {
@@ -291,14 +291,14 @@ mod tests_of_units {
             assert!(links.is_none());
         }
 
-        mod insert {
+        mod ins {
             use crate::{InsRes, KeyErr, Trie};
 
             #[test]
             fn zero_length_key() {
                 let mut trie = Trie::new();
                 let proof = InsRes::Err(KeyErr::ZeroLen);
-                let test = trie.insert(0usize, "".chars());
+                let test = trie.ins(0usize, "".chars());
                 assert_eq!(proof, test);
             }
 
@@ -307,7 +307,7 @@ mod tests_of_units {
                 const KEY: &str = "touchstone";
 
                 let mut trie = Trie::new();
-                let res = trie.insert(3usize, KEY.chars());
+                let res = trie.ins(3usize, KEY.chars());
                 assert_eq!(InsRes::Ok((&mut 3, None)), res);
 
                 let links = &trie.root.links.as_ref();
@@ -341,10 +341,10 @@ mod tests_of_units {
 
                 let mut trie = Trie::<usize>::new();
 
-                let res = trie.insert(exi_val, existing());
+                let res = trie.ins(exi_val, existing());
                 assert_eq!(InsRes::Ok((&mut exi_val, None)), res);
 
-                let res = trie.insert(new_val, new());
+                let res = trie.ins(new_val, new());
                 assert_eq!(InsRes::Ok((&mut new_val, None)), res);
 
                 assert_eq!(Some(&exi_val), trie.member(existing()));
@@ -356,7 +356,7 @@ mod tests_of_units {
                 let mut entry = 3;
 
                 let mut trie = Trie::new();
-                let res = trie.insert(entry, "a".chars());
+                let res = trie.ins(entry, "a".chars());
                 assert_eq!(InsRes::Ok((&mut entry, None)), res);
 
                 let links = trie.root.links;
@@ -375,10 +375,10 @@ mod tests_of_units {
                 let mut entry_2 = 20;
 
                 let mut trie = Trie::new();
-                let res = trie.insert(entry_1, keyer());
+                let res = trie.ins(entry_1, keyer());
                 assert_eq!(InsRes::Ok((&mut entry_1, None)), res);
 
-                let res = trie.insert(entry_2, keyer());
+                let res = trie.ins(entry_2, keyer());
                 assert_eq!(InsRes::Ok((&mut entry_2, Some(entry_1))), res);
 
                 let links = &trie.root.links.as_ref();
@@ -410,7 +410,7 @@ mod tests_of_units {
             fn member() {
                 let key = || "Keyword".chars();
                 let mut trie = Trie::new();
-                trie.insert(27usize, key());
+                trie.ins(27usize, key());
 
                 let member = trie.member(key());
                 assert!(member.is_some());
@@ -421,7 +421,7 @@ mod tests_of_units {
             fn not_member() {
                 let key = "Keyword";
                 let mut trie = Trie::new();
-                trie.insert(0usize, key.chars());
+                trie.ins(0usize, key.chars());
 
                 for key in ["Key", "Opener"] {
                     let member = trie.member(key.chars());
@@ -449,7 +449,7 @@ mod tests_of_units {
                 let mut trie = Trie::new();
 
                 let known_entry = 13;
-                _ = trie.insert(known_entry, known());
+                _ = trie.ins(known_entry, known());
 
                 assert_eq!(Result::Ok(()), trie.delete(known()));
                 assert_eq!(0, trie.btr.len());
@@ -473,7 +473,7 @@ mod tests_of_units {
                 let entry = 60;
 
                 let mut trie = Trie::new();
-                _ = trie.insert(entry, key());
+                _ = trie.ins(entry, key());
                 _ = trie.track(key(), true);
 
                 _ = trie.delete_actual(&mut 0);
@@ -485,10 +485,10 @@ mod tests_of_units {
                 let mut trie = Trie::new();
 
                 let outer = || "Keyword".chars();
-                trie.insert(0usize, outer());
+                trie.ins(0usize, outer());
 
                 let inner = || "Key".chars();
-                trie.insert(0usize, inner());
+                trie.ins(0usize, inner());
 
                 let mut esc_code = 0;
                 _ = trie.track(inner(), true);
@@ -503,7 +503,7 @@ mod tests_of_units {
             fn links_removal() {
                 let key = || "Keyword".chars();
                 let mut trie = Trie::new();
-                trie.insert(0usize, key());
+                trie.ins(0usize, key());
 
                 let mut esc_code = 0;
                 _ = trie.track(key(), true);
@@ -520,8 +520,8 @@ mod tests_of_units {
                 let keyword = || "Keyword".chars();
 
                 let mut trie = Trie::new();
-                trie.insert(0usize, dissimilar());
-                trie.insert(0usize, keyword());
+                trie.ins(0usize, dissimilar());
+                trie.ins(0usize, keyword());
 
                 let mut esc_code = 0;
                 _ = trie.track(keyword(), true);
@@ -537,8 +537,8 @@ mod tests_of_units {
                 let above = || "keyworder".chars();
                 let under = || "keyworders".chars();
                 let mut trie = Trie::new();
-                trie.insert(0usize, above());
-                trie.insert(0usize, under());
+                trie.ins(0usize, above());
+                trie.ins(0usize, under());
 
                 let mut esc_code = 0;
                 _ = trie.track(under(), true);
@@ -567,7 +567,7 @@ mod tests_of_units {
 
                 let duos = [("k", 12), ("key", 22), ("keyword", 45)];
                 for (k, e) in duos {
-                    trie.insert(e, k.chars());
+                    trie.ins(e, k.chars());
                 }
 
                 let keyword_duo = duos[2];
@@ -600,7 +600,7 @@ mod tests_of_units {
                 let entry = 444;
 
                 let mut trie = Trie::<usize>::new();
-                trie.insert(entry, key());
+                trie.ins(entry, key());
                 let res = trie.track(key(), false);
 
                 match res {
@@ -615,7 +615,7 @@ mod tests_of_units {
                 let bad_key = || "wordbooks".chars();
 
                 let mut trie = Trie::new();
-                trie.insert(500, key());
+                trie.ins(500, key());
                 let res = trie.track(bad_key(), false);
                 assert_eq!(TraRes::UnknownForAbsentPathLinks, res);
             }
@@ -626,7 +626,7 @@ mod tests_of_units {
                 let bad_key = || "wordbooks".chars();
 
                 let mut trie = Trie::new();
-                trie.insert(500, key());
+                trie.ins(500, key());
                 let res = trie.track(bad_key(), false);
                 assert_eq!(TraRes::UnknownForAbsentPathNode, res);
             }
@@ -637,7 +637,7 @@ mod tests_of_units {
                 let bad_key = || "wordbook".chars();
 
                 let mut trie = Trie::new();
-                trie.insert(777, key());
+                trie.ins(777, key());
 
                 let res = trie.track(bad_key(), false);
                 assert_eq!(TraRes::UnknownForNotEntry, res);
@@ -742,10 +742,10 @@ mod tests_of_units {
             let mut trie = Trie::<char>::new();
 
             let some = "información meteorológica".chars();
-            trie.insert('🌩', some.clone());
+            trie.ins('🌩', some.clone());
 
             let one_more = "alimentación RSS".chars();
-            trie.insert('😋', one_more.clone());
+            trie.ins('😋', one_more.clone());
 
             assert!(trie.delete(one_more.clone()).is_ok());
             assert!(trie.member(one_more.clone()).is_none());
