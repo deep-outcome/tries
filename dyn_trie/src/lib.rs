@@ -72,11 +72,13 @@ impl<T> Trie<T> {
         ptr.cast_mut().as_mut().unwrap()
     }
 
-    /// `Err` for unknown key.
-    pub fn delete(&mut self, key: impl Iterator<Item = char>) -> Result<(), ()> {
+    /// Removes key-entry duo from tree.
+    ///
+    /// Check with `put_trace_cap` also.
+    pub fn rem(&mut self, key: impl Iterator<Item = char>) -> Result<(), ()> {
         let tra_res = self.track(key, true);
         let res = if let TraRes::Ok(_) = tra_res {
-            self.delete_actual(
+            self.rem_actual(
                 #[cfg(test)]
                 &mut 0,
             );
@@ -89,7 +91,7 @@ impl<T> Trie<T> {
         res
     }
 
-    fn delete_actual(&mut self, #[cfg(test)] esc_code: &mut usize) {
+    fn rem_actual(&mut self, #[cfg(test)] esc_code: &mut usize) {
         let mut trace = self.btr.iter();
         let en_duo = trace.next_back().unwrap();
         let mut node = unsafe { en_duo.1.as_mut() }.unwrap();
@@ -189,11 +191,11 @@ impl<T> Trie<T> {
     }
 
     /// `Trie` uses internal buffer, to avoid excessive allocations and copying, which grows
-    /// over time due backtracing in `delete` method which backtraces whole path from entry
+    /// over time due backtracing in `rem` method which backtraces whole path from entry
     /// node to root node.
     ///
     /// Use this method to shrink or extend it to fit actual program needs. Neither shrinking nor extending
-    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal `delete` performance, set `approx_cap` to, at least, key length.
+    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal `rem` performance, set `approx_cap` to, at least, key length.
     ///
     /// Some high value is sufficient anyway. Since buffer continuous
     /// usage, its capacity will likely expand at some point in time to size sufficient to all keys.
@@ -467,7 +469,7 @@ mod tests_of_units {
             assert_eq!(trie_ptr as usize, trie_mut as *mut Trie::<usize> as usize);
         }
 
-        mod delete {
+        mod rem {
             use crate::{AcqRes, KeyErr, Trie};
 
             #[test]
@@ -480,11 +482,11 @@ mod tests_of_units {
                 let known_entry = 13;
                 _ = trie.ins(known_entry, known());
 
-                assert_eq!(Result::Ok(()), trie.delete(known()));
+                assert_eq!(Result::Ok(()), trie.rem(known()));
                 assert_eq!(0, trie.btr.len());
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(known()));
 
-                assert_eq!(Result::Err(()), trie.delete(unknown()));
+                assert_eq!(Result::Err(()), trie.rem(unknown()));
                 assert_eq!(0, trie.btr.len());
             }
         }
@@ -492,7 +494,7 @@ mod tests_of_units {
         // node in path to entry being deleted cannot
         // be deleted if and only if participates in
         // path to another entry where path len varies 0…m
-        mod delete_actual {
+        mod rem_actual {
 
             use crate::{AcqRes, KeyErr, Trie};
 
@@ -505,7 +507,7 @@ mod tests_of_units {
                 _ = trie.ins(entry, key());
                 _ = trie.track(key(), true);
 
-                trie.delete_actual(&mut 0);
+                trie.rem_actual(&mut 0);
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
             }
 
@@ -521,7 +523,7 @@ mod tests_of_units {
 
                 let mut esc_code = 0;
                 _ = trie.track(inner(), true);
-                trie.delete_actual(&mut esc_code);
+                trie.rem_actual(&mut esc_code);
                 assert_eq!(1, esc_code);
 
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(inner()));
@@ -536,7 +538,7 @@ mod tests_of_units {
 
                 let mut esc_code = 0;
                 _ = trie.track(key(), true);
-                trie.delete_actual(&mut esc_code);
+                trie.rem_actual(&mut esc_code);
                 assert_eq!(4, esc_code);
 
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
@@ -554,7 +556,7 @@ mod tests_of_units {
 
                 let mut esc_code = 0;
                 _ = trie.track(keyword(), true);
-                trie.delete_actual(&mut esc_code);
+                trie.rem_actual(&mut esc_code);
                 assert_eq!(2, esc_code);
 
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(keyword()));
@@ -571,7 +573,7 @@ mod tests_of_units {
 
                 let mut esc_code = 0;
                 _ = trie.track(under(), true);
-                trie.delete_actual(&mut esc_code);
+                trie.rem_actual(&mut esc_code);
                 assert_eq!(3, esc_code);
 
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(under()));
@@ -808,7 +810,7 @@ mod tests_of_units {
             let one_more = "alimentación RSS".chars();
             trie.ins('😋', one_more.clone());
 
-            assert!(trie.delete(one_more.clone()).is_ok());
+            assert!(trie.rem(one_more.clone()).is_ok());
             assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(one_more.clone()));
             assert_eq!(AcqRes::Ok(&'🌩'), trie.acq(some.clone()));
         }

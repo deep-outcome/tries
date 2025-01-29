@@ -1,9 +1,9 @@
 - improve path generations (internal buffer)
 - replace rev with double-ended iterator approach!
 - iterator key
-- extract + view
 - clear
 - acq mut
+- extract + view
 - readme samples in unit tests
 
 - opts    
