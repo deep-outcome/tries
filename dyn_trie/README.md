@@ -13,7 +13,7 @@ trie.ins('🌩', some.clone());
 let one_more = "alimentación RSS".chars();
 trie.ins('😋', one_more.clone());
 
-assert!(trie.rem(one_more.clone()).is_ok());
+assert_eq!(RemRes::Ok('😋'), trie.rem(one_more.clone()));
 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(one_more.clone()));
 assert_eq!(AcqRes::Ok(&'🌩'), trie.acq(some.clone()));
 ```
