@@ -90,7 +90,7 @@ impl<T> Trie<T> {
     /// Check with `put_trace_cap` also.
     pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
         let tra_res = self.track(key, TraStrain::TraEmp);
-        let res = if let TraRes::Ok() = tra_res {
+        let res = if let TraRes::Ok = tra_res {
             let en = self.rem_actual(
                 #[cfg(test)]
                 &mut 0,
@@ -202,7 +202,7 @@ impl<T> Trie<T> {
             match ts {
                 x if TraStrain::has(x.clone(), tsdv::REF) => TraRes::OkRef(node),
                 x if TraStrain::has(x.clone(), tsdv::MUT) => TraRes::OkMut(node),
-                x if TraStrain::has(x.clone(), tsdv::EMP) => TraRes::Ok(),
+                x if TraStrain::has(x.clone(), tsdv::EMP) => TraRes::Ok,
                 _ => panic!("Unsupported result scenario."),
             }
         } else {
@@ -266,7 +266,7 @@ impl<T> Trie<T> {
 
 #[cfg_attr(test, derive(PartialEq, Debug))]
 enum TraRes<'a, T> {
-    Ok(),
+    Ok,
     OkRef(&'a Node<T>),
     OkMut(&'a mut Node<T>),
     ZeroLenKey,
@@ -700,8 +700,8 @@ mod tests_of_units {
                 let res = trie.track(key(), TraStrain::NonEmp);
 
                 match res {
-                    TraRes::Ok() => {}
-                    _ => panic!("`Not TraRes::Ok()`, but {:?}.", res),
+                    TraRes::Ok => {}
+                    _ => panic!("`Not TraRes::Ok`, but {:?}.", res),
                 }
             }
 
@@ -887,7 +887,7 @@ mod tests_of_units {
         #[test]
         #[should_panic(expected = "Unsupported arm match.")]
         fn key_err_unsupported() {
-            _ = TraRes::<usize>::Ok().key_err()
+            _ = TraRes::<usize>::Ok.key_err()
         }
     }
 
