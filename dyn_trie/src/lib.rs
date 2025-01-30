@@ -236,6 +236,13 @@ impl<T> Trie<T> {
     pub fn acq_trace_cap(&self) -> usize {
         self.btr.capacity()
     }
+
+    /// Clears tree.
+    ///
+    /// Does not reset backtracing buffer. Check with `fn put_trace_cap` for details.
+    pub fn clr(&mut self) {
+        self.root = Node::<T>::empty();
+    }
 }
 
 #[cfg_attr(test, derive(PartialEq, Debug))]
@@ -745,6 +752,26 @@ mod tests_of_units {
             assert!(b_tr.capacity() < cap);
             b_tr.reserve_exact(cap);
             let cap = b_tr.capacity();
+
+            assert_eq!(cap, trie.acq_trace_cap());
+        }
+
+        use crate::{AcqRes, KeyErr, Node};
+
+        #[test]
+        fn clr() {
+            let key = "Key".chars();
+            let mut trie = Trie::new();
+
+            _ = trie.ins(77usize, key.clone());
+
+            let mut cap = 50;
+            assert!(trie.acq_trace_cap() < cap);
+            cap = trie.put_trace_cap(cap);
+
+            trie.clr();
+            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key));
+            assert_eq!(Node::empty(), trie.root);
 
             assert_eq!(cap, trie.acq_trace_cap());
         }
