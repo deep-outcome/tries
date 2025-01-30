@@ -280,7 +280,7 @@ pub enum TraStrain {
 
     #[cfg(test)]
     NonEmp = tsdv::NON | tsdv::EMP,
-    
+
     #[cfg(test)]
     TraRef = tsdv::TRA | tsdv::REF,
 
@@ -574,11 +574,10 @@ mod tests_of_units {
                 }
             }
         }
-        
+
         #[test]
-        fn unset(){
+        fn unset() {
             assert_eq!(0, TraStrain::Unset as u8);
         }
-        
     }
 }

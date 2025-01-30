@@ -3,6 +3,7 @@
 //! Maps any `T` using any `impl Iterator<Item = char>` type.
 
 mod res;
+use res::{tsdv, TraStrain};
 pub use res::{AcqMutRes, AcqRes, InsRes, KeyErr, RemRes};
 
 use std::vec::Vec;
@@ -151,7 +152,8 @@ pub mod english_letters {
 
 #[cfg_attr(test, derive(PartialEq, Debug))]
 enum TraRes<'a, T> {
-    Ok(&'a Letter<T>),
+    Ok,
+    OkRef(&'a Letter<T>),
     OkMut(&'a mut Letter<T>),
     ZeroLen,
     UnknownForNotEntry,
@@ -165,28 +167,6 @@ impl<'a, T> TraRes<'a, T> {
             TraRes::UnknownForNotEntry | TraRes::UnknownForAbsentPath => KeyErr::Unknown,
             _ => panic!("Unsupported arm match."),
         }
-    }
-}
-
-/// track strain discrete values
-mod tsdv {
-    pub const NON: u8 = 1;
-    pub const TRA: u8 = 2;
-    pub const REF: u8 = 4;
-    pub const MUT: u8 = 8;
-}
-
-#[repr(u8)]
-#[derive(Clone)]
-enum TraStrain {
-    NonRef = tsdv::NON | tsdv::REF,
-    NonMut = tsdv::NON | tsdv::MUT,
-    TraRef = tsdv::TRA | tsdv::REF,
-}
-
-impl TraStrain {
-    fn has(self, f: u8) -> bool {
-        self as u8 & f == f
     }
 }
 
@@ -372,7 +352,7 @@ impl<T> Trie<T> {
         let this = unsafe { self.as_mut() };
 
         match this.track(key, TraStrain::NonRef) {
-            TraRes::Ok(l) => {
+            TraRes::OkRef(l) => {
                 let en = l.en.as_ref();
                 AcqRes::Ok(unsafe { en.unwrap_unchecked() })
             }
@@ -404,8 +384,8 @@ impl<T> Trie<T> {
     ///
     /// Check with `put_trace_cap` for details on backtracing.
     pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
-        let res = match self.track(key, TraStrain::TraRef) {
-            TraRes::Ok(_) => {
+        let res = match self.track(key, TraStrain::TraEmp) {
+            TraRes::Ok => {
                 let en = self.rem_actual(
                     #[cfg(test)]
                     &mut false,
@@ -498,13 +478,11 @@ impl<T> Trie<T> {
         }
 
         if letter.en() {
-            if TraStrain::has(ts.clone(), tsdv::REF) {
-                TraRes::Ok(letter)
-            } else {
-                #[cfg(test)]
-                assert_eq!(true, TraStrain::has(ts, tsdv::MUT));
-
-                TraRes::OkMut(letter)
+            match ts {
+                x if TraStrain::has(x.clone(), tsdv::REF) => TraRes::OkRef(letter),
+                x if TraStrain::has(x.clone(), tsdv::MUT) => TraRes::OkMut(letter),
+                x if TraStrain::has(x.clone(), tsdv::EMP) => TraRes::Ok,
+                _ => panic!("Unsupported result scenario."),
             }
         } else {
             TraRes::UnknownForNotEntry
@@ -930,7 +908,7 @@ mod tests_of_units {
     }
 
     mod tra_res {
-        use crate::{KeyErr, Letter, TraRes};
+        use crate::{KeyErr, TraRes};
 
         #[test]
         fn key_err_supported() {
@@ -945,26 +923,7 @@ mod tests_of_units {
         #[test]
         #[should_panic(expected = "Unsupported arm match.")]
         fn key_err_unsupported() {
-            let mut letter = Letter::<usize>::new();
-            _ = TraRes::Ok(&mut letter).key_err()
-        }
-    }
-
-    mod tra_strain {
-        use crate::{tsdv, TraStrain};
-
-        #[test]
-        fn has_has() {
-            for f in [tsdv::NON, tsdv::REF] {
-                assert_eq!(true, TraStrain::has(TraStrain::NonRef, f));
-            }
-        }
-
-        #[test]
-        fn has_has_not() {
-            for f in [tsdv::NON, tsdv::MUT] {
-                assert_eq!(false, TraStrain::has(TraStrain::TraRef, f));
-            }
+            _ = TraRes::<usize>::Ok.key_err()
         }
     }
 
@@ -1239,7 +1198,7 @@ mod tests_of_units {
                 let mut trie = Trie::new();
                 _ = trie.ins(key(), entry);
 
-                _ = trie.track(key(), TraStrain::TraRef);
+                _ = trie.track(key(), TraStrain::TraEmp);
 
                 assert_eq!(entry, trie.rem_actual(&mut false));
 
@@ -1265,7 +1224,7 @@ mod tests_of_units {
                 _ = trie.ins(key_1(), key_1_val);
                 _ = trie.ins(key_2(), key_2_val);
 
-                _ = trie.track(key_1(), TraStrain::TraRef);
+                _ = trie.track(key_1(), TraStrain::TraEmp);
 
                 assert_eq!(key_1_val, trie.rem_actual(&mut false));
 
@@ -1284,7 +1243,7 @@ mod tests_of_units {
                 let inner = || "key".chars();
                 _ = trie.ins(inner(), inner_entry);
 
-                _ = trie.track(inner(), TraStrain::TraRef);
+                _ = trie.track(inner(), TraStrain::TraEmp);
 
                 assert_eq!(inner_entry, trie.rem_actual(&mut false));
 
@@ -1304,7 +1263,7 @@ mod tests_of_units {
                 let test_entry = 25;
                 _ = trie.ins(test(), test_entry);
 
-                _ = trie.track(test(), TraStrain::TraRef);
+                _ = trie.track(test(), TraStrain::TraEmp);
 
                 let mut en_esc = false;
                 assert_eq!(test_entry, trie.rem_actual(&mut en_esc));
@@ -1326,7 +1285,7 @@ mod tests_of_units {
                 let test_entry = 22;
                 _ = trie.ins(test(), test_entry);
 
-                _ = trie.track(test(), TraStrain::TraRef);
+                _ = trie.track(test(), TraStrain::TraEmp);
 
                 let mut en_esc = false;
                 assert_eq!(test_entry, trie.rem_actual(&mut en_esc));
@@ -1348,7 +1307,7 @@ mod tests_of_units {
                 let under_entry = 60;
                 _ = trie.ins(under(), under_entry);
 
-                _ = trie.track(under(), TraStrain::TraRef);
+                _ = trie.track(under(), TraStrain::TraEmp);
 
                 let mut en_esc = false;
                 assert_eq!(under_entry, trie.rem_actual(&mut en_esc));
@@ -1358,7 +1317,7 @@ mod tests_of_units {
                 assert_eq!(AcqRes::Ok(&above_entry), trie.acq(above()));
 
                 let res = trie.track(above(), TraStrain::NonRef);
-                if let TraRes::Ok(l) = res {
+                if let TraRes::OkRef(l) = res {
                     #[cfg(feature = "test-ext")]
                     assert_eq!('r', l.val);
                     assert_eq!(false, l.ab());
@@ -1388,7 +1347,7 @@ mod tests_of_units {
                 _ = trie.ins(key(), 100);
                 let res = trie.track(key(), TraStrain::TraRef);
 
-                if let TraRes::Ok(l) = res {
+                if let TraRes::OkRef(l) = res {
                     let l_val = l.val;
                     let tr = &trie.tr;
 
@@ -1409,7 +1368,7 @@ mod tests_of_units {
 
                 let mut trie = Trie::<usize>::new();
                 _ = trie.ins(key(), 999);
-                _ = trie.track(key(), TraStrain::TraRef);
+                _ = trie.track(key(), TraStrain::TraEmp);
 
                 let proof = key().collect::<Vec<char>>();
                 let tr = &trie.tr;
@@ -1424,35 +1383,58 @@ mod tests_of_units {
             }
 
             #[test]
-            #[cfg(feature = "test-ext")]
             fn ok() {
                 let key = || "wordbook".chars();
-                let last = 'k';
 
                 let mut trie = Trie::<usize>::new();
-                _ = trie.ins(key(), 444);
-                let res = trie.track(key(), TraStrain::NonRef);
+                _ = trie.ins(key(), 0);
+                let res = trie.track(key(), TraStrain::NonEmp);
 
                 match res {
-                    TraRes::Ok(l) => assert_eq!(last, l.val),
-                    _ => panic!("TraRes::Ok(_) was expected, instead {:?}.", res),
+                    TraRes::Ok => {}
+                    _ => panic!("`Not TraRes::Ok`, but {:?}.", res),
                 }
             }
 
             #[test]
-            #[cfg(feature = "test-ext")]
-            fn okmut() {
+            fn ok_ref() {
                 let key = || "wordbook".chars();
-                let last = 'k';
+                let entry = 444;
 
                 let mut trie = Trie::<usize>::new();
-                _ = trie.ins(key(), 444);
+                _ = trie.ins(key(), entry);
+                let res = trie.track(key(), TraStrain::NonRef);
+
+                match res {
+                    TraRes::OkRef(l) => assert_eq!(Some(entry), l.en),
+                    _ => panic!("`Not TraRes::OkRef(_)`, but {:?}.", res),
+                }
+            }
+
+            #[test]
+            fn ok_mut() {
+                let key = || "wordbook".chars();
+                let entry = 444;
+
+                let mut trie = Trie::<usize>::new();
+                _ = trie.ins(key(), entry);
                 let res = trie.track(key(), TraStrain::NonMut);
 
                 match res {
-                    TraRes::OkMut(l) => assert_eq!(last, l.val),
-                    _ => panic!("TraRes::OkMut(_) was expected, instead {:?}.", res),
+                    TraRes::OkMut(l) => assert_eq!(Some(entry), l.en),
+                    _ => panic!("`Not TraRes::OkMut(_)`, but {:?}.", res),
                 }
+            }
+
+            #[test]
+            #[should_panic(expected = "Unsupported result scenario.")]
+            fn unsupported_result() {
+                let key = || "wordbook".chars();
+
+                let mut trie = Trie::<usize>::new();
+                _ = trie.ins(key(), 0);
+
+                _ = trie.track(key(), TraStrain::Unset);
             }
 
             #[test]
