@@ -6,6 +6,7 @@ use core::panic;
 use std::collections::hash_map::HashMap;
 
 mod res;
+use res::{tsdv, TraStrain};
 pub use res::{AcqMutRes, AcqRes, InsRes, KeyErr, RemRes};
 
 type Links<T> = HashMap<char, Node<T>>;
@@ -283,35 +284,6 @@ impl<'a, T> TraRes<'a, T> {
             | TraRes::UnknownForAbsentPathNode => KeyErr::Unknown,
             _ => panic!("Unsupported arm match."),
         }
-    }
-}
-
-/// track strain discrete values
-mod tsdv {
-    pub const NON: u8 = 1;
-    pub const TRA: u8 = 2;
-    pub const REF: u8 = 4;
-    pub const MUT: u8 = 8;
-    pub const EMP: u8 = 16;
-}
-
-#[repr(u8)]
-#[derive(Clone, Debug)]
-enum TraStrain {
-    NonRef = tsdv::NON | tsdv::REF,
-    NonMut = tsdv::NON | tsdv::MUT,
-    TraEmp = tsdv::TRA | tsdv::EMP,
-
-    #[cfg(test)]
-    NonEmp = tsdv::NON | tsdv::EMP,
-
-    #[cfg(test)]
-    Unset = 0,
-}
-
-impl TraStrain {
-    fn has(self, f: u8) -> bool {
-        self as u8 & f == f
     }
 }
 
@@ -916,48 +888,6 @@ mod tests_of_units {
         #[should_panic(expected = "Unsupported arm match.")]
         fn key_err_unsupported() {
             _ = TraRes::<usize>::Ok().key_err()
-        }
-    }
-
-    mod tra_strain {
-        use crate::{tsdv, TraStrain};
-
-        #[test]
-        fn has_has() {
-            for f in [tsdv::NON, tsdv::EMP] {
-                assert_eq!(true, TraStrain::has(TraStrain::NonEmp, f));
-            }
-        }
-
-        #[test]
-        fn has_has_not() {
-            for f in [tsdv::TRA, tsdv::REF] {
-                assert_eq!(false, TraStrain::has(TraStrain::NonEmp, f));
-            }
-        }
-
-        #[test]
-        fn values() {
-            use tsdv::*;
-
-            let vals = [
-                (TraStrain::NonRef, [NON, REF]),
-                (TraStrain::NonMut, [NON, MUT]),
-                (TraStrain::TraEmp, [TRA, EMP]),
-                (TraStrain::NonEmp, [NON, EMP]),
-            ];
-
-            for v in vals {
-                // dv = discrete value
-                for dv in v.1 {
-                    assert_eq!(
-                        true,
-                        TraStrain::has(v.0.clone(), dv),
-                        "v {:?}, dv {dv}",
-                        v.0
-                    );
-                }
-            }
         }
     }
 
