@@ -2,10 +2,11 @@
 //!
 //! Each node has dynamic alphabet of size as to satisfy exactly associated branches.
 
+use core::panic;
 use std::collections::hash_map::HashMap;
 
 mod res;
-pub use res::{AcqRes, InsRes, KeyErr, RemRes};
+pub use res::{AcqMutRes, AcqRes, InsRes, KeyErr, RemRes};
 
 type Links<T> = HashMap<char, Node<T>>;
 
@@ -57,9 +58,9 @@ impl<T> Trie<T> {
     /// Acquires reference to entry associted to `key`.
     pub fn acq(&self, key: impl Iterator<Item = char>) -> AcqRes<T> {
         let this = unsafe { self.as_mut() };
-        let res = this.track(key, false);
+        let res = this.track(key, TraStrain::NonRef);
 
-        if let TraRes::Ok(en) = res {
+        if let TraRes::OkRef(en) = res {
             let en = en.entry.as_ref();
             AcqRes::Ok(unsafe { en.unwrap_unchecked() })
         } else {
@@ -72,12 +73,23 @@ impl<T> Trie<T> {
         ptr.cast_mut().as_mut().unwrap()
     }
 
+    /// Acquires mutable reference to entry associted to `key`.
+    pub fn acq_mut(&mut self, key: impl Iterator<Item = char>) -> AcqMutRes<T> {
+        match self.track(key, TraStrain::NonMut) {
+            TraRes::OkMut(n) => {
+                let en = n.entry.as_mut();
+                AcqMutRes::Ok(unsafe { en.unwrap_unchecked() })
+            }
+            res => AcqMutRes::Err(res.key_err()),
+        }
+    }
+
     /// Removes key-entry duo from tree.
     ///
     /// Check with `put_trace_cap` also.
     pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
-        let tra_res = self.track(key, true);
-        let res = if let TraRes::Ok(_) = tra_res {
+        let tra_res = self.track(key, TraStrain::TraEmp);
+        let res = if let TraRes::Ok() = tra_res {
             let en = self.rem_actual(
                 #[cfg(test)]
                 &mut 0,
@@ -151,7 +163,7 @@ impl<T> Trie<T> {
     fn track<'a>(
         &'a mut self,
         mut key: impl Iterator<Item = char>,
-        tracing: bool,
+        ts: TraStrain,
     ) -> TraRes<'a, T> {
         let mut next = key.next();
 
@@ -162,6 +174,7 @@ impl<T> Trie<T> {
         let mut node = &mut self.root;
         let tr = &mut self.btr;
 
+        let tracing = TraStrain::has(ts.clone(), tsdv::TRA);
         if tracing {
             tr.push((NULL, node));
         }
@@ -185,7 +198,12 @@ impl<T> Trie<T> {
         }
 
         if node.entry() {
-            TraRes::Ok(node)
+            match ts {
+                x if TraStrain::has(x.clone(), tsdv::REF) => TraRes::OkRef(node),
+                x if TraStrain::has(x.clone(), tsdv::MUT) => TraRes::OkMut(node),
+                x if TraStrain::has(x.clone(), tsdv::EMP) => TraRes::Ok(),
+                _ => panic!("Unsupported result scenario."),
+            }
         } else {
             TraRes::UnknownForNotEntry
         }
@@ -247,7 +265,9 @@ impl<T> Trie<T> {
 
 #[cfg_attr(test, derive(PartialEq, Debug))]
 enum TraRes<'a, T> {
-    Ok(&'a Node<T>),
+    Ok(),
+    OkRef(&'a Node<T>),
+    OkMut(&'a mut Node<T>),
     ZeroLenKey,
     UnknownForNotEntry,
     UnknownForAbsentPathLinks,
@@ -263,6 +283,35 @@ impl<'a, T> TraRes<'a, T> {
             | TraRes::UnknownForAbsentPathNode => KeyErr::Unknown,
             _ => panic!("Unsupported arm match."),
         }
+    }
+}
+
+/// track strain discrete values
+mod tsdv {
+    pub const NON: u8 = 1;
+    pub const TRA: u8 = 2;
+    pub const REF: u8 = 4;
+    pub const MUT: u8 = 8;
+    pub const EMP: u8 = 16;
+}
+
+#[repr(u8)]
+#[derive(Clone, Debug)]
+enum TraStrain {
+    NonRef = tsdv::NON | tsdv::REF,
+    NonMut = tsdv::NON | tsdv::MUT,
+    TraEmp = tsdv::TRA | tsdv::EMP,
+
+    #[cfg(test)]
+    NonEmp = tsdv::NON | tsdv::EMP,
+
+    #[cfg(test)]
+    Unset = 0,
+}
+
+impl TraStrain {
+    fn has(self, f: u8) -> bool {
+        self as u8 & f == f
     }
 }
 
@@ -469,6 +518,40 @@ mod tests_of_units {
             }
         }
 
+        mod acq_mut {
+
+            use crate::{AcqMutRes, KeyErr, Trie};
+
+            #[test]
+            fn member() {
+                let key = || "Keyword".chars();
+                let mut trie = Trie::new();
+                trie.ins(27usize, key());
+
+                let res = trie.acq_mut(key());
+                assert_eq!(AcqMutRes::Ok(&mut 27), res);
+            }
+
+            #[test]
+            fn not_member() {
+                let key = "Keyword";
+                let mut trie = Trie::new();
+                trie.ins(0usize, key.chars());
+
+                for key in ["Key", "Opener"] {
+                    let res = trie.acq_mut(key.chars());
+                    assert_eq!(AcqMutRes::Err(KeyErr::Unknown), res);
+                }
+            }
+
+            #[test]
+            fn zero_length_key() {
+                let mut trie = Trie::<usize>::new();
+                let res = trie.acq_mut("".chars());
+                assert_eq!(AcqMutRes::Err(KeyErr::ZeroLen), res);
+            }
+        }
+
         #[test]
         fn as_mut() {
             let trie = Trie::<usize>::new();
@@ -511,7 +594,7 @@ mod tests_of_units {
         // path to another entry where path len varies 0…m
         mod rem_actual {
 
-            use crate::{AcqRes, KeyErr, Trie};
+            use crate::{AcqRes, KeyErr, TraStrain, Trie};
 
             #[test]
             fn basic_test() {
@@ -520,7 +603,7 @@ mod tests_of_units {
 
                 let mut trie = Trie::new();
                 _ = trie.ins(entry, key());
-                _ = trie.track(key(), true);
+                _ = trie.track(key(), TraStrain::TraEmp);
 
                 assert_eq!(entry, trie.rem_actual(&mut 0));
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
@@ -537,7 +620,7 @@ mod tests_of_units {
                 trie.ins(1usize, inner());
 
                 let mut esc_code = 0;
-                _ = trie.track(inner(), true);
+                _ = trie.track(inner(), TraStrain::TraEmp);
 
                 assert_eq!(1, trie.rem_actual(&mut esc_code));
                 assert_eq!(1, esc_code);
@@ -553,7 +636,7 @@ mod tests_of_units {
                 trie.ins(1usize, key());
 
                 let mut esc_code = 0;
-                _ = trie.track(key(), true);
+                _ = trie.track(key(), TraStrain::TraEmp);
                 assert_eq!(1, trie.rem_actual(&mut esc_code));
                 assert_eq!(4, esc_code);
 
@@ -571,7 +654,7 @@ mod tests_of_units {
                 trie.ins(1usize, keyword());
 
                 let mut esc_code = 0;
-                _ = trie.track(keyword(), true);
+                _ = trie.track(keyword(), TraStrain::TraEmp);
                 assert_eq!(1, trie.rem_actual(&mut esc_code));
                 assert_eq!(2, esc_code);
 
@@ -588,14 +671,14 @@ mod tests_of_units {
                 trie.ins(1usize, under());
 
                 let mut esc_code = 0;
-                _ = trie.track(under(), true);
+                _ = trie.track(under(), TraStrain::TraEmp);
                 assert_eq!(1, trie.rem_actual(&mut esc_code));
                 assert_eq!(3, esc_code);
 
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(under()));
                 assert_eq!(true, trie.acq(above()).is_ok());
 
-                _ = trie.track(above(), true);
+                _ = trie.track(above(), TraStrain::TraEmp);
                 let btr = &trie.btr;
                 let last = btr[btr.len() - 1];
                 assert_eq!('r', last.0);
@@ -606,7 +689,7 @@ mod tests_of_units {
 
         mod track {
 
-            use crate::{TraRes, Trie, NULL};
+            use crate::{TraRes, TraStrain, Trie, NULL};
 
             #[test]
             fn tracking() {
@@ -620,12 +703,7 @@ mod tests_of_units {
                 let keyword_duo = duos[2];
                 let keyword = keyword_duo.0;
 
-                let res = trie.track(keyword.chars(), true);
-                if let TraRes::Ok(n) = res {
-                    assert_eq!(Some(keyword_duo.1), n.entry);
-                } else {
-                    panic!("`Not TraRes::Ok(_)`, but {:?}.", res);
-                }
+                _ = trie.track(keyword.chars(), TraStrain::TraEmp);
 
                 let trace = trie.btr;
                 let proof = format!("{}{}", NULL, keyword);
@@ -644,22 +722,62 @@ mod tests_of_units {
             #[test]
             fn ok() {
                 let key = || "información meteorológica".chars();
+
+                let mut trie = Trie::<usize>::new();
+                _ = trie.ins(0, key());
+                let res = trie.track(key(), TraStrain::NonEmp);
+
+                match res {
+                    TraRes::Ok() => {}
+                    _ => panic!("`Not TraRes::Ok()`, but {:?}.", res),
+                }
+            }
+
+            #[test]
+            fn ok_ref() {
+                let key = || "información meteorológica".chars();
                 let entry = 444;
 
                 let mut trie = Trie::<usize>::new();
-                trie.ins(entry, key());
-                let res = trie.track(key(), false);
+                _ = trie.ins(entry, key());
+                let res = trie.track(key(), TraStrain::NonRef);
 
                 match res {
-                    TraRes::Ok(l) => assert_eq!(Some(entry), l.entry),
-                    _ => panic!("`Not TraRes::Ok(_)`, but {:?}.", res),
+                    TraRes::OkRef(l) => assert_eq!(Some(entry), l.entry),
+                    _ => panic!("`Not TraRes::OkRef(_)`, but {:?}.", res),
                 }
+            }
+
+            #[test]
+            fn ok_mut() {
+                let key = || "información meteorológica".chars();
+                let entry = 444;
+
+                let mut trie = Trie::<usize>::new();
+                _ = trie.ins(entry, key());
+                let res = trie.track(key(), TraStrain::NonMut);
+
+                match res {
+                    TraRes::OkMut(l) => assert_eq!(Some(entry), l.entry),
+                    _ => panic!("`Not TraRes::OkMut(_)`, but {:?}.", res),
+                }
+            }
+
+            #[test]
+            #[should_panic(expected = "Unsupported result scenario.")]
+            fn unsupported_result() {
+                let key = || "información meteorológica".chars();
+
+                let mut trie = Trie::<usize>::new();
+                _ = trie.ins(0, key());
+
+                _ = trie.track(key(), TraStrain::Unset);
             }
 
             #[test]
             fn zero_length_key() {
                 let mut trie = Trie::<usize>::new();
-                let res = trie.track("".chars(), false);
+                let res = trie.track("".chars(), TraStrain::NonEmp);
                 assert_eq!(TraRes::ZeroLenKey, res);
             }
 
@@ -669,8 +787,8 @@ mod tests_of_units {
                 let bad_key = || "wordbooks".chars();
 
                 let mut trie = Trie::new();
-                trie.ins(500, key());
-                let res = trie.track(bad_key(), false);
+                _ = trie.ins(500, key());
+                let res = trie.track(bad_key(), TraStrain::NonEmp);
                 assert_eq!(TraRes::UnknownForAbsentPathLinks, res);
             }
 
@@ -680,8 +798,8 @@ mod tests_of_units {
                 let bad_key = || "wordbooks".chars();
 
                 let mut trie = Trie::new();
-                trie.ins(500, key());
-                let res = trie.track(bad_key(), false);
+                _ = trie.ins(500, key());
+                let res = trie.track(bad_key(), TraStrain::NonEmp);
                 assert_eq!(TraRes::UnknownForAbsentPathNode, res);
             }
 
@@ -691,9 +809,9 @@ mod tests_of_units {
                 let bad_key = || "wordbook".chars();
 
                 let mut trie = Trie::new();
-                trie.ins(777, key());
+                _ = trie.ins(777, key());
 
-                let res = trie.track(bad_key(), false);
+                let res = trie.track(bad_key(), TraStrain::NonEmp);
                 assert_eq!(TraRes::UnknownForNotEntry, res);
             }
         }
@@ -778,7 +896,7 @@ mod tests_of_units {
     }
 
     mod tra_res {
-        use crate::{KeyErr, Node, TraRes};
+        use crate::{KeyErr, TraRes};
 
         #[test]
         fn key_err_supported() {
@@ -797,8 +915,49 @@ mod tests_of_units {
         #[test]
         #[should_panic(expected = "Unsupported arm match.")]
         fn key_err_unsupported() {
-            let mut n = Node::<usize>::empty();
-            _ = TraRes::Ok(&mut n).key_err()
+            _ = TraRes::<usize>::Ok().key_err()
+        }
+    }
+
+    mod tra_strain {
+        use crate::{tsdv, TraStrain};
+
+        #[test]
+        fn has_has() {
+            for f in [tsdv::NON, tsdv::EMP] {
+                assert_eq!(true, TraStrain::has(TraStrain::NonEmp, f));
+            }
+        }
+
+        #[test]
+        fn has_has_not() {
+            for f in [tsdv::TRA, tsdv::REF] {
+                assert_eq!(false, TraStrain::has(TraStrain::NonEmp, f));
+            }
+        }
+
+        #[test]
+        fn values() {
+            use tsdv::*;
+
+            let vals = [
+                (TraStrain::NonRef, [NON, REF]),
+                (TraStrain::NonMut, [NON, MUT]),
+                (TraStrain::TraEmp, [TRA, EMP]),
+                (TraStrain::NonEmp, [NON, EMP]),
+            ];
+
+            for v in vals {
+                // dv = discrete value
+                for dv in v.1 {
+                    assert_eq!(
+                        true,
+                        TraStrain::has(v.0.clone(), dv),
+                        "v {:?}, dv {dv}",
+                        v.0
+                    );
+                }
+            }
         }
     }
 
