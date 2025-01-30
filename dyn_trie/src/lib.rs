@@ -715,7 +715,7 @@ mod tests_of_units {
                 let res = trie.track(key(), TraStrain::NonRef);
 
                 match res {
-                    TraRes::OkRef(l) => assert_eq!(Some(entry), l.entry),
+                    TraRes::OkRef(n) => assert_eq!(Some(entry), n.entry),
                     _ => panic!("`Not TraRes::OkRef(_)`, but {:?}.", res),
                 }
             }
@@ -730,7 +730,7 @@ mod tests_of_units {
                 let res = trie.track(key(), TraStrain::NonMut);
 
                 match res {
-                    TraRes::OkMut(l) => assert_eq!(Some(entry), l.entry),
+                    TraRes::OkMut(n) => assert_eq!(Some(entry), n.entry),
                     _ => panic!("`Not TraRes::OkMut(_)`, but {:?}.", res),
                 }
             }
