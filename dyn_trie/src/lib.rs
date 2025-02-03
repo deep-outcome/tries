@@ -470,7 +470,7 @@ mod tests_of_units {
                 (String::from("za"), 103),
             ];
 
-            for e in entries {
+            for e in entries.iter() {
                 _ = trie.ins(e.1, e.0.chars());
             }
 
@@ -480,18 +480,7 @@ mod tests_of_units {
             let links = unsafe { trie.root.links.as_mut().unwrap_unchecked() };
             ext(links, &mut buff, &mut test);
 
-            let proof = vec![
-                (String::from("a"), 3),
-                (String::from("az"), 5),
-                (String::from("b"), 5),
-                (String::from("by"), 8),
-                (String::from("y"), 10),
-                (String::from("yb"), 12),
-                (String::from("z"), 99),
-                (String::from("za"), 103),
-            ];
-
-            assert_eq!(proof, test);
+            assert_eq!(entries, test);
         }
 
         #[test]
@@ -510,7 +499,7 @@ mod tests_of_units {
                 (String::from("zazazazazabyyb"), 55),
             ];
 
-            for p in paths {
+            for p in paths.iter() {
                 _ = trie.ins(p.1, p.0.chars());
             }
 
@@ -520,19 +509,7 @@ mod tests_of_units {
             let links = unsafe { trie.root.links.as_mut().unwrap_unchecked() };
             ext(links, &mut buff, &mut test);
 
-            let proof = vec![
-                (String::from("aa"), 13),
-                (String::from("azbq"), 11),
-                (String::from("by"), 329),
-                (String::from("ybc"), 7),
-                (String::from("ybcrqutmop"), 33),
-                (String::from("ybcrqutmopfvb"), 99),
-                (String::from("ybcrqutmoprfg"), 80),
-                (String::from("ybxr"), 53),
-                (String::from("zazazazazabyyb"), 55),
-            ];
-
-            assert_eq!(proof, test);
+            assert_eq!(paths, test);
         }
     }
 
@@ -578,7 +555,7 @@ mod tests_of_units {
                 (String::from("za"), &103),
             ];
 
-            for e in entries {
+            for e in entries.iter() {
                 _ = trie.ins(*e.1, e.0.chars());
             }
 
@@ -588,18 +565,7 @@ mod tests_of_units {
             let links = unsafe { trie.root.links.as_ref().unwrap_unchecked() };
             view(links, &mut buff, &mut test);
 
-            let proof = vec![
-                (String::from("a"), &3),
-                (String::from("az"), &5),
-                (String::from("b"), &5),
-                (String::from("by"), &8),
-                (String::from("y"), &10),
-                (String::from("yb"), &12),
-                (String::from("z"), &99),
-                (String::from("za"), &103),
-            ];
-
-            assert_eq!(proof, test);
+            assert_eq!(entries, test);
         }
 
         #[test]
@@ -618,7 +584,7 @@ mod tests_of_units {
                 (String::from("zazazazazabyyb"), &55),
             ];
 
-            for p in paths {
+            for p in paths.iter() {
                 _ = trie.ins(*p.1, p.0.chars());
             }
 
@@ -628,19 +594,7 @@ mod tests_of_units {
             let links = unsafe { trie.root.links.as_ref().unwrap_unchecked() };
             view(links, &mut buff, &mut test);
 
-            let proof = vec![
-                (String::from("aa"), &13),
-                (String::from("azbq"), &11),
-                (String::from("by"), &329),
-                (String::from("ybc"), &7),
-                (String::from("ybcrqutmop"), &33),
-                (String::from("ybcrqutmopfvb"), &99),
-                (String::from("ybcrqutmoprfg"), &80),
-                (String::from("ybxr"), &53),
-                (String::from("zazazazazabyyb"), &55),
-            ];
-
-            assert_eq!(proof, test);
+            assert_eq!(paths, test);
         }
     }
 
