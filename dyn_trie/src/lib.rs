@@ -459,15 +459,15 @@ mod tests_of_units {
         fn nesting() {
             let mut trie = Trie::new();
 
-            let entries = [
-                ("a", 3),
-                ("az", 5),
-                ("b", 5),
-                ("by", 8),
-                ("y", 10),
-                ("yb", 12),
-                ("z", 99),
-                ("za", 103),
+            let entries = vec![
+                (String::from("a"), 3),
+                (String::from("az"), 5),
+                (String::from("b"), 5),
+                (String::from("by"), 8),
+                (String::from("y"), 10),
+                (String::from("yb"), 12),
+                (String::from("z"), 99),
+                (String::from("za"), 103),
             ];
 
             for e in entries {
@@ -498,16 +498,16 @@ mod tests_of_units {
         fn in_depth_recursion() {
             let mut trie = Trie::new();
 
-            let paths = [
-                ("aa", 13),
-                ("azbq", 11),
-                ("by", 329),
-                ("zazazazazabyyb", 55),
-                ("ybc", 7),
-                ("ybxr", 53),
-                ("ybcrqutmop", 33),
-                ("ybcrqutmopfvb", 99),
-                ("ybcrqutmoprfg", 80),
+            let paths = vec![
+                (String::from("aa"), 13),
+                (String::from("azbq"), 11),
+                (String::from("by"), 329),
+                (String::from("ybc"), 7),
+                (String::from("ybcrqutmop"), 33),
+                (String::from("ybcrqutmopfvb"), 99),
+                (String::from("ybcrqutmoprfg"), 80),
+                (String::from("ybxr"), 53),
+                (String::from("zazazazazabyyb"), 55),
             ];
 
             for p in paths {
@@ -567,19 +567,19 @@ mod tests_of_units {
         fn nesting() {
             let mut trie = Trie::new();
 
-            let entries = [
-                ("a", 3),
-                ("az", 5),
-                ("b", 5),
-                ("by", 8),
-                ("y", 10),
-                ("yb", 12),
-                ("z", 99),
-                ("za", 103),
+            let entries = vec![
+                (String::from("a"), &3),
+                (String::from("az"), &5),
+                (String::from("b"), &5),
+                (String::from("by"), &8),
+                (String::from("y"), &10),
+                (String::from("yb"), &12),
+                (String::from("z"), &99),
+                (String::from("za"), &103),
             ];
 
             for e in entries {
-                _ = trie.ins(e.1, e.0.chars());
+                _ = trie.ins(*e.1, e.0.chars());
             }
 
             let mut buff = String::new();
@@ -606,20 +606,20 @@ mod tests_of_units {
         fn in_depth_recursion() {
             let mut trie = Trie::new();
 
-            let paths = [
-                ("aa", 13),
-                ("azbq", 11),
-                ("by", 329),
-                ("zazazazazabyyb", 55),
-                ("ybc", 7),
-                ("ybxr", 53),
-                ("ybcrqutmop", 33),
-                ("ybcrqutmopfvb", 99),
-                ("ybcrqutmoprfg", 80),
+            let paths = vec![
+                (String::from("aa"), &13),
+                (String::from("azbq"), &11),
+                (String::from("by"), &329),
+                (String::from("ybc"), &7),
+                (String::from("ybcrqutmop"), &33),
+                (String::from("ybcrqutmopfvb"), &99),
+                (String::from("ybcrqutmoprfg"), &80),
+                (String::from("ybxr"), &53),
+                (String::from("zazazazazabyyb"), &55),
             ];
 
             for p in paths {
-                _ = trie.ins(p.1, p.0.chars());
+                _ = trie.ins(*p.1, p.0.chars());
             }
 
             let mut buff = String::new();
