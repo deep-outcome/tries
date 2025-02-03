@@ -12,10 +12,18 @@ pub use res::{AcqMutRes, AcqRes, InsRes, KeyErr, RemRes};
 type Links<T> = HashMap<char, Node<T>>;
 
 fn ext<T>(l: &mut Links<T>, buff: &mut String, o: &mut Vec<(String, T)>) {
-    let mut l_keys = l.keys().cloned().collect::<Vec<char>>();
+    let mut l_keys = Vec::with_capacity(8);
+    for lk in l.keys() {
+        l_keys.push(*lk)
+    }
     l_keys.sort();
 
-    for lk in l_keys {
+    let lk_len = l_keys.len();
+    let mut lk_ix = 0;
+    while lk_ix < lk_len {
+        let lk = l_keys[lk_ix];
+        lk_ix += 1;
+
         buff.push(lk);
 
         let n = unsafe { l.get_mut(&lk).unwrap_unchecked() };
@@ -34,10 +42,18 @@ fn ext<T>(l: &mut Links<T>, buff: &mut String, o: &mut Vec<(String, T)>) {
 }
 
 fn view<'a, T>(l: &'a Links<T>, buff: &mut String, o: &mut Vec<(String, &'a T)>) {
-    let mut l_keys = l.keys().cloned().collect::<Vec<char>>();
+    let mut l_keys = Vec::with_capacity(8);
+    for lk in l.keys() {
+        l_keys.push(*lk)
+    }
     l_keys.sort();
 
-    for lk in l_keys {
+    let lk_len = l_keys.len();
+    let mut lk_ix = 0;
+    while lk_ix < lk_len {
+        let lk = l_keys[lk_ix];
+        lk_ix += 1;
+
         buff.push(lk);
 
         let n = unsafe { l.get(&lk).unwrap_unchecked() };
