@@ -4,6 +4,7 @@
 - clear
 - acq mut
 - extract + view
+- len method
 - readme samples in unit tests
 
 - opts    
@@ -11,6 +12,7 @@
     ▪ pseudo-root for all
     ▪ keys and values methods for tries
     ▪ view_mut methods
+    ▪ ext & view methods consumes capacity specifiers
 
 - reckoning
     ▪ crate with traits implemented by tries

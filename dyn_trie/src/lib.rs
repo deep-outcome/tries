@@ -11,6 +11,50 @@ pub use res::{AcqMutRes, AcqRes, InsRes, KeyErr, RemRes};
 
 type Links<T> = HashMap<char, Node<T>>;
 
+fn ext<T>(l: &mut Links<T>, buff: &mut String, o: &mut Vec<(String, T)>) {
+    let mut l_keys = l.keys().cloned().collect::<Vec<char>>();
+    l_keys.sort();
+
+    for lk in l_keys {
+        buff.push(lk);
+
+        let n = unsafe { l.get_mut(&lk).unwrap_unchecked() };
+
+        if let Some(e) = n.entry.take() {
+            let key = buff.clone();
+            o.push((key, e));
+        }
+
+        if let Some(l) = n.links.as_mut() {
+            ext(l, buff, o);
+        }
+
+        _ = buff.pop();
+    }
+}
+
+fn view<'a, T>(l: &'a Links<T>, buff: &mut String, o: &mut Vec<(String, &'a T)>) {
+    let mut l_keys = l.keys().cloned().collect::<Vec<char>>();
+    l_keys.sort();
+
+    for lk in l_keys {
+        buff.push(lk);
+
+        let n = unsafe { l.get(&lk).unwrap_unchecked() };
+
+        if let Some(e) = n.entry.as_ref() {
+            let key = buff.clone();
+            o.push((key, e));
+        }
+
+        if let Some(l) = n.links.as_ref() {
+            view(l, buff, o);
+        }
+
+        _ = buff.pop();
+    }
+}
+
 /// Retrieval tree implementation allowing for mapping any `T` to any `impl Iterator<Item = char>` type.
 ///
 /// Node occurs per every `char` as defined by Rust lang and uses `std::collections::HashMap`
@@ -159,8 +203,8 @@ impl<T> Trie<T> {
     }
 
     // - c is count of `char`s iterated over
-    // - TC: Ω(c) when `tracing = true`, ϴ(c) otherwise
-    // - SC: ϴ(c) when `tracing = true`, ϴ(0) otherwise
+    // - TC: Ω(c ⋅1~) when `tracing = true`, ϴ(c ⋅1~) otherwise
+    // - SC: ϴ(c ⋅1~) when `tracing = true`, ϴ(0 ⋅1~) otherwise
     fn track<'a>(
         &'a mut self,
         mut key: impl Iterator<Item = char>,
@@ -262,6 +306,43 @@ impl<T> Trie<T> {
     pub fn clr(&mut self) {
         self.root = Node::<T>::empty();
     }
+
+    /// Extracts key-entry duos from tree. Leaves tree empty.
+    ///
+    /// Extraction is alphabetically ordered.    
+    pub fn ext(&mut self) -> Vec<(String, T)> {
+        // capacity is prebuffered to 1000
+        let mut buff = String::with_capacity(1000);
+
+        // capacity is prebuffered to 1000
+        let mut res = Vec::with_capacity(1000);
+
+        if let Some(rl) = &mut self.root.links {
+            ext(rl, &mut buff, &mut res);
+        }
+
+        res.shrink_to_fit();
+        self.clr();
+        res
+    }
+
+    /// Creates view onto key-entry duos in tree.
+    ///
+    /// View is alphabetically ordered.
+    pub fn view(&self) -> Vec<(String, &T)> {
+        // capacity is prebuffered to 1000
+        let mut buff = String::with_capacity(1000);
+
+        // capacity is prebuffered to 1000
+        let mut res = Vec::with_capacity(1000);
+
+        if let Some(rl) = &self.root.links {
+            view(rl, &mut buff, &mut res);
+        }
+
+        res.shrink_to_fit();
+        res
+    }
 }
 
 #[cfg_attr(test, derive(PartialEq, Debug))]
@@ -330,6 +411,222 @@ where
 
 #[cfg(test)]
 mod tests_of_units {
+
+    mod ext {
+
+        use crate::{ext, AcqRes, KeyErr, Trie};
+
+        #[test]
+        fn basic_test() {
+            let mut trie = Trie::new();
+
+            let a = || "a".chars();
+            let z = || "z".chars();
+
+            _ = trie.ins(1usize, a());
+            _ = trie.ins(2usize, z());
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            let links = unsafe { trie.root.links.as_mut().unwrap_unchecked() };
+            ext(links, &mut buff, &mut test);
+
+            let proof = vec![(String::from("a"), 1), (String::from("z"), 2)];
+            assert_eq!(proof, test);
+
+            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(a()));
+            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(z()));
+        }
+
+        #[test]
+        fn nesting() {
+            let mut trie = Trie::new();
+
+            let entries = [
+                ("a", 3),
+                ("az", 5),
+                ("b", 5),
+                ("by", 8),
+                ("y", 10),
+                ("yb", 12),
+                ("z", 99),
+                ("za", 103),
+            ];
+
+            for e in entries {
+                _ = trie.ins(e.1, e.0.chars());
+            }
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            let links = unsafe { trie.root.links.as_mut().unwrap_unchecked() };
+            ext(links, &mut buff, &mut test);
+
+            let proof = vec![
+                (String::from("a"), 3),
+                (String::from("az"), 5),
+                (String::from("b"), 5),
+                (String::from("by"), 8),
+                (String::from("y"), 10),
+                (String::from("yb"), 12),
+                (String::from("z"), 99),
+                (String::from("za"), 103),
+            ];
+
+            assert_eq!(proof, test);
+        }
+
+        #[test]
+        fn in_depth_recursion() {
+            let mut trie = Trie::new();
+
+            let paths = [
+                ("aa", 13),
+                ("azbq", 11),
+                ("by", 329),
+                ("zazazazazabyyb", 55),
+                ("ybc", 7),
+                ("ybxr", 53),
+                ("ybcrqutmop", 33),
+                ("ybcrqutmopfvb", 99),
+                ("ybcrqutmoprfg", 80),
+            ];
+
+            for p in paths {
+                _ = trie.ins(p.1, p.0.chars());
+            }
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            let links = unsafe { trie.root.links.as_mut().unwrap_unchecked() };
+            ext(links, &mut buff, &mut test);
+
+            let proof = vec![
+                (String::from("aa"), 13),
+                (String::from("azbq"), 11),
+                (String::from("by"), 329),
+                (String::from("ybc"), 7),
+                (String::from("ybcrqutmop"), 33),
+                (String::from("ybcrqutmopfvb"), 99),
+                (String::from("ybcrqutmoprfg"), 80),
+                (String::from("ybxr"), 53),
+                (String::from("zazazazazabyyb"), 55),
+            ];
+
+            assert_eq!(proof, test);
+        }
+    }
+
+    mod view {
+
+        use crate::{view, Trie};
+
+        #[test]
+        fn basic_test() {
+            let mut trie = Trie::new();
+
+            let a = || "a".chars();
+            let z = || "z".chars();
+
+            let a_entry = 1usize;
+            let z_entry = 2;
+
+            _ = trie.ins(a_entry, a());
+            _ = trie.ins(z_entry, z());
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            let links = unsafe { trie.root.links.as_ref().unwrap_unchecked() };
+            view(links, &mut buff, &mut test);
+
+            let proof = vec![(String::from("a"), &a_entry), (String::from("z"), &z_entry)];
+            assert_eq!(proof, test);
+        }
+
+        #[test]
+        fn nesting() {
+            let mut trie = Trie::new();
+
+            let entries = [
+                ("a", 3),
+                ("az", 5),
+                ("b", 5),
+                ("by", 8),
+                ("y", 10),
+                ("yb", 12),
+                ("z", 99),
+                ("za", 103),
+            ];
+
+            for e in entries {
+                _ = trie.ins(e.1, e.0.chars());
+            }
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            let links = unsafe { trie.root.links.as_ref().unwrap_unchecked() };
+            view(links, &mut buff, &mut test);
+
+            let proof = vec![
+                (String::from("a"), &3),
+                (String::from("az"), &5),
+                (String::from("b"), &5),
+                (String::from("by"), &8),
+                (String::from("y"), &10),
+                (String::from("yb"), &12),
+                (String::from("z"), &99),
+                (String::from("za"), &103),
+            ];
+
+            assert_eq!(proof, test);
+        }
+
+        #[test]
+        fn in_depth_recursion() {
+            let mut trie = Trie::new();
+
+            let paths = [
+                ("aa", 13),
+                ("azbq", 11),
+                ("by", 329),
+                ("zazazazazabyyb", 55),
+                ("ybc", 7),
+                ("ybxr", 53),
+                ("ybcrqutmop", 33),
+                ("ybcrqutmopfvb", 99),
+                ("ybcrqutmoprfg", 80),
+            ];
+
+            for p in paths {
+                _ = trie.ins(p.1, p.0.chars());
+            }
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            let links = unsafe { trie.root.links.as_ref().unwrap_unchecked() };
+            view(links, &mut buff, &mut test);
+
+            let proof = vec![
+                (String::from("aa"), &13),
+                (String::from("azbq"), &11),
+                (String::from("by"), &329),
+                (String::from("ybc"), &7),
+                (String::from("ybcrqutmop"), &33),
+                (String::from("ybcrqutmopfvb"), &99),
+                (String::from("ybcrqutmoprfg"), &80),
+                (String::from("ybxr"), &53),
+                (String::from("zazazazazabyyb"), &55),
+            ];
+
+            assert_eq!(proof, test);
+        }
+    }
 
     mod trie {
         use crate::Trie;
@@ -864,6 +1161,89 @@ mod tests_of_units {
             assert_eq!(Node::empty(), trie.root);
 
             assert_eq!(cap, trie.acq_trace_cap());
+        }
+
+        mod ext {
+            use crate::{AcqRes, KeyErr, Trie};
+
+            #[test]
+            fn basic_test() {
+                let test = vec![
+                    (String::from("aa"), 13),
+                    (String::from("azbq"), 11),
+                    (String::from("by"), 329),
+                    (String::from("ybc"), 7),
+                    (String::from("ybxr"), 53),
+                    (String::from("ybxrqutmop"), 33),
+                    (String::from("ybxrqutmopfvb"), 99),
+                    (String::from("ybxrqutmoprfg"), 80),
+                    (String::from("zazazazazabyyb"), 55),
+                ];
+
+                let mut trie = Trie::new();
+                for t in test.iter() {
+                    _ = trie.ins(t.1, t.0.chars());
+                }
+
+                let ext = trie.ext();
+                assert_eq!(test, ext);
+                assert!(ext.capacity() < 1000);
+
+                for t in test.iter() {
+                    assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(t.0.chars()));
+                }
+            }
+
+            #[test]
+            fn empty_tree() {
+                let mut trie = Trie::<usize>::new();
+                let ext = trie.ext();
+
+                assert_eq!(0, ext.len());
+                assert!(ext.capacity() < 1000);
+            }
+        }
+
+        mod view {
+
+            use crate::{AcqRes, Trie};
+
+            #[test]
+            fn basic_test() {
+                let test = vec![
+                    (String::from("aa"), &13),
+                    (String::from("azbq"), &11),
+                    (String::from("by"), &329),
+                    (String::from("ybc"), &7),
+                    (String::from("ybxr"), &53),
+                    (String::from("ybxrqutmop"), &33),
+                    (String::from("ybxrqutmopfvb"), &99),
+                    (String::from("ybxrqutmoprfg"), &80),
+                    (String::from("zazazazazabyyb"), &55),
+                ];
+
+                let mut trie = Trie::new();
+                for t in test.iter() {
+                    _ = trie.ins(*t.1, t.0.chars());
+                }
+
+                let view = trie.view();
+                assert_eq!(test, view);
+                assert!(view.capacity() < 1000);
+
+                for t in test.iter() {
+                    assert_eq!(AcqRes::Ok(t.1), trie.acq(t.0.chars()));
+                }
+            }
+
+            #[test]
+            fn empty_tree() {
+                let trie = Trie::<usize>::new();
+                let view = trie.view();
+
+                assert_eq!(0, view.len());
+                assert!(view.capacity() < 1000);
+            }
         }
     }
 
