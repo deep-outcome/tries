@@ -76,10 +76,13 @@ fn ab<T>(len: usize) -> Alphabet<T> {
 // to lower estimation add unpredictible count of string clonings
 // and buffers (capacity-) reallocations
 fn ext<T>(ab: &mut Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(String, T)>) {
-    for ix in 0..ab.len() {
+    let len = ab.len();
+    let mut ix = 0;
+    while ix < len {
         buff.push(re(ix));
 
         let letter = &mut ab[ix];
+        ix += 1;
 
         if let Some(e) = letter.en.take() {
             let key = buff.clone();
@@ -99,10 +102,13 @@ fn ext<T>(ab: &mut Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(String, 
 // to lower estimation add unpredictible count of string clonings
 // and buffers (capacity-) reallocations
 fn view<'a, T>(ab: &'a Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(String, &'a T)>) {
-    for ix in 0..ab.len() {
+    let len = ab.len();
+    let mut ix = 0;
+    while ix < len {
         buff.push(re(ix));
 
         let letter = &ab[ix];
+        ix += 1;
 
         if let Some(r) = letter.en.as_ref() {
             let key = buff.clone();
