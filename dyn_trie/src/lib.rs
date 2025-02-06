@@ -94,7 +94,7 @@ impl<T> Trie<T> {
         }
     }
 
-    /// Return value is `InsRes::Ok(_)` when operation accomplished.
+    /// Inserts entry into tree under key specified.
     ///
     /// Only invalid key recognized is zero-length key.
     pub fn ins(&mut self, entry: T, mut key: impl Iterator<Item = char>) -> InsRes<T> {
