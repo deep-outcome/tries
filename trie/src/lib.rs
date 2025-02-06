@@ -325,8 +325,7 @@ impl<T> Trie<T> {
         self.tr.capacity()
     }
 
-    /// Return value is `InsRes::Ok((&mut T, Option<T>))` when operation accomplished. It holds previous
-    /// entry, if there was some.
+    /// Used to insert entry into tree under key specified.
     ///
     /// Only invalid key recognized is zero-length key.
     ///
