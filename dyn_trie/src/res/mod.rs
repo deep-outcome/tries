@@ -139,7 +139,7 @@ impl<'a, T> InsRes<'a, T> {
 /// Acquisition result enumeration.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AcqRes<'a, T> {
-    /// Acquisition accomplished.
+    /// Acquisition accomplished. Holds reference to entry.
     Ok(&'a T),
     /// Key error.
     Err(KeyErr),
@@ -177,7 +177,7 @@ impl<'a, T> AcqRes<'a, T> {
 /// Acquisition result enumeration.
 #[derive(Debug, PartialEq, Eq)]
 pub enum AcqMutRes<'a, T> {
-    /// Acquisition accomplished.
+    /// Acquisition accomplished. Holds mutable reference to entry.
     Ok(&'a mut T),
     /// Key error.
     Err(KeyErr),
@@ -227,7 +227,7 @@ where
 /// Removal result enumeration.
 #[derive(Debug, PartialEq, Eq)]
 pub enum RemRes<T> {
-    /// Removal accomplished.
+    /// Removal accomplished. Holds removed entry.
     Ok(T),
     /// Key error.
     Err(KeyErr),

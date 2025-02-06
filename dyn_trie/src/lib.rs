@@ -79,6 +79,8 @@ pub struct Trie<T> {
     root: Node<T>,
     // backtrace buff
     btr: Vec<(char, *mut Node<T>)>,
+    // entries count
+    cnt: usize,
 }
 
 const NULL: char = '\0';
@@ -88,11 +90,11 @@ impl<T> Trie<T> {
         Trie {
             root: Node::<T>::empty(),
             btr: Vec::new(),
+            cnt: 0,
         }
     }
 
-    /// Return value is `InsRes::Ok((&mut T, Option<T>))` when operation accomplished. It holds previous
-    /// entry, if there was some.
+    /// Return value is `InsRes::Ok(_)` when operation accomplished.
     ///
     /// Only invalid key recognized is zero-length key.
     pub fn ins(&mut self, entry: T, mut key: impl Iterator<Item = char>) -> InsRes<T> {
@@ -112,6 +114,11 @@ impl<T> Trie<T> {
 
         let en = &mut node.entry;
         let prev = en.replace(entry);
+
+        if prev.is_none() {
+            self.cnt += 1;
+        }
+
         let curr = en.as_mut().unwrap();
         InsRes::Ok((curr, prev))
     }
@@ -155,6 +162,8 @@ impl<T> Trie<T> {
                 #[cfg(test)]
                 &mut 0,
             );
+
+            self.cnt -= 1;
             RemRes::Ok(en)
         } else {
             RemRes::Err(tra_res.key_err())
@@ -321,6 +330,12 @@ impl<T> Trie<T> {
     /// Does not reset backtracing buffer. Check with `fn put_trace_cap` for details.
     pub fn clr(&mut self) {
         self.root = Node::<T>::empty();
+        self.cnt = 0;
+    }
+
+    /// Return value is count of entries in tree.
+    pub const fn ct(&self) -> usize {
+        self.cnt
     }
 
     /// Extracts key-entry duos from tree. Leaves tree empty.
@@ -610,6 +625,8 @@ mod tests_of_units {
 
             let links = &root.links;
             assert!(links.is_none());
+
+            assert_eq!(0, trie.cnt);
         }
 
         mod ins {
@@ -621,6 +638,7 @@ mod tests_of_units {
                 let proof = InsRes::Err(KeyErr::ZeroLen);
                 let test = trie.ins(0usize, "".chars());
                 assert_eq!(proof, test);
+                assert_eq!(0, trie.cnt);
             }
 
             #[test]
@@ -651,6 +669,8 @@ mod tests_of_units {
                         links = node.links.as_ref().unwrap();
                     }
                 }
+
+                assert_eq!(1, trie.cnt);
             }
 
             #[test]
@@ -664,9 +684,11 @@ mod tests_of_units {
 
                 let res = trie.ins(exi_val, existing());
                 assert_eq!(InsRes::Ok((&mut exi_val, None)), res);
+                assert_eq!(1, trie.cnt);
 
                 let res = trie.ins(new_val, new());
                 assert_eq!(InsRes::Ok((&mut new_val, None)), res);
+                assert_eq!(2, trie.cnt);
 
                 assert_eq!(AcqRes::Ok(&exi_val), trie.acq(existing()));
                 assert_eq!(AcqRes::Ok(&new_val), trie.acq(new()));
@@ -679,6 +701,7 @@ mod tests_of_units {
                 let mut trie = Trie::new();
                 let res = trie.ins(entry, "a".chars());
                 assert_eq!(InsRes::Ok((&mut entry, None)), res);
+                assert_eq!(1, trie.cnt);
 
                 let links = trie.root.links;
                 assert_eq!(true, links.is_some());
@@ -698,9 +721,11 @@ mod tests_of_units {
                 let mut trie = Trie::new();
                 let res = trie.ins(entry_1, keyer());
                 assert_eq!(InsRes::Ok((&mut entry_1, None)), res);
+                assert_eq!(1, trie.cnt);
 
                 let res = trie.ins(entry_2, keyer());
                 assert_eq!(InsRes::Ok((&mut entry_2, Some(entry_1))), res);
+                assert_eq!(1, trie.cnt);
 
                 let links = &trie.root.links.as_ref();
                 assert_eq!(true, links.is_some());
@@ -812,12 +837,14 @@ mod tests_of_units {
                 let known_entry = 13;
                 _ = trie.ins(known_entry, known());
 
-                assert_eq!(RemRes::Ok(known_entry), trie.rem(known()));
-                assert_eq!(0, trie.btr.len());
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(known()));
-
                 assert_eq!(RemRes::Err(KeyErr::Unknown), trie.rem(unknown()));
                 assert_eq!(0, trie.btr.len());
+                assert_eq!(1, trie.cnt);
+
+                assert_eq!(RemRes::Ok(known_entry), trie.rem(known()));
+                assert_eq!(0, trie.btr.len());
+                assert_eq!(0, trie.cnt);
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(known()));
             }
 
             #[test]
@@ -1129,8 +1156,18 @@ mod tests_of_units {
             trie.clr();
             assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key));
             assert_eq!(Node::empty(), trie.root);
+            assert_eq!(0, trie.cnt);
 
             assert_eq!(cap, trie.acq_trace_cap());
+        }
+
+        #[test]
+        fn ct() {
+            let test = 3;
+            let mut trie = Trie::<usize>::new();
+            assert_eq!(0, trie.ct());
+            trie.cnt = test;
+            assert_eq!(test, trie.ct());
         }
 
         mod ext {
