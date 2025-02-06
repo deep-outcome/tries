@@ -220,6 +220,8 @@ pub struct Trie<T> {
     al: usize,
     // backtrace buff
     tr: Vec<*mut Letter<T>>,
+    // entries count
+    ct: usize,
 }
 
 impl<T> Trie<T> {
@@ -273,6 +275,7 @@ impl<T> Trie<T> {
             re,
             al: ab_len,
             tr: Vec::new(),
+            ct: 0,
         }
     }
 
@@ -349,6 +352,11 @@ impl<T> Trie<T> {
 
         let en = &mut letter.en;
         let prev = en.replace(entry);
+
+        if prev.is_none() {
+            self.ct += 1;
+        }
+
         let curr = en.as_mut().unwrap();
         InsRes::Ok((curr, prev))
     }
@@ -396,6 +404,8 @@ impl<T> Trie<T> {
                     #[cfg(test)]
                     &mut false,
                 );
+
+                self.ct -= 1;
                 RemRes::Ok(en)
             }
             res => RemRes::Err(res.key_err()),
@@ -548,6 +558,12 @@ impl<T> Trie<T> {
     /// TC: Θ(n) where n is count of nodes in tree.
     pub fn clr(&mut self) {
         self.rt = ab(self.al);
+        self.ct = 0;
+    }
+
+    /// Used to acquire count of entries in tree.
+    pub const fn ct(&self) -> usize {
+        self.ct
     }
 }
 
@@ -917,6 +933,7 @@ mod tests_of_units {
             assert_eq!(test_ix as usize, trie.ix as usize);
             assert_eq!(test_re as usize, trie.re.unwrap() as usize);
             assert_eq!(0, trie.tr.capacity());
+            assert_eq!(0, trie.ct);
         }
 
         mod put_trace_cap {
@@ -1008,6 +1025,8 @@ mod tests_of_units {
                         albet = l.ab.as_ref().unwrap();
                     }
                 }
+
+                assert_eq!(1, trie.ct);
             }
 
             #[test]
@@ -1016,6 +1035,7 @@ mod tests_of_units {
                 let test = trie.ins("".chars(), 3);
                 let proof = InsRes::Err(KeyErr::ZeroLen);
                 assert_eq!(proof, test);
+                assert_eq!(0, trie.ct);
             }
 
             #[test]
@@ -1026,6 +1046,7 @@ mod tests_of_units {
                 let ins_res = trie.ins("a".chars(), entry);
                 assert_eq!(InsRes::Ok((&mut entry, None)), ins_res);
                 assert_eq!(Some(entry), trie.rt[ix('a')].en);
+                assert_eq!(1, trie.ct);
             }
 
             #[test]
@@ -1038,9 +1059,11 @@ mod tests_of_units {
                 let mut trie = Trie::new();
                 let ins_res_e1 = trie.ins(keyer(), entry_1);
                 assert_eq!(InsRes::Ok((&mut entry_1, None)), ins_res_e1);
+                assert_eq!(1, trie.ct);
 
                 let ins_res_e2 = trie.ins(keyer(), entry_2);
                 assert_eq!(InsRes::Ok((&mut entry_2, Some(entry_1))), ins_res_e2);
+                assert_eq!(1, trie.ct);
 
                 let last_ix = key.len() - 1;
                 let mut albet = &trie.rt;
@@ -1129,12 +1152,14 @@ mod tests_of_units {
                 let known_entry = 13;
                 _ = trie.ins(known(), known_entry);
 
-                assert_eq!(RemRes::Ok(known_entry), trie.rem(known()));
-                assert_eq!(0, trie.tr.len());
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(known()));
-
                 assert_eq!(RemRes::Err(KeyErr::Unknown), trie.rem(unknown()));
                 assert_eq!(0, trie.tr.len());
+                assert_eq!(1, trie.ct);
+
+                assert_eq!(RemRes::Ok(known_entry), trie.rem(known()));
+                assert_eq!(0, trie.tr.len());
+                assert_eq!(0, trie.ct);
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(known()));
             }
 
             #[test]
@@ -1514,6 +1539,16 @@ mod tests_of_units {
 
             assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
             assert_eq!(ab(ALPHABET_LEN), trie.rt);
+            assert_eq!(0, trie.ct);
+        }
+
+        #[test]
+        fn ct() {
+            let test = 3;
+            let mut trie = Trie::<usize>::new();
+            assert_eq!(0, trie.ct());
+            trie.ct = test;
+            assert_eq!(test, trie.ct());
         }
     }
 }
