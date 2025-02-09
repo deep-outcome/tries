@@ -125,7 +125,7 @@ impl<T> Trie<T> {
 
     /// Acquires reference to entry associted to `key`.
     pub fn acq(&self, key: impl Iterator<Item = char>) -> AcqRes<T> {
-        let this = unsafe { self.as_mut() };
+        let this = self.as_mut();
         let res = this.track(key, TraStrain::NonRef);
 
         if let TraRes::OkRef(en) = res {
@@ -136,9 +136,9 @@ impl<T> Trie<T> {
         }
     }
 
-    unsafe fn as_mut(&self) -> &mut Self {
-        let ptr: *const Self = self;
-        ptr.cast_mut().as_mut().unwrap()
+    fn as_mut(&self) -> &mut Self {
+        let mut_ptr = (self as *const Self).cast_mut();
+        unsafe { mut_ptr.as_mut().unwrap_unchecked() }
     }
 
     /// Acquires mutable reference to entry associted to `key`.
@@ -820,7 +820,7 @@ mod tests_of_units {
         fn as_mut() {
             let trie = Trie::<usize>::new();
             let trie_ptr = &trie as *const Trie<usize>;
-            let trie_mut = unsafe { trie.as_mut() };
+            let trie_mut = trie.as_mut();
             assert_eq!(trie_ptr as usize, trie_mut as *mut Trie::<usize> as usize);
         }
 
