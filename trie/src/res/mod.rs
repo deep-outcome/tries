@@ -276,13 +276,12 @@ pub mod tsdv {
 pub enum TraStrain {
     NonRef = tsdv::NON | tsdv::REF,
     NonMut = tsdv::NON | tsdv::MUT,
+
     TraEmp = tsdv::TRA | tsdv::EMP,
+    TraRef = tsdv::TRA | tsdv::REF,
 
     #[cfg(test)]
     NonEmp = tsdv::NON | tsdv::EMP,
-
-    #[cfg(test)]
-    TraRef = tsdv::TRA | tsdv::REF,
 
     #[cfg(test)]
     Unset = 0,
@@ -555,10 +554,10 @@ mod tests_of_units {
             use tsdv::*;
 
             let vals = [
+                (TraStrain::NonEmp, [NON, EMP]),
                 (TraStrain::NonRef, [NON, REF]),
                 (TraStrain::NonMut, [NON, MUT]),
                 (TraStrain::TraEmp, [TRA, EMP]),
-                (TraStrain::NonEmp, [NON, EMP]),
                 (TraStrain::TraRef, [TRA, REF]),
             ];
 
@@ -581,3 +580,5 @@ mod tests_of_units {
         }
     }
 }
+
+// cargo test --release

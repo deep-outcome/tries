@@ -958,7 +958,7 @@ mod tests_of_units {
             use crate::{TraRes, TraStrain, Trie, NULL};
 
             #[test]
-            fn tracking() {
+            fn tracing() {
                 let mut trie = Trie::<usize>::new();
 
                 let duos = [("k", 12), ("key", 22), ("keyword", 45)];
@@ -995,7 +995,7 @@ mod tests_of_units {
 
                 match res {
                     TraRes::Ok => {}
-                    _ => panic!("`Not TraRes::Ok`, but {:?}.", res),
+                    _ => panic!("Not `TraRes::Ok`, but {:?}.", res),
                 }
             }
 
@@ -1010,7 +1010,7 @@ mod tests_of_units {
 
                 match res {
                     TraRes::OkRef(n) => assert_eq!(Some(entry), n.entry),
-                    _ => panic!("`Not TraRes::OkRef(_)`, but {:?}.", res),
+                    _ => panic!("Not `TraRes::OkRef(_)`, but {:?}.", res),
                 }
             }
 
@@ -1025,7 +1025,7 @@ mod tests_of_units {
 
                 match res {
                     TraRes::OkMut(n) => assert_eq!(Some(entry), n.entry),
-                    _ => panic!("`Not TraRes::OkMut(_)`, but {:?}.", res),
+                    _ => panic!("Not `TraRes::OkMut(_)`, but {:?}.", res),
                 }
             }
 

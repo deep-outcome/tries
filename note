@@ -1,5 +1,5 @@
 - improve path generations (internal buffer)
-- replace rev with double-ended iterator approach!
+- replace rev with double-ended iterator approach
 - iterator key
 - clear
 - acq mut
