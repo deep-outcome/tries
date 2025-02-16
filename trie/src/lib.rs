@@ -1375,7 +1375,7 @@ mod tests_of_units {
 
                 match res {
                     TraRes::Ok => {}
-                    _ => panic!("`Not TraRes::Ok`, but {:?}.", res),
+                    _ => panic!("Not `TraRes::Ok`, but {:?}.", res),
                 }
             }
 
@@ -1390,7 +1390,7 @@ mod tests_of_units {
 
                 match res {
                     TraRes::OkRef(l) => assert_eq!(Some(entry), l.en),
-                    _ => panic!("`Not TraRes::OkRef(_)`, but {:?}.", res),
+                    _ => panic!("Not `TraRes::OkRef(_)`, but {:?}.", res),
                 }
             }
 
@@ -1405,7 +1405,7 @@ mod tests_of_units {
 
                 match res {
                     TraRes::OkMut(l) => assert_eq!(Some(entry), l.en),
-                    _ => panic!("`Not TraRes::OkMut(_)`, but {:?}.", res),
+                    _ => panic!("Not `TraRes::OkMut(_)`, but {:?}.", res),
                 }
             }
 

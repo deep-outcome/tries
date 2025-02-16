@@ -290,12 +290,12 @@ impl LrTrie {
                     if tracing {
                         trace.push(PathNode(ix, node));
                     }
-                } else {
-                    return TraRes::UnknownForAbsentPathNode;
+
+                    continue;
                 }
-            } else {
-                return TraRes::UnknownForAbsentPathLinks;
+                return TraRes::UnknownForAbsentPathNode;
             }
+            return TraRes::UnknownForAbsentPathLinks;
         }
 
         if node.lrref() {
@@ -394,6 +394,23 @@ mod tests_of_units {
         }
     }
 
+    mod node_test_imp {
+        use crate::Node;
+
+        #[test]
+        fn eq() {
+            let sn = Node::empty();
+            let mut n1 = Node::new('x', &sn);
+            let links = vec![Node::new('y', &sn)];
+            n1.links = Some(links);
+            n1.lrref = &sn;
+
+            let n2 = n1.clone();
+
+            assert_eq!(true, n1.eq(&n2));
+        }
+    }
+
     use std::fmt::{Debug, Formatter};
 
     impl Debug for Node {
@@ -413,12 +430,56 @@ mod tests_of_units {
         }
     }
 
+    use crate::Path;
     impl LrTrie {
         fn links(&self, lr: LeftRight) -> Option<&Links> {
             match lr {
                 LeftRight::Left => self.left.links.as_ref(),
                 LeftRight::Right => self.right.links.as_ref(),
             }
+        }
+
+        fn cc_trace(&mut self) -> Path {
+            let trace = &mut self.trace;
+            let clone = trace.clone();
+            trace.clear();
+            clone
+        }
+    }
+
+    mod lrtrie_test_impl {
+        use std::ptr::NonNull;
+
+        use crate::{LeftRight, Links, LrTrie, Node, PathNode};
+
+        #[test]
+        fn links() {
+            let mut trie = LrTrie::new();
+            let l_proof: *const Links = trie.left.links.get_or_insert(Links::new());
+            let r_proof: *const Links = trie.right.links.get_or_insert(Links::new());
+
+            let l_test: *const Links = trie.links(LeftRight::Left).unwrap();
+            let r_test: *const Links = trie.links(LeftRight::Right).unwrap();
+
+            assert_eq!(l_proof, l_test);
+            assert_eq!(r_proof, r_test);
+        }
+
+        #[test]
+        fn cc_trace() {
+            let n1 = NonNull::<Node>::dangling().as_ptr();
+            let n2 = NonNull::<Node>::dangling().as_ptr();
+
+            let mut trie = LrTrie::new();
+            let trace = &mut trie.trace;
+            trace.push(PathNode(usize::MIN, n1));
+            trace.push(PathNode(usize::MAX, n2));
+
+            let proof = trace.clone();
+            let test = trie.cc_trace();
+
+            assert_eq!(proof, test);
+            assert_eq!(0, trie.trace.len());
         }
     }
 
@@ -431,9 +492,51 @@ mod tests_of_units {
         }
     }
 
+    mod leftright_test_impl {
+        use crate::LeftRight;
+
+        #[test]
+        fn invert() {
+            assert_eq!(LeftRight::Left, LeftRight::Right.invert());
+            assert_eq!(LeftRight::Right, LeftRight::Left.invert());
+        }
+    }
+
+    use crate::{as_ref, PathNode};
+    impl PathNode {
+        fn n_ref<'a>(&self) -> &'a Node {
+            as_ref(self.1)
+        }
+    }
+
+    mod pathnode_test_impl {
+        use crate::{Node, PathNode};
+
+        #[test]
+        fn n_ref() {
+            let mut n = Node::empty();
+            let pn = PathNode(0, &mut n);
+            assert_eq!(
+                &n as *const Node as usize,
+                pn.n_ref() as *const Node as usize
+            );
+        }
+    }
+
+    mod pathnode {
+        use crate::{Node, PathNode};
+
+        #[test]
+        fn n_mut() {
+            let n = &mut Node::empty();
+            let pn = PathNode(0, n);
+            assert_eq!(n as *mut Node as usize, pn.n_mut() as *mut Node as usize);
+        }
+    }
+
     mod node {
 
-        use crate::{Links, Node, NULL};
+        use crate::{as_mut as as_mut_fn, as_ref as as_ref_fn, Links, Node, NULL};
         use std::ptr;
 
         #[test]
@@ -477,6 +580,18 @@ mod tests_of_units {
             assert_eq!(&sn as *const Node, new.supernode);
             assert_eq!(None, new.links);
             assert_eq!(0, new.lrref as usize);
+        }
+
+        #[test]
+        fn as_mut() {
+            let n = &mut Node::empty() as *mut Node;
+            assert_eq!(n as usize, as_mut_fn(n) as *const Node as usize);
+        }
+
+        #[test]
+        fn as_ref() {
+            let n = &Node::empty() as *const Node;
+            assert_eq!(n as usize, as_ref_fn(n) as *const Node as usize);
         }
     }
 
@@ -628,7 +743,7 @@ mod tests_of_units {
     }
 
     mod delete_key_side {
-        use crate::{delete_key_side, Links, Node};
+        use crate::{delete_key_side, Links, Node, PathNode};
         use std::ptr;
 
         #[test]
@@ -639,8 +754,8 @@ mod tests_of_units {
 
             #[rustfmt::skip]
             let path = vec![
-                (usize::MAX, &n),
-                (usize::MAX, &n)
+                PathNode(usize::MAX, &mut n),
+                PathNode(usize::MAX, &mut n)
             ];
 
             delete_key_side(&path);
@@ -650,16 +765,16 @@ mod tests_of_units {
 
         #[test]
         fn node_with_links() {
-            let empty_n = Node::empty();
+            let mut empty_n = Node::empty();
 
             let mut n = Node::empty();
             n.links = Some(vec![Node::empty(), Node::empty()]);
 
             #[rustfmt::skip]
             let path = vec![
-                (usize::MAX, &empty_n),
-                (usize::MAX, &n),
-                (1, &empty_n),
+                PathNode(usize::MAX, &mut empty_n),
+                PathNode(usize::MAX, &mut n),
+                PathNode(1, &mut empty_n),
             ];
 
             delete_key_side(&path);
@@ -669,7 +784,7 @@ mod tests_of_units {
 
         #[test]
         fn node_being_keyentry() {
-            let empty_n = Node::empty();
+            let mut empty_n = Node::empty();
 
             let mut n1 = Node::empty();
             n1.lrref = &n1;
@@ -680,10 +795,10 @@ mod tests_of_units {
 
             #[rustfmt::skip]
             let path = vec![
-                (usize::MAX, &empty_n),
-                (usize::MAX, &n1),
-                (0, &n2),
-                (0, &empty_n),
+                PathNode(usize::MAX, &mut empty_n),
+                PathNode(usize::MAX, &mut n1),
+                PathNode(0, &mut n2),
+                PathNode(0, &mut empty_n),
             ];
 
             delete_key_side(&path);
@@ -700,8 +815,8 @@ mod tests_of_units {
 
             #[rustfmt::skip]
             let path = vec![
-                (usize::MAX, &root),                
-                (0, &root.links.as_ref().unwrap()[0]),
+                PathNode(usize::MAX, &mut root),                
+                PathNode(0, &mut root.links.as_mut().unwrap()[0]),
             ];
 
             delete_key_side(&path);
@@ -788,7 +903,7 @@ mod tests_of_units {
 
         mod insert {
 
-            use crate::{Entry, Key, KeyEntry, LeftRight, Links, LrTrie, Node};
+            use crate::{as_mut, as_ref, Entry, Key, KeyEntry, LeftRight, Links, LrTrie, Node};
 
             fn last_node(links: &Links) -> &Node {
                 let node = links.get(0);
@@ -815,12 +930,8 @@ mod tests_of_units {
             }
 
             fn put_id(node: *const Node, val: usize) {
-                let node = unsafe { std::mem::transmute::<*const Node, *mut Node>(node) };
-                unsafe { node.as_mut() }.unwrap().id = val;
-            }
-
-            fn as_ref<'a>(node: *const Node) -> &'a Node {
-                unsafe { node.as_ref() }.unwrap()
+                let node = node.cast_mut();
+                as_mut(node).id = val;
             }
 
             #[test]
@@ -917,7 +1028,7 @@ mod tests_of_units {
         }
 
         mod insert_crux {
-            use crate::{path_from_key_crux, Entry, KeyEntry, LrTrie, Node};
+            use crate::{res::TraStrain, Entry, KeyEntry, LeftRight, LrTrie, Node};
 
             #[test]
             fn basic_test() {
@@ -958,22 +1069,150 @@ mod tests_of_units {
 
             #[test]
             fn existing_path_insert() {
-                let mut root = Node::empty();
-
                 const OLD: &str = "touchstone";
                 const NEW: &str = "touch";
 
                 let old = KeyEntry::new(OLD).unwrap();
                 let new = KeyEntry::new(NEW).unwrap();
 
-                _ = LrTrie::insert_crux(&mut root, &old);
-                _ = LrTrie::insert_crux(&mut root, &new);
+                let mut trie = LrTrie::new();
 
-                let old_path = path_from_key_crux(&old, &root).unwrap();
-                let new_path = path_from_key_crux(&new, &root).unwrap();
+                _ = LrTrie::insert_crux(&mut trie.left, &old);
+                _ = LrTrie::insert_crux(&mut trie.left, &new);
+
+                _ = trie.track(&old, LeftRight::Left, TraStrain::TraEmp);
+                let old_path = trie.cc_trace();
+
+                _ = trie.track(&new, LeftRight::Left, TraStrain::TraEmp);
+                let new_path = trie.cc_trace();
 
                 assert_eq!(OLD.len() + 1, old_path.len());
                 assert_eq!(new_path, old_path[..NEW.len() + 1]);
+            }
+        }
+
+        mod track {
+
+            use crate::{KeyEntry, LeftRight, LrTrie, Node, TraRes, TraStrain};
+
+            #[test]
+            fn tracing() {
+                let mut trie = LrTrie::new();
+
+                let entries = ["key", "keyword", "keyboard", "keyhole"];
+                let entries = entries.map(|x| KeyEntry(x));
+
+                for e in entries.iter() {
+                    trie.insert(&e, &e);
+                }
+
+                let keyword = &entries[1];
+                _ = trie.track(keyword, LeftRight::Left, TraStrain::TraEmp);
+
+                let trace = trie.cc_trace();
+
+                assert_eq!(keyword.0.len() + 1, trace.len());
+
+                let l_root: *const Node = &trie.left;
+                assert_eq!(l_root as usize, trace[0].1 as usize);
+
+                for k in entries[0..2].iter() {
+                    let s = k.0;
+                    for (ix, c) in s.chars().enumerate() {
+                        let pn = &trace[ix + 1];
+                        assert_eq!(0, pn.0);
+
+                        let n = pn.n_ref();
+                        assert_eq!(c, n.c);
+                    }
+
+                    let en = &trace[s.len()].n_ref();
+                    assert_eq!(true, en.lrref());
+                }
+
+                _ = trie.track(&entries[3], LeftRight::Left, TraStrain::TraEmp);
+                let trace = trie.cc_trace();
+
+                let h_node = &trace[4];
+                assert_eq!('h', h_node.n_ref().c);
+
+                assert_eq!(2, h_node.0);
+            }
+
+            #[test]
+            fn ok() {
+                let entry = &KeyEntry("información meteorológica");
+
+                let mut trie = LrTrie::new();
+                _ = trie.insert(entry, entry);
+                let res = trie.track(entry, LeftRight::Left, TraStrain::NonEmp);
+
+                match res {
+                    TraRes::Ok => {}
+                    _ => panic!("Not `TraRes::Ok`, but {:?}.", res),
+                }
+            }
+
+            #[test]
+            fn ok_ref() {
+                let entry = &KeyEntry("información meteorológica X");
+
+                let mut trie = LrTrie::new();
+                _ = trie.insert(entry, entry);
+                let res = trie.track(entry, LeftRight::Left, TraStrain::NonRef);
+
+                match res {
+                    TraRes::OkRef(n) => {
+                        assert_eq!(true, n.lrref());
+                        assert_eq!('X', n.c);
+                    }
+                    _ => panic!("Not `TraRes::OkRef(_)`, but {:?}.", res),
+                }
+            }
+
+            #[test]
+            #[should_panic(expected = "Unsupported result scenario.")]
+            fn unsupported_result() {
+                let entry = &KeyEntry("información meteorológica");
+
+                let mut trie = LrTrie::new();
+                _ = trie.insert(entry, entry);
+
+                _ = trie.track(entry, LeftRight::Left, TraStrain::NonMut);
+            }
+
+            #[test]
+            fn unknown_not_path() {
+                let entry = &KeyEntry("wordbook");
+                let key = &KeyEntry("wordbooks");
+
+                let mut trie = LrTrie::new();
+                _ = trie.insert(entry, entry);
+                let res = trie.track(key, LeftRight::Left, TraStrain::NonEmp);
+                assert_eq!(TraRes::UnknownForAbsentPathLinks, res);
+            }
+
+            #[test]
+            fn unknown_not_path2() {
+                let entry = &KeyEntry("wordbookz");
+                let key = &KeyEntry("wordbooks");
+
+                let mut trie = LrTrie::new();
+                _ = trie.insert(entry, entry);
+                let res = trie.track(key, LeftRight::Left, TraStrain::NonEmp);
+                assert_eq!(TraRes::UnknownForAbsentPathNode, res);
+            }
+
+            #[test]
+            fn unknown_not_entry() {
+                let entry = &KeyEntry("wordbooks");
+                let key = &KeyEntry("wordbook");
+
+                let mut trie = LrTrie::new();
+                _ = trie.insert(entry, entry);
+
+                let res = trie.track(key, LeftRight::Left, TraStrain::NonEmp);
+                assert_eq!(TraRes::UnknownForNotEntry, res);
             }
         }
 
@@ -1018,14 +1257,25 @@ mod tests_of_units {
         }
 
         #[test]
-        fn root() {
+        fn as_mut() {
             let trie = LrTrie::new();
+            let trie_ptr = &trie as *const LrTrie;
+            let trie_mut = trie.as_mut();
+            assert_eq!(trie_ptr as usize, trie_mut as *mut LrTrie as usize);
+        }
 
-            let left: *const Node = &trie.left;
-            let right: *const Node = &trie.right;
+        #[test]
+        fn root_mut() {
+            let mut trie = LrTrie::new();
 
-            assert_eq!(left, trie.root(LeftRight::Left));
-            assert_eq!(right, trie.root(LeftRight::Right));
+            let left = &trie.left as *const Node as usize;
+            let right = &trie.right as *const Node as usize;
+
+            let vals = [(left, LeftRight::Left), (right, LeftRight::Right)];
+            for v in vals {
+                let test = trie.root_mut(v.1) as *const Node as usize;
+                assert_eq!(v.0, test);
+            }
         }
 
         /// Node in path to entry being deleted
@@ -1033,25 +1283,22 @@ mod tests_of_units {
         /// in path to another entry. Path len varies 0…m.
         mod delete {
 
-            use crate::{path_from_key_crux, Key, KeyEntry, LeftRight, LrTrie};
+            use crate::{res::TraStrain, Key, KeyEntry, LeftRight, LrTrie};
 
             #[test]
-            fn not_member() {
-                let keyword = KeyEntry::new("Keyword").unwrap();
+            fn known_unknown() {
+                let known = &KeyEntry("plainoperator");
+                let unknown = &KeyEntry("secretagent");
 
                 let mut trie = LrTrie::new();
-                trie.insert(&keyword, &keyword);
+                _ = trie.insert(&known, &known);
 
-                for lr in [LeftRight::Left, LeftRight::Right] {
-                    for bad_key in ["Key", "Opener"] {
-                        let bad_key = KeyEntry::new(bad_key).unwrap();
+                assert_eq!(Err(()), trie.delete(&unknown, LeftRight::Left));
+                assert_eq!(0, trie.trace.len());
 
-                        let err = trie.delete(&bad_key, lr.clone());
-                        assert!(err.is_err());
-
-                        assert!(trie.member(&keyword, lr.clone()).is_some());
-                    }
-                }
+                assert_eq!(Ok(()), trie.delete(&known, LeftRight::Left));
+                assert_eq!(0, trie.trace.len());
+                assert_eq!(None, trie.member(&known, LeftRight::Right));
             }
 
             #[test]
@@ -1093,8 +1340,8 @@ mod tests_of_units {
                         assert!(trie.member(&keyword, lr.clone()).is_some());
                         assert!(trie.member(&keypad, lr.clone()).is_some());
 
-                        let path = path_from_key_crux(&key, trie.root(lr)).unwrap();
-                        let y_node = path[key.1].1;
+                        _ = trie.track(&key, lr, TraStrain::TraEmp);
+                        let y_node = &trie.trace[key.0.len()].n_ref();
                         let links = y_node.links.as_ref().unwrap();
                         assert_eq!(2, links.len());
                         let filtered = links.iter().filter(|x| x.c == 'w' || x.c == 'p').count();
@@ -1175,3 +1422,5 @@ mod tests_of_units {
         }
     }
 }
+
+// cargo test --release
