@@ -274,14 +274,14 @@ pub mod tsdv {
 #[repr(u8)]
 #[derive(Clone, Debug)]
 pub enum TraStrain {
-    #[cfg(test)]
-    NonEmp = tsdv::NON | tsdv::EMP,
     NonRef = tsdv::NON | tsdv::REF,
     NonMut = tsdv::NON | tsdv::MUT,
 
     TraEmp = tsdv::TRA | tsdv::EMP,
     TraRef = tsdv::TRA | tsdv::REF,
-    TraMut = tsdv::TRA | tsdv::MUT,
+
+    #[cfg(test)]
+    NonEmp = tsdv::NON | tsdv::EMP,
 
     #[cfg(test)]
     Unset = 0,
@@ -553,15 +553,12 @@ mod tests_of_units {
         fn values() {
             use tsdv::*;
 
-            #[rustfmt::skip]
             let vals = [
                 (TraStrain::NonEmp, [NON, EMP]),
                 (TraStrain::NonRef, [NON, REF]),
                 (TraStrain::NonMut, [NON, MUT]),
-                
                 (TraStrain::TraEmp, [TRA, EMP]),
                 (TraStrain::TraRef, [TRA, REF]),
-                (TraStrain::TraMut, [TRA, MUT]),
             ];
 
             for v in vals {
