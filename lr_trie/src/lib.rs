@@ -1,20 +1,31 @@
 //! To reduce memory demands of `LrTrie`, operations are not particularly optimal.
 //! If alphabet used became wide enough, some rework using e.g. hashmap would be needed.
 
-use std::mem::transmute;
 use std::ptr;
 use std::string::String;
 use std::vec::Vec;
 
+mod res;
+use res::{tsdv, TraStrain};
+
 type Links = Vec<Node>;
-type Path<'a> = Vec<PathNode<'a>>;
-type PathNode<'a> = (usize, &'a Node);
+type Path = Vec<PathNode>;
+
+#[derive(Clone, PartialEq, Debug)]
+struct PathNode(usize, *mut Node);
+
+impl PathNode {
+    fn n_mut<'a>(&self) -> &'a mut Node {
+        as_mut(self.1)
+    }
+}
 
 /// `KeyEntry` playing entry role.
 pub type Entry<'a> = KeyEntry<'a>;
 /// `KeyEntry` playing key role.
 pub type Key<'a> = KeyEntry<'a>;
 
+#[cfg_attr(test, derive(Clone))]
 struct Node {
     c: char,
     supernode: *const Node,
@@ -62,7 +73,7 @@ impl Node {
 }
 
 /// `&str` verified for working with `LrTrie`.
-pub struct KeyEntry<'a>(&'a str, usize);
+pub struct KeyEntry<'a>(&'a str);
 
 impl<'a> KeyEntry<'a> {
     /// Returns `None` for 0-len `key`.
@@ -70,8 +81,7 @@ impl<'a> KeyEntry<'a> {
         if key.len() == 0 {
             None
         } else {
-            let len = key.chars().count();
-            Some(Self(key, len))
+            Some(Self(key))
         }
     }
 }
@@ -92,41 +102,6 @@ pub enum LeftRight {
     Right = 1,
 }
 
-fn path_from_key<'a>(key: &Key, root: &'a Node) -> Option<Path<'a>> {
-    if let Some(path) = path_from_key_crux(key, root) {
-        if path[key.1].1.lrref() {
-            return Some(path);
-        }
-    }
-    None
-}
-
-fn path_from_key_crux<'a>(key: &Key, mut super_n: &'a Node) -> Option<Path<'a>> {
-    let path_len = key.1 + 1;
-    let mut path = Vec::with_capacity(path_len);
-    let cap = path.spare_capacity_mut();
-
-    let mut wr_ix = 0;
-    cap[wr_ix].write((usize::MAX, super_n));
-
-    for c in key.chars() {
-        if let Some(l) = &super_n.links {
-            if let Some(ix) = index_of_c(l, c) {
-                wr_ix += 1;
-                super_n = cap[wr_ix].write((ix, &l[ix])).1;
-                continue;
-            }
-        }
-
-        // beware, some element was written, but none will get dropped
-        // for `usize` and `&` should be no problem
-        return None;
-    }
-
-    unsafe { path.set_len(path_len) };
-    Some(path)
-}
-
 fn index_of_c(links: &Links, c: char) -> Option<usize> {
     let links_len = links.len();
     let mut ix = 0;
@@ -143,8 +118,12 @@ fn index_of_c(links: &Links, c: char) -> Option<usize> {
     None
 }
 
-fn mut_node<'a>(node: *const Node) -> &'a mut Node {
-    unsafe { transmute::<*const Node, *mut Node>(node).as_mut() }.unwrap()
+fn as_mut<'a>(n: *mut Node) -> &'a mut Node {
+    unsafe { n.as_mut().unwrap_unchecked() }
+}
+
+fn as_ref<'a>(n: *const Node) -> &'a Node {
+    unsafe { n.as_ref().unwrap_unchecked() }
 }
 
 fn cl_lrref(keyentry_n: &mut Node) -> bool {
@@ -173,17 +152,19 @@ fn delete_subnode(n: &mut Node, subnode_ix: usize) -> bool {
     return false;
 }
 
-fn delete_key_side<'a>(path: &Path<'a>) {
-    let mut path_rev = path.iter().rev();
-    let epn = path_rev.next().unwrap();
+fn delete_key_side<'a>(path: &Path) {
+    let mut path = path.iter();
+    let epn = path.next_back();
+    let epn = unsafe { epn.unwrap_unchecked() };
+    let n = epn.n_mut();
 
-    if cl_lrref(mut_node(epn.1)) {
+    if cl_lrref(n) {
         return;
     }
 
     let mut sub_n_ix = epn.0;
-    while let Some((n_ix, n)) = path_rev.next() {
-        if delete_subnode(mut_node(*n), sub_n_ix) {
+    while let Some(PathNode(n_ix, n)) = path.next_back() {
+        if delete_subnode(as_mut(*n), sub_n_ix) {
             break;
         }
 
@@ -192,21 +173,23 @@ fn delete_key_side<'a>(path: &Path<'a>) {
 }
 
 fn delete_entry_side(key_side_entry_n: &Node) {
-    let node = mut_node(key_side_entry_n.lrref);
+    let lrref = key_side_entry_n.lrref.cast_mut();
+    let node = as_mut(lrref);
 
     if cl_lrref(node) {
         return;
     }
 
-    let mut node: &Node = node;
+    let mut node: &mut Node = node;
     loop {
-        let super_n = node.supernode;
-        if super_n == ptr::null() {
+        let super_n = node.supernode.cast_mut();
+        if super_n == ptr::null_mut() {
             break;
         }
 
-        let super_n = mut_node(super_n);
-        let n_ix = index_of_c(super_n.links.as_ref().unwrap(), node.c).unwrap();
+        let super_n = as_mut(super_n);
+        let sn_links = unsafe { super_n.links.as_ref().unwrap_unchecked() };
+        let n_ix = unsafe { index_of_c(sn_links, node.c).unwrap_unchecked() };
 
         if delete_subnode(super_n, n_ix) {
             break;
@@ -229,6 +212,17 @@ fn delete_entry_side(key_side_entry_n: &Node) {
 pub struct LrTrie {
     left: Node,
     right: Node,
+    // backtracing buffer
+    trace: Vec<PathNode>,
+}
+
+#[cfg_attr(test, derive(PartialEq, Debug))]
+enum TraRes<'a> {
+    Ok,
+    OkRef(&'a Node),
+    UnknownForNotEntry,
+    UnknownForAbsentPathLinks,
+    UnknownForAbsentPathNode,
 }
 
 impl LrTrie {
@@ -237,6 +231,7 @@ impl LrTrie {
         LrTrie {
             left: Node::empty(),
             right: Node::empty(),
+            trace: Vec::new(),
         }
     }
 
@@ -245,7 +240,7 @@ impl LrTrie {
     /// If entry already exists in respective tree, its current counterpart is removed.
     pub fn insert(&mut self, l_entry: &Entry, r_entry: &Entry) {
         // let not make exercises for exact reinsert since
-        // it is supposed to be very rare if at all
+        // it is supposed to be very rare, if at all
         _ = self.delete_crux(l_entry, LeftRight::Left, false);
         _ = self.delete_crux(r_entry, LeftRight::Right, false);
 
@@ -277,18 +272,56 @@ impl LrTrie {
         node
     }
 
+    fn track<'a>(&mut self, key: &Key, lr: LeftRight, ts: TraStrain) -> TraRes {
+        let root: *mut Node = self.root_mut(lr);
+        let trace = &mut self.trace;
+
+        let tracing = TraStrain::has(ts.clone(), tsdv::TRA);
+        if tracing {
+            trace.push(PathNode(usize::MAX, root));
+        }
+
+        let mut key = key.chars();
+        let mut node = as_mut(root);
+        while let Some(c) = key.next() {
+            if let Some(l) = &mut node.links {
+                if let Some(ix) = index_of_c(l, c) {
+                    node = &mut l[ix];
+                    if tracing {
+                        trace.push(PathNode(ix, node));
+                    }
+                } else {
+                    return TraRes::UnknownForAbsentPathNode;
+                }
+            } else {
+                return TraRes::UnknownForAbsentPathLinks;
+            }
+        }
+
+        if node.lrref() {
+            match ts {
+                x if TraStrain::has(x.clone(), tsdv::REF) => TraRes::OkRef(node),
+                x if TraStrain::has(x.clone(), tsdv::EMP) => TraRes::Ok,
+                _ => panic!("Unsupported result scenario."),
+            }
+        } else {
+            TraRes::UnknownForNotEntry
+        }
+    }
+
     /// Seeks for member in other tree than is specified for key.
     ///
     /// Returns `None` if key is not associated with entry.
     pub fn member(&self, key: &Key, lr: LeftRight) -> Option<String> {
-        let path = path_from_key(key, self.root(lr));
+        let this = self.as_mut();
+        let res = this.track(key, lr, TraStrain::NonRef);
 
-        if let Some(path) = path {
+        if let TraRes::OkRef(en) = res {
             let mut entry = Vec::with_capacity(BASIC_WORD_LEN_GUESS);
-            let mut node = path[key.1].1.lrref;
+            let mut node = en.lrref;
 
             loop {
-                let n = unsafe { node.as_ref() }.unwrap();
+                let n = as_ref(node);
                 let super_n = n.supernode;
 
                 if super_n == ptr::null() {
@@ -305,10 +338,15 @@ impl LrTrie {
         }
     }
 
-    fn root(&self, lr: LeftRight) -> &Node {
+    fn as_mut(&self) -> &mut Self {
+        let mut_ptr = (self as *const Self).cast_mut();
+        unsafe { mut_ptr.as_mut().unwrap_unchecked() }
+    }
+
+    fn root_mut(&mut self, lr: LeftRight) -> &mut Node {
         match lr {
-            LeftRight::Left => &self.left,
-            LeftRight::Right => &self.right,
+            LeftRight::Left => &mut self.left,
+            LeftRight::Right => &mut self.right,
         }
     }
 
@@ -316,15 +354,23 @@ impl LrTrie {
     ///
     /// Returns `Err` when key is not associated with entry.
     pub fn delete(&mut self, key: &Key, lr: LeftRight) -> Result<(), ()> {
-        self.delete_crux(key, lr, true)
+        let res = self.delete_crux(key, lr, true);
+        self.trace.clear();
+        res
     }
 
     fn delete_crux(&mut self, key: &Key, lr: LeftRight, delete_ks: bool) -> Result<(), ()> {
-        if let Some(path) = path_from_key(key, self.root(lr)) {
-            delete_entry_side(path[key.1].1);
+        let ts = if delete_ks {
+            TraStrain::TraRef
+        } else {
+            TraStrain::NonRef
+        };
+
+        if let TraRes::OkRef(en) = self.track(key, lr, ts) {
+            delete_entry_side(en);
 
             if delete_ks {
-                delete_key_side(&path)
+                delete_key_side(&self.trace)
             }
 
             Ok(())
@@ -447,7 +493,6 @@ mod tests_of_units {
                 assert!(key.is_some());
                 let key = key.unwrap();
                 assert_eq!(KEY, key.0);
-                assert_eq!(KEY.chars().count(), key.1);
             }
 
             #[test]
@@ -464,119 +509,6 @@ mod tests_of_units {
             const KEY: &str = "key";
             let key = KeyEntry::new(KEY).unwrap();
             assert_eq!(KEY, key.deref());
-        }
-    }
-
-    mod path_from_key {
-
-        use crate::{path_from_key as path_fn, path_from_key_crux, Entry, Key, KeyEntry, LrTrie};
-
-        #[test]
-        fn entry() {
-            let entry = KeyEntry::new("Keyword").unwrap();
-
-            let mut trie = LrTrie::new();
-            trie.insert(&entry, &entry);
-
-            assert!(path_fn(&entry, &trie.left).is_some());
-        }
-
-        #[test]
-        fn not_entry() {
-            let entry = Entry::new("Keyword").unwrap();
-            let not_entry = Key::new("Key").unwrap();
-
-            let mut trie = LrTrie::new();
-            trie.insert(&entry, &entry);
-
-            let l_root = &trie.left;
-
-            assert!(path_from_key_crux(&not_entry, l_root).is_some());
-            assert_eq!(None, path_fn(&not_entry, l_root));
-        }
-    }
-
-    mod path_from_key_crux {
-
-        use crate::{path_from_key_crux as path_fn, Key, KeyEntry, LrTrie, Node, PathNode};
-
-        #[test]
-        fn path_from_key() {
-            let mut trie = LrTrie::new();
-
-            const KEYWORD: &str = "keyword";
-            const KEYWORD_LEN: usize = KEYWORD.len();
-            let keyword = Key::new(KEYWORD).unwrap();
-
-            const KEYHOLE: &str = "keyhole";
-            let keyhole = Key::new(KEYHOLE).unwrap();
-
-            let words = ["key", KEYWORD, "keyboard", KEYHOLE];
-            let kes = words.map(|x| KeyEntry::new(x).unwrap());
-
-            for ke in &kes {
-                trie.insert(ke, ke);
-            }
-
-            let l_root = &trie.left;
-
-            let path = path_fn(&keyword, l_root);
-
-            assert!(path.is_some());
-            let path = path.unwrap();
-            assert_eq!(KEYWORD_LEN + 1, path.len());
-
-            let root_pn: &PathNode = &path[0];
-            assert_eq!(usize::MAX, root_pn.0);
-
-            let root: *const Node = root_pn.1;
-            assert_eq!(l_root as *const Node, root);
-
-            for ke in &kes[..2] {
-                let mut ix = 1;
-                for c in ke.0.chars() {
-                    let pn = path[ix];
-                    assert_eq!(0, pn.0);
-
-                    let n = pn.1;
-                    assert_eq!(c, n.c);
-
-                    ix += 1;
-                }
-
-                assert!(path[ke.1].1.lrref());
-            }
-
-            let path = path_fn(&keyhole, &trie.right);
-            assert!(path.is_some());
-            let path = path.unwrap();
-
-            let h_node = &path[4];
-            assert_eq!('h', h_node.1.c);
-
-            assert_eq!(2, h_node.0);
-        }
-
-        #[test]
-        // branch = link
-        fn no_branch() {
-            let mut trie = LrTrie::new();
-
-            let keyboard = Key::new("Keyboard").unwrap();
-            let keyword = KeyEntry::new("Keyword").unwrap();
-
-            trie.insert(&keyword, &keyword);
-
-            assert_eq!(None, path_fn(&keyboard, &trie.left));
-        }
-
-        #[test]
-        // branches = links
-        fn no_branches() {
-            let node = Node::empty();
-
-            let key = Key::new("key").unwrap();
-            assert_eq!(None, path_fn(&key, &node));
         }
     }
 
@@ -606,15 +538,6 @@ mod tests_of_units {
             let index = index_of_c(&links, 'd');
             assert!(index.is_none());
         }
-    }
-
-    use crate::mut_node as mut_node_fn;
-    #[test]
-    fn mut_node() {
-        let node = Node::empty();
-
-        let mut_node = mut_node_fn(&node);
-        assert_eq!(&node as *const Node, mut_node as *const Node);
     }
 
     mod cl_lrref {
