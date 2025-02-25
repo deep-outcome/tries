@@ -4,15 +4,16 @@
 - clear
 - acq mut
 - extract + view
-- len method
+- ct method
 - readme samples in unit tests
 
 - opts    
     ▪ reduce memory demands by raw pointers (fruitfull?)
     ▪ pseudo-root for all
-    ▪ keys and values methods for tries
+    ▪ keys and values (complement to ext method)
     ▪ view_mut methods
-    ▪ ext & view methods consumes capacity specifiers
+    ▪ ext & view methods consumes capacity specifiers or put_trace_cap transforms to put_cap consuming enum denoting buff in question
+    
 
 - reckoning
     ▪ crate with traits implemented by tries

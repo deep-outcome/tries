@@ -378,6 +378,52 @@ impl LrTrie {
             Err(())
         }
     }
+
+    /// `LrTrie` uses internal buffer, to avoid excessive allocations and copying, which grows
+    /// over time due backtracing when `delete`-ing, which backtraces whole path from entry
+    /// node to root node.
+    ///
+    /// Use this method to shrink or extend it to fit actual program needs. Neither shrinking nor extending
+    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal `delete` performance, set `approx_cap` to, at least, `key.chars().count()`.
+    ///
+    /// Some high value is sufficient anyway. Since buffer continuous
+    /// usage, its capacity will likely expand at some point in time to size sufficient to all keys.
+    ///
+    /// Returns actual buffer capacity.
+    ///
+    /// **Note:** While `String` is UTF8 encoded, its byte length does not have to equal its `char` count
+    /// which is either equal or lesser.
+    /// ```
+    /// let star = "⭐";
+    /// assert_eq!(3, star.len());
+    /// assert_eq!(1, star.chars().count());
+    ///
+    /// let yes = "sí";
+    /// assert_eq!(3, yes.len());
+    /// assert_eq!(2, yes.chars().nth(1).unwrap().len_utf8());
+    ///
+    /// let abc = "abc";
+    /// assert_eq!(3, abc.len());
+    /// ```
+    pub fn put_trace_cap(&mut self, approx_cap: usize) -> usize {
+        let tr = &mut self.trace;
+        let cp = tr.capacity();
+
+        if cp < approx_cap {
+            tr.reserve(approx_cap);
+        } else if cp > approx_cap {
+            *tr = Vec::with_capacity(approx_cap);
+        }
+
+        tr.capacity()
+    }
+
+    /// Returns internal backtracing buffer capacity.
+    ///
+    /// Check with `fn put_trace_cap` for details.
+    pub fn acq_trace_cap(&self) -> usize {
+        self.trace.capacity()
+    }
 }
 
 #[cfg(test)]
@@ -1404,6 +1450,64 @@ mod tests_of_units {
                     assert_eq!(false, k.links());
                 }
             }
+        }
+
+        mod put_trace_cap {
+            use crate::LrTrie;
+
+            #[test]
+            fn extend() {
+                let new_cap = 10;
+
+                let mut trie = LrTrie::new();
+                assert!(trie.trace.capacity() < new_cap);
+
+                let size = trie.put_trace_cap(new_cap);
+                assert!(size >= new_cap);
+                assert!(trie.trace.capacity() >= new_cap);
+            }
+
+            #[test]
+            fn shrink() {
+                let new_cap = 10;
+                let old_cap = 50;
+
+                let mut trie = LrTrie::new();
+                trie.trace = Vec::with_capacity(old_cap);
+
+                let size = trie.put_trace_cap(new_cap);
+                assert!(size >= new_cap && size < old_cap);
+                let cap = trie.trace.capacity();
+                assert!(cap >= new_cap && cap < old_cap);
+            }
+
+            #[test]
+            fn same() {
+                let cap = 10;
+                let mut trie = LrTrie::new();
+                let tr = &mut trie.trace;
+
+                assert!(tr.capacity() < cap);
+                tr.reserve_exact(cap);
+                let cap = tr.capacity();
+
+                let size = trie.put_trace_cap(cap);
+                assert_eq!(cap, size);
+                assert_eq!(cap, trie.trace.capacity());
+            }
+        }
+
+        #[test]
+        fn acq_trace_cap() {
+            let cap = 10;
+            let mut trie = LrTrie::new();
+            let tr = &mut trie.trace;
+
+            assert!(tr.capacity() < cap);
+            tr.reserve_exact(cap);
+            let cap = tr.capacity();
+
+            assert_eq!(cap, trie.acq_trace_cap());
         }
     }
 
