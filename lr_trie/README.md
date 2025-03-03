@@ -10,4 +10,5 @@ let another = KeyEntry::new("emotion").unwrap();
 trie.insert(&one, &another);
 assert!(trie.member(&one, LeftRight::Left).is_some());
 assert!(trie.member(&another, LeftRight::Left).is_none());
+assert!(trie.member(&another, LeftRight::Right).is_some());
 ```

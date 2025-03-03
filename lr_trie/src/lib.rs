@@ -204,6 +204,19 @@ fn delete_entry_side(key_side_entry_n: &Node) {
     }
 }
 
+fn set_cap<T>(buf: &UC<Vec<T>>, approx_cap: usize) -> usize {
+    let buf = buf.get_mut();
+    let cp = buf.capacity();
+
+    if cp < approx_cap {
+        buf.reserve(approx_cap);
+    } else if cp > approx_cap {
+        *buf = Vec::with_capacity(approx_cap);
+    }
+
+    buf.capacity()
+}
+
 struct UC<T>(UnsafeCell<T>);
 
 impl<T> UC<T> {
@@ -230,6 +243,15 @@ impl<T> Deref for UC<T> {
     }
 }
 
+/// Denotes desired buffer on respective operations.
+#[derive(Clone, PartialEq, Debug)]
+pub enum Buffer {
+    /// Delete method buffer denotation.
+    Delete,
+    /// Member method buffer denotation.
+    Member,
+}
+
 /// Left-right trie is double-treed trie.
 ///
 /// Allows for bi-directional mapping between two trees whereas each entry
@@ -239,7 +261,9 @@ impl<T> Deref for UC<T> {
 /// each node carries extra reference to its supernode. Thus `LrTrie` is not memory effecient
 /// unless nodes in each side are reasonably reclaimed.
 ///
-/// All methods time complexity depends on subnodes count. Thus TC is Ο(alphabet-size).
+/// All methods asymptotical computational time complexity depends on subnodes count,
+/// i.e. Ο(alphabet-size). For small alphabets applies rather Ο(key-length). `member` method
+/// is more requiring because of entry construction.
 pub struct LrTrie {
     left: Node,
     right: Node,
@@ -408,12 +432,15 @@ impl LrTrie {
         }
     }
 
-    /// `LrTrie` uses internal buffer, to avoid excessive allocations and copying, which grows
-    /// over time due backtracing when `delete`-ing, which backtraces whole path from entry
-    /// node to root node.
+    /// `LrTrie` uses internal buffers, to avoid excessive allocations and copying, which grows
+    /// over time due:
+    /// - either backtracing when `delete`-ing, which backtraces whole path from entry
+    /// node to root node
+    /// - or entry constructing in `member`, when traversing back to root
     ///
-    /// Use this method to shrink or extend it to fit actual program needs. Neither shrinking nor extending
-    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal `delete` performance, set `approx_cap` to, at least, `key.chars().count()`.
+    /// Use this method to shrink or extend buffer to fit actual program needs. Neither shrinking nor extending
+    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal
+    /// performance, set `approx_cap` to, at least, `key.chars().count()`.
     ///
     /// Some high value is sufficient anyway. Since buffer continuous
     /// usage, its capacity will likely expand at some point in time to size sufficient to all keys.
@@ -434,24 +461,29 @@ impl LrTrie {
     /// let abc = "abc";
     /// assert_eq!(3, abc.len());
     /// ```
-    pub fn put_trace_cap(&mut self, approx_cap: usize) -> usize {
-        let tr = self.trace.get_mut();
-        let cp = tr.capacity();
+    pub fn put_trace_cap(&mut self, approx_cap: usize, buf: Buffer) -> usize {
+        if buf == Buffer::Delete {
+            set_cap(&self.trace, approx_cap)
+        } else {
+            #[cfg(test)]
+            assert_eq!(Buffer::Member, buf);
 
-        if cp < approx_cap {
-            tr.reserve(approx_cap);
-        } else if cp > approx_cap {
-            *tr = Vec::with_capacity(approx_cap);
+            set_cap(&self.entry, approx_cap)
         }
-
-        tr.capacity()
     }
 
-    /// Returns internal backtracing buffer capacity.
+    /// Returns corresponding buffer capacity.
     ///
     /// Check with `fn put_trace_cap` for details.
-    pub fn acq_trace_cap(&self) -> usize {
-        self.trace.capacity()
+    pub fn acq_trace_cap(&self, buf: Buffer) -> usize {
+        if buf == Buffer::Delete {
+            self.trace.capacity()
+        } else {
+            #[cfg(test)]
+            assert_eq!(Buffer::Member, buf);
+
+            self.entry.capacity()
+        }
     }
 }
 
@@ -973,6 +1005,50 @@ mod tests_of_units {
         }
     }
 
+    mod set_cap {
+
+        use crate::{set_cap, UC};
+
+        #[test]
+        fn extend() {
+            let new_cap = 10;
+
+            let buf = UC::new(Vec::<usize>::new());
+            assert!(buf.capacity() < new_cap);
+
+            let size = set_cap(&buf, new_cap);
+            assert!(size >= new_cap);
+            assert!(buf.capacity() >= new_cap);
+        }
+
+        #[test]
+        fn shrink() {
+            let new_cap = 10;
+            let old_cap = 50;
+
+            let buf = UC::new(Vec::<usize>::with_capacity(old_cap));
+
+            let size = set_cap(&buf, new_cap);
+            assert!(size >= new_cap && size < old_cap);
+            let cap = buf.capacity();
+            assert!(cap >= new_cap && cap < old_cap);
+        }
+
+        #[test]
+        fn same() {
+            let cap = 10;
+            let buf = UC::new(Vec::<usize>::new());
+
+            assert!(buf.capacity() < cap);
+            buf.get_mut().reserve_exact(cap);
+            let cap = buf.capacity();
+
+            let size = set_cap(&buf, cap);
+            assert_eq!(cap, size);
+            assert_eq!(cap, buf.capacity());
+        }
+    }
+
     mod uc {
         use std::ops::Deref;
 
@@ -995,7 +1071,7 @@ mod tests_of_units {
 
             assert_eq!(zero as usize, *test as usize);
         }
-        
+
         #[test]
         fn new() {
             let uc = UC::new(333);
@@ -1524,62 +1600,59 @@ mod tests_of_units {
         }
 
         mod put_trace_cap {
-
-            use crate::{LrTrie, UC};
+            use crate::{Buffer, LrTrie};
 
             #[test]
-            fn extend() {
-                let new_cap = 10;
-
+            fn trace() {
                 let mut trie = LrTrie::new();
-                assert!(trie.trace.capacity() < new_cap);
+                assert_eq!(0, trie.trace.capacity());
 
-                let size = trie.put_trace_cap(new_cap);
-                assert!(size >= new_cap);
-                assert!(trie.trace.capacity() >= new_cap);
+                let cap = 100;
+                let size = trie.put_trace_cap(cap, Buffer::Delete);
+                assert_eq!(true, size >= cap);
+                assert_eq!(true, trie.trace.capacity() >= cap);
             }
 
             #[test]
-            fn shrink() {
-                let new_cap = 10;
-                let old_cap = 50;
-
+            fn entry() {
                 let mut trie = LrTrie::new();
-                trie.trace = UC::new(Vec::with_capacity(old_cap));
+                assert_eq!(0, trie.entry.capacity());
 
-                let size = trie.put_trace_cap(new_cap);
-                assert!(size >= new_cap && size < old_cap);
-                let cap = trie.trace.capacity();
-                assert!(cap >= new_cap && cap < old_cap);
-            }
-
-            #[test]
-            fn same() {
-                let cap = 10;
-                let mut trie = LrTrie::new();
-                let tr = trie.trace.get_mut();
-
-                assert!(tr.capacity() < cap);
-                tr.reserve_exact(cap);
-                let cap = tr.capacity();
-
-                let size = trie.put_trace_cap(cap);
-                assert_eq!(cap, size);
-                assert_eq!(cap, trie.trace.capacity());
+                let cap = 100;
+                let size = trie.put_trace_cap(cap, Buffer::Member);
+                assert_eq!(true, size >= cap);
+                assert_eq!(true, trie.entry.capacity() >= cap);
             }
         }
 
-        #[test]
-        fn acq_trace_cap() {
-            let cap = 10;
-            let trie = LrTrie::new();
-            let tr = trie.trace.get_mut();
+        mod acq_trace_cap {
+            use crate::{Buffer, LrTrie};
 
-            assert!(tr.capacity() < cap);
-            tr.reserve_exact(cap);
-            let cap = tr.capacity();
+            #[test]
+            fn trace() {
+                let cap = 10;
+                let trie = LrTrie::new();
+                let buf = trie.trace.get_mut();
 
-            assert_eq!(cap, trie.acq_trace_cap());
+                assert!(buf.capacity() < cap);
+                buf.reserve_exact(cap);
+                let cap = buf.capacity();
+
+                assert_eq!(cap, trie.acq_trace_cap(Buffer::Delete));
+            }
+
+            #[test]
+            fn entry() {
+                let cap = 10;
+                let trie = LrTrie::new();
+                let buf = trie.entry.get_mut();
+
+                assert!(buf.capacity() < cap);
+                buf.reserve_exact(cap);
+                let cap = buf.capacity();
+
+                assert_eq!(cap, trie.acq_trace_cap(Buffer::Member));
+            }
         }
     }
 
@@ -1595,6 +1668,7 @@ mod tests_of_units {
             trie.insert(&one, &another);
             assert!(trie.member(&one, LeftRight::Left).is_some());
             assert!(trie.member(&another, LeftRight::Left).is_none());
+            assert!(trie.member(&another, LeftRight::Right).is_some());
         }
     }
 }
