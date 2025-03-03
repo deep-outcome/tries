@@ -1,22 +1,24 @@
 //! To reduce memory demands of `LrTrie`, operations are not particularly optimal.
 //! If alphabet used became wide enough, some rework using e.g. hashmap would be needed.
 
-use std::ptr;
+use std::ops::Deref;
 use std::string::String;
 use std::vec::Vec;
+use std::{cell::UnsafeCell, ptr};
 
 mod res;
 use res::{tsdv, TraStrain};
 
 type Links = Vec<Node>;
-type Path = Vec<PathNode>;
+type NodeTrace = Vec<PathNode>;
+type EntryTrace = Vec<char>;
 
 #[derive(Clone, PartialEq, Debug)]
 struct PathNode(usize, *mut Node);
 
 impl PathNode {
     fn n_mut<'a>(&self) -> &'a mut Node {
-        as_mut(self.1)
+        Node::as_mut(self.1)
     }
 }
 
@@ -36,7 +38,6 @@ struct Node {
 }
 
 const NULL: char = '\0';
-const BASIC_WORD_LEN_GUESS: usize = 12;
 
 impl Node {
     fn lrref(&self) -> bool {
@@ -70,6 +71,18 @@ impl Node {
             id: 0,
         }
     }
+
+    fn as_mut<'a>(n: *mut Node) -> &'a mut Node {
+        unsafe { n.as_mut().unwrap_unchecked() }
+    }
+
+    fn as_ref<'a>(n: *const Node) -> &'a Node {
+        unsafe { n.as_ref().unwrap_unchecked() }
+    }
+
+    fn to_mut_ptr(n: &Node) -> *mut Node {
+        (n as *const Node).cast_mut()
+    }
 }
 
 /// `&str` verified for working with `LrTrie`.
@@ -86,7 +99,7 @@ impl<'a> KeyEntry<'a> {
     }
 }
 
-impl<'a> std::ops::Deref for KeyEntry<'a> {
+impl<'a> Deref for KeyEntry<'a> {
     type Target = str;
 
     /// Returns `&str` of key.
@@ -118,14 +131,6 @@ fn index_of_c(links: &Links, c: char) -> Option<usize> {
     None
 }
 
-fn as_mut<'a>(n: *mut Node) -> &'a mut Node {
-    unsafe { n.as_mut().unwrap_unchecked() }
-}
-
-fn as_ref<'a>(n: *const Node) -> &'a Node {
-    unsafe { n.as_ref().unwrap_unchecked() }
-}
-
 fn cl_lrref(keyentry_n: &mut Node) -> bool {
     if keyentry_n.links() {
         keyentry_n.lrref = ptr::null();
@@ -152,7 +157,7 @@ fn delete_subnode(n: &mut Node, subnode_ix: usize) -> bool {
     return false;
 }
 
-fn delete_key_side<'a>(path: &Path) {
+fn delete_key_side<'a>(path: &NodeTrace) {
     let mut path = path.iter();
     let epn = path.next_back();
     let epn = unsafe { epn.unwrap_unchecked() };
@@ -164,7 +169,7 @@ fn delete_key_side<'a>(path: &Path) {
 
     let mut sub_n_ix = epn.0;
     while let Some(PathNode(n_ix, n)) = path.next_back() {
-        if delete_subnode(as_mut(*n), sub_n_ix) {
+        if delete_subnode(Node::as_mut(*n), sub_n_ix) {
             break;
         }
 
@@ -174,7 +179,7 @@ fn delete_key_side<'a>(path: &Path) {
 
 fn delete_entry_side(key_side_entry_n: &Node) {
     let lrref = key_side_entry_n.lrref.cast_mut();
-    let node = as_mut(lrref);
+    let node = Node::as_mut(lrref);
 
     if cl_lrref(node) {
         return;
@@ -187,7 +192,7 @@ fn delete_entry_side(key_side_entry_n: &Node) {
             break;
         }
 
-        let super_n = as_mut(super_n);
+        let super_n = Node::as_mut(super_n);
         let sn_links = unsafe { super_n.links.as_ref().unwrap_unchecked() };
         let n_ix = unsafe { index_of_c(sn_links, node.c).unwrap_unchecked() };
 
@@ -196,6 +201,32 @@ fn delete_entry_side(key_side_entry_n: &Node) {
         }
 
         node = super_n;
+    }
+}
+
+struct UC<T>(UnsafeCell<T>);
+
+impl<T> UC<T> {
+    fn get_ref(&self) -> &T {
+        let t = self.0.get();
+        unsafe { t.as_mut().unwrap_unchecked() }
+    }
+
+    fn get_mut(&self) -> &mut T {
+        let t = self.0.get();
+        unsafe { t.as_mut().unwrap_unchecked() }
+    }
+
+    const fn new(t: T) -> Self {
+        Self(UnsafeCell::new(t))
+    }
+}
+
+impl<T> Deref for UC<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        self.get_ref()
     }
 }
 
@@ -213,7 +244,8 @@ pub struct LrTrie {
     left: Node,
     right: Node,
     // backtracing buffer
-    trace: Vec<PathNode>,
+    trace: UC<NodeTrace>,
+    entry: UC<EntryTrace>,
 }
 
 #[cfg_attr(test, derive(PartialEq, Debug))]
@@ -231,7 +263,8 @@ impl LrTrie {
         LrTrie {
             left: Node::empty(),
             right: Node::empty(),
-            trace: Vec::new(),
+            trace: UC::new(Vec::new()),
+            entry: UC::new(Vec::new()),
         }
     }
 
@@ -272,23 +305,23 @@ impl LrTrie {
         node
     }
 
-    fn track<'a>(&mut self, key: &Key, lr: LeftRight, ts: TraStrain) -> TraRes {
-        let root: *mut Node = self.root_mut(lr);
-        let trace = &mut self.trace;
+    fn track(&self, key: &Key, lr: LeftRight, ts: TraStrain) -> TraRes {
+        let root = self.root(lr);
+        let trace = self.trace.get_mut();
 
         let tracing = TraStrain::has(ts.clone(), tsdv::TRA);
         if tracing {
-            trace.push(PathNode(usize::MAX, root));
+            trace.push(PathNode(usize::MAX, Node::to_mut_ptr(root)));
         }
 
         let mut key = key.chars();
-        let mut node = as_mut(root);
+        let mut node = Node::as_ref(root);
         while let Some(c) = key.next() {
-            if let Some(l) = &mut node.links {
+            if let Some(l) = &node.links {
                 if let Some(ix) = index_of_c(l, c) {
-                    node = &mut l[ix];
+                    node = &l[ix];
                     if tracing {
-                        trace.push(PathNode(ix, node));
+                        trace.push(PathNode(ix, Node::to_mut_ptr(node)));
                     }
 
                     continue;
@@ -313,15 +346,14 @@ impl LrTrie {
     ///
     /// Returns `None` if key is not associated with entry.
     pub fn member(&self, key: &Key, lr: LeftRight) -> Option<String> {
-        let this = self.as_mut();
-        let res = this.track(key, lr, TraStrain::NonRef);
+        let res = self.track(key, lr, TraStrain::NonRef);
 
         if let TraRes::OkRef(en) = res {
-            let mut entry = Vec::with_capacity(BASIC_WORD_LEN_GUESS);
-            let mut node = en.lrref;
+            let entry = self.entry.get_mut();
 
+            let mut node = en.lrref;
             loop {
-                let n = as_ref(node);
+                let n = Node::as_ref(node);
                 let super_n = n.supernode;
 
                 if super_n == ptr::null() {
@@ -332,21 +364,18 @@ impl LrTrie {
                 node = super_n;
             }
 
-            Some(entry.iter().rev().collect::<String>())
+            let ret = entry.iter().rev().collect::<String>();
+            entry.clear();
+            Some(ret)
         } else {
             None
         }
     }
 
-    fn as_mut(&self) -> &mut Self {
-        let mut_ptr = (self as *const Self).cast_mut();
-        unsafe { mut_ptr.as_mut().unwrap_unchecked() }
-    }
-
-    fn root_mut(&mut self, lr: LeftRight) -> &mut Node {
+    fn root(&self, lr: LeftRight) -> &Node {
         match lr {
-            LeftRight::Left => &mut self.left,
-            LeftRight::Right => &mut self.right,
+            LeftRight::Left => &self.left,
+            LeftRight::Right => &self.right,
         }
     }
 
@@ -355,7 +384,7 @@ impl LrTrie {
     /// Returns `Err` when key is not associated with entry.
     pub fn delete(&mut self, key: &Key, lr: LeftRight) -> Result<(), ()> {
         let res = self.delete_crux(key, lr, true);
-        self.trace.clear();
+        self.trace.get_mut().clear();
         res
     }
 
@@ -370,7 +399,7 @@ impl LrTrie {
             delete_entry_side(en);
 
             if delete_ks {
-                delete_key_side(&self.trace)
+                delete_key_side(&*self.trace)
             }
 
             Ok(())
@@ -406,7 +435,7 @@ impl LrTrie {
     /// assert_eq!(3, abc.len());
     /// ```
     pub fn put_trace_cap(&mut self, approx_cap: usize) -> usize {
-        let tr = &mut self.trace;
+        let tr = self.trace.get_mut();
         let cp = tr.capacity();
 
         if cp < approx_cap {
@@ -476,7 +505,7 @@ mod tests_of_units {
         }
     }
 
-    use crate::Path;
+    use crate::NodeTrace;
     impl LrTrie {
         fn links(&self, lr: LeftRight) -> Option<&Links> {
             match lr {
@@ -485,8 +514,8 @@ mod tests_of_units {
             }
         }
 
-        fn cc_trace(&mut self) -> Path {
-            let trace = &mut self.trace;
+        fn cc_trace(&mut self) -> NodeTrace {
+            let trace = self.trace.get_mut();
             let clone = trace.clone();
             trace.clear();
             clone
@@ -517,7 +546,7 @@ mod tests_of_units {
             let n2 = NonNull::<Node>::dangling().as_ptr();
 
             let mut trie = LrTrie::new();
-            let trace = &mut trie.trace;
+            let trace = trie.trace.get_mut();
             trace.push(PathNode(usize::MIN, n1));
             trace.push(PathNode(usize::MAX, n2));
 
@@ -548,10 +577,10 @@ mod tests_of_units {
         }
     }
 
-    use crate::{as_ref, PathNode};
+    use crate::PathNode;
     impl PathNode {
         fn n_ref<'a>(&self) -> &'a Node {
-            as_ref(self.1)
+            Node::as_ref(self.1)
         }
     }
 
@@ -576,13 +605,16 @@ mod tests_of_units {
         fn n_mut() {
             let n = &mut Node::empty();
             let pn = PathNode(0, n);
-            assert_eq!(n as *mut Node as usize, pn.n_mut() as *mut Node as usize);
+            assert_eq!(
+                n as *const Node as usize,
+                pn.n_mut() as *const Node as usize
+            );
         }
     }
 
     mod node {
 
-        use crate::{as_mut as as_mut_fn, as_ref as as_ref_fn, Links, Node, NULL};
+        use crate::{Links, Node, NULL};
         use std::ptr;
 
         #[test]
@@ -631,13 +663,20 @@ mod tests_of_units {
         #[test]
         fn as_mut() {
             let n = &mut Node::empty() as *mut Node;
-            assert_eq!(n as usize, as_mut_fn(n) as *const Node as usize);
+            assert_eq!(n as usize, Node::as_mut(n) as *const Node as usize);
         }
 
         #[test]
         fn as_ref() {
             let n = &Node::empty() as *const Node;
-            assert_eq!(n as usize, as_ref_fn(n) as *const Node as usize);
+            assert_eq!(n as usize, Node::as_ref(n) as *const Node as usize);
+        }
+
+        #[test]
+        fn to_mut_ptr() {
+            let n = Node::empty();
+            let n_add = &n as *const Node as usize;
+            assert_eq!(n_add, Node::to_mut_ptr(&n) as usize);
         }
     }
 
@@ -749,10 +788,10 @@ mod tests_of_units {
 
             #[rustfmt::skip]
             let links = vec![                
-                Node::empty(),
-                Node::new('a', 0 as *const Node),
-                Node::new('b', 0 as *const Node),
-                Node::new('c', 0 as *const Node),
+            Node::empty(),
+            Node::new('a', 0 as *const Node),
+            Node::new('b', 0 as *const Node),
+            Node::new('c', 0 as *const Node),
             ];
 
             node.links = Some(links);
@@ -934,6 +973,43 @@ mod tests_of_units {
         }
     }
 
+    mod uc {
+        use std::ops::Deref;
+
+        use crate::UC;
+
+        #[test]
+        fn get_ref() {
+            let zero = &0usize as *const usize;
+            let uc = UC::new(zero);
+            let test = uc.get_ref();
+
+            assert_eq!(zero as usize, *test as usize);
+        }
+
+        #[test]
+        fn get_mut() {
+            let zero = &0usize as *const usize;
+            let uc = UC::new(zero);
+            let test = uc.get_mut();
+
+            assert_eq!(zero as usize, *test as usize);
+        }
+        
+        #[test]
+        fn new() {
+            let uc = UC::new(333);
+            let mut test = uc.0;
+            assert_eq!(333, *test.get_mut());
+        }
+
+        #[test]
+        fn deref() {
+            let uc = UC::new(11);
+            assert_eq!(uc.get_ref(), uc.deref());
+        }
+    }
+
     mod trie {
 
         use crate::{LeftRight, LrTrie, Node};
@@ -949,7 +1025,7 @@ mod tests_of_units {
 
         mod insert {
 
-            use crate::{as_mut, as_ref, Entry, Key, KeyEntry, LeftRight, Links, LrTrie, Node};
+            use crate::{Entry, Key, KeyEntry, LeftRight, Links, LrTrie, Node};
 
             fn last_node(links: &Links) -> &Node {
                 let node = links.get(0);
@@ -977,7 +1053,7 @@ mod tests_of_units {
 
             fn put_id(node: *const Node, val: usize) {
                 let node = node.cast_mut();
-                as_mut(node).id = val;
+                Node::as_mut(node).id = val;
             }
 
             #[test]
@@ -1017,8 +1093,8 @@ mod tests_of_units {
 
                 let (lln_b_ptr, rln_b_ptr) = insert(trie, left_ke, right_ke);
 
-                let lln_b_ref = as_ref(lln_b_ptr);
-                let rln_b_ref = as_ref(rln_b_ptr);
+                let lln_b_ref = Node::as_ref(lln_b_ptr);
+                let rln_b_ref = Node::as_ref(rln_b_ptr);
 
                 assert_eq!(1, lln_b_ref.id); // left (key side) preserved
                 assert_ne!(2, rln_b_ref.id); // right (entry side) removed
@@ -1054,7 +1130,7 @@ mod tests_of_units {
                         insert(trie, one, replacement)
                     };
 
-                    let (lln_b_ref, rln_b_ref) = (as_ref(lln_b_ptr), as_ref(rln_b_ptr));
+                    let (lln_b_ref, rln_b_ref) = (Node::as_ref(lln_b_ptr), Node::as_ref(rln_b_ptr));
 
                     let (kept, removed) = if lr == LeftRight::Left {
                         assert_eq!(0, lln_b_ref.id);
@@ -1273,6 +1349,7 @@ mod tests_of_units {
 
                 let mut trie = LrTrie::new();
                 trie.insert(&left_ke, &right_ke);
+                assert_eq!(0, trie.entry.capacity());
 
                 verify(&left_ke, LeftRight::Left, &right_ke, &trie);
                 verify(&right_ke, LeftRight::Right, &left_ke, &trie);
@@ -1281,6 +1358,8 @@ mod tests_of_units {
                     let entry = trie.member(key, lr);
                     assert!(entry.is_some());
                     assert_eq!(e.0, &entry.unwrap());
+                    assert_eq!(0, trie.entry.len());
+                    assert_eq!(true, trie.entry.capacity() > 0);
                 }
             }
 
@@ -1303,23 +1382,15 @@ mod tests_of_units {
         }
 
         #[test]
-        fn as_mut() {
+        fn root() {
             let trie = LrTrie::new();
-            let trie_ptr = &trie as *const LrTrie;
-            let trie_mut = trie.as_mut();
-            assert_eq!(trie_ptr as usize, trie_mut as *mut LrTrie as usize);
-        }
-
-        #[test]
-        fn root_mut() {
-            let mut trie = LrTrie::new();
 
             let left = &trie.left as *const Node as usize;
             let right = &trie.right as *const Node as usize;
 
             let vals = [(left, LeftRight::Left), (right, LeftRight::Right)];
             for v in vals {
-                let test = trie.root_mut(v.1) as *const Node as usize;
+                let test = trie.root(v.1) as *const Node as usize;
                 assert_eq!(v.0, test);
             }
         }
@@ -1387,7 +1458,7 @@ mod tests_of_units {
                         assert!(trie.member(&keypad, lr.clone()).is_some());
 
                         _ = trie.track(&key, lr, TraStrain::TraEmp);
-                        let y_node = &trie.trace[key.0.len()].n_ref();
+                        let y_node = trie.trace[key.0.len()].n_ref();
                         let links = y_node.links.as_ref().unwrap();
                         assert_eq!(2, links.len());
                         let filtered = links.iter().filter(|x| x.c == 'w' || x.c == 'p').count();
@@ -1453,7 +1524,8 @@ mod tests_of_units {
         }
 
         mod put_trace_cap {
-            use crate::LrTrie;
+
+            use crate::{LrTrie, UC};
 
             #[test]
             fn extend() {
@@ -1473,7 +1545,7 @@ mod tests_of_units {
                 let old_cap = 50;
 
                 let mut trie = LrTrie::new();
-                trie.trace = Vec::with_capacity(old_cap);
+                trie.trace = UC::new(Vec::with_capacity(old_cap));
 
                 let size = trie.put_trace_cap(new_cap);
                 assert!(size >= new_cap && size < old_cap);
@@ -1485,7 +1557,7 @@ mod tests_of_units {
             fn same() {
                 let cap = 10;
                 let mut trie = LrTrie::new();
-                let tr = &mut trie.trace;
+                let tr = trie.trace.get_mut();
 
                 assert!(tr.capacity() < cap);
                 tr.reserve_exact(cap);
@@ -1500,8 +1572,8 @@ mod tests_of_units {
         #[test]
         fn acq_trace_cap() {
             let cap = 10;
-            let mut trie = LrTrie::new();
-            let tr = &mut trie.trace;
+            let trie = LrTrie::new();
+            let tr = trie.trace.get_mut();
 
             assert!(tr.capacity() < cap);
             tr.reserve_exact(cap);

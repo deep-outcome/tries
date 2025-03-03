@@ -6,6 +6,7 @@
 - extract + view
 - ct method
 - readme samples in unit tests
+- std::cell::UnsafeCell for all
 
 - opts    
     ▪ reduce memory demands by raw pointers (fruitfull?)
