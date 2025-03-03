@@ -6,4 +6,5 @@ members = [
   "dyn_trie",
   "lr_trie",
   "res",
-  "uc"]
+  "uc",
+  "tra"]

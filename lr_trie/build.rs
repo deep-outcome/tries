@@ -2,11 +2,14 @@ use std::fs::copy;
 use std::path::Path;
 
 fn main() {
-    cp("res");
-    cp("uc")
+    cp("tra");
+    cp("uc");
 }
 
 fn cp(load: &str) {
+    let dir = format!("./src/{}", load);
+    _ = std::fs::create_dir(dir);
+
     let src = format!("../{}/src/lib.rs", load);
     let dst = format!("./src/{}/mod.rs", load);
 

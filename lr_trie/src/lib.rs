@@ -5,8 +5,8 @@ use std::ptr;
 use std::string::String;
 use std::vec::Vec;
 
-mod res;
-use res::{tsdv, TraStrain};
+mod tra;
+use tra::{tsdv, TraStrain};
 
 mod uc;
 use uc::UC;
@@ -1167,7 +1167,7 @@ mod tests_of_units {
         }
 
         mod insert_crux {
-            use crate::{res::TraStrain, Entry, KeyEntry, LeftRight, LrTrie, Node};
+            use crate::{tra::TraStrain, Entry, KeyEntry, LeftRight, LrTrie, Node};
 
             #[test]
             fn basic_test() {
@@ -1417,7 +1417,7 @@ mod tests_of_units {
         /// in path to another entry. Path len varies 0…m.
         mod delete {
 
-            use crate::{res::TraStrain, Key, KeyEntry, LeftRight, LrTrie};
+            use crate::{tra::TraStrain, Key, KeyEntry, LeftRight, LrTrie};
 
             #[test]
             fn known_unknown() {
