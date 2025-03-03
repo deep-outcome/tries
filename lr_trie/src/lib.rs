@@ -247,9 +247,9 @@ impl<T> Deref for UC<T> {
 #[derive(Clone, PartialEq, Debug)]
 pub enum Buffer {
     /// Delete method buffer denotation.
-    Delete,
+    Delete = 0,
     /// Member method buffer denotation.
-    Member,
+    Member = 1,
 }
 
 /// Left-right trie is double-treed trie.
@@ -264,6 +264,8 @@ pub enum Buffer {
 /// All methods asymptotical computational time complexity depends on subnodes count,
 /// i.e. Ο(alphabet-size). For small alphabets applies rather Ο(key-length). `member` method
 /// is more requiring because of entry construction.
+///
+/// Node occurs per every `char` as defined by Rust lang.
 pub struct LrTrie {
     left: Node,
     right: Node,
@@ -432,7 +434,7 @@ impl LrTrie {
         }
     }
 
-    /// `LrTrie` uses internal buffers, to avoid excessive allocations and copying, which grows
+    /// `LrTrie` uses internal buffers, to avoid excessive allocations and copying, which grow
     /// over time due:
     /// - either backtracing when `delete`-ing, which backtraces whole path from entry
     /// node to root node
