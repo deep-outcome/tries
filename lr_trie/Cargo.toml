@@ -1,6 +1,6 @@
 [package]
 name = "lr_trie"
-version = "2.0.0"
+version = "2.0.1"
 edition = "2021"
 keywords = [ "digital-tree", "prefix-tree", "trie", "retrieval-tree" ]
 authors = [ "software9119.technology" ]
