@@ -439,7 +439,7 @@ impl LrTrie {
     /// let abc = "abc";
     /// assert_eq!(3, abc.len());
     /// ```
-    pub fn put_trace_cap(&mut self, approx_cap: usize, buf: Buffer) -> usize {
+    pub fn put_buf_cap(&mut self, approx_cap: usize, buf: Buffer) -> usize {
         if buf == Buffer::Delete {
             set_cap(&self.trace, approx_cap)
         } else {
@@ -450,10 +450,10 @@ impl LrTrie {
         }
     }
 
-    /// Returns corresponding buffer capacity.
+    /// Acquires corresponding buffer capacity.
     ///
-    /// Check with `fn put_trace_cap` for details.
-    pub fn acq_trace_cap(&self, buf: Buffer) -> usize {
+    /// Check with `fn put_buf_cap` for details.
+    pub fn aq_buf_cap(&self, buf: Buffer) -> usize {
         if buf == Buffer::Delete {
             self.trace.capacity()
         } else {
@@ -1540,7 +1540,7 @@ mod tests_of_units {
             }
         }
 
-        mod put_trace_cap {
+        mod put_buf_cap {
             use crate::{Buffer, LrTrie};
 
             #[test]
@@ -1549,7 +1549,7 @@ mod tests_of_units {
                 assert_eq!(0, trie.trace.capacity());
 
                 let cap = 100;
-                let size = trie.put_trace_cap(cap, Buffer::Delete);
+                let size = trie.put_buf_cap(cap, Buffer::Delete);
                 assert_eq!(true, size >= cap);
                 assert_eq!(true, trie.trace.capacity() >= cap);
             }
@@ -1560,13 +1560,13 @@ mod tests_of_units {
                 assert_eq!(0, trie.entry.capacity());
 
                 let cap = 100;
-                let size = trie.put_trace_cap(cap, Buffer::Member);
+                let size = trie.put_buf_cap(cap, Buffer::Member);
                 assert_eq!(true, size >= cap);
                 assert_eq!(true, trie.entry.capacity() >= cap);
             }
         }
 
-        mod acq_trace_cap {
+        mod aq_buf_cap {
             use crate::{Buffer, LrTrie};
 
             #[test]
@@ -1579,7 +1579,7 @@ mod tests_of_units {
                 buf.reserve_exact(cap);
                 let cap = buf.capacity();
 
-                assert_eq!(cap, trie.acq_trace_cap(Buffer::Delete));
+                assert_eq!(cap, trie.aq_buf_cap(Buffer::Delete));
             }
 
             #[test]
@@ -1592,7 +1592,7 @@ mod tests_of_units {
                 buf.reserve_exact(cap);
                 let cap = buf.capacity();
 
-                assert_eq!(cap, trie.acq_trace_cap(Buffer::Member));
+                assert_eq!(cap, trie.aq_buf_cap(Buffer::Member));
             }
         }
     }

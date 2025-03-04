@@ -8,6 +8,7 @@
 - readme samples in unit tests
 - std::cell::UnsafeCell for all
 - create tra for all
+- check for mut alising
 
 - opts    
     ▪ reduce memory demands by raw pointers (fruitfull?)
