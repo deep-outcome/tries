@@ -7,7 +7,6 @@
 - ct method
 - readme samples in unit tests
 - std::cell::UnsafeCell for all (t-oc also)
-- create tra for all  (t-oc also)
 
 - opts    
     ▪ reduce memory demands by raw pointers (fruitfull?)
