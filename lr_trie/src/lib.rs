@@ -74,16 +74,16 @@ impl Node {
         }
     }
 
-    fn as_mut<'a>(n: *mut Node) -> &'a mut Node {
+    fn as_mut<'a>(n: *mut Self) -> &'a mut Self {
         unsafe { n.as_mut().unwrap_unchecked() }
     }
 
-    fn as_ref<'a>(n: *const Node) -> &'a Node {
+    fn as_ref<'a>(n: *const Self) -> &'a Self {
         unsafe { n.as_ref().unwrap_unchecked() }
     }
 
-    fn to_mut_ptr(&self) -> *mut Node {
-        (self as *const Node).cast_mut()
+    fn to_mut_ptr(&self) -> *mut Self {
+        (self as *const Self).cast_mut()
     }
 }
 

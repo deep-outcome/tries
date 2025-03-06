@@ -419,8 +419,8 @@ impl<T> Node<T> {
         }
     }
 
-    fn to_mut_ptr(&self) -> *mut Node<T> {
-        (self as *const Node<T>).cast_mut()
+    fn to_mut_ptr(&self) -> *mut Self {
+        (self as *const Self).cast_mut()
     }
 }
 
