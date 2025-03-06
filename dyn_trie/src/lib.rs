@@ -250,7 +250,7 @@ impl<T> Trie<T> {
             if let Some(l) = node.links.as_ref() {
                 if let Some(n) = l.get(&c) {
                     if tracing {
-                        tr.push((c, Node::to_mut_ptr(n)));
+                        tr.push((c, n.to_mut_ptr()));
                     }
 
                     node = n;
@@ -266,7 +266,7 @@ impl<T> Trie<T> {
             match ts {
                 x if TraStrain::has(x.clone(), tsdv::REF) => TraRes::OkRef(node),
                 x if TraStrain::has(x.clone(), tsdv::MUT) => {
-                    let n_mut = unsafe { Node::to_mut_ptr(node).as_mut().unwrap_unchecked() };
+                    let n_mut = unsafe { node.to_mut_ptr().as_mut().unwrap_unchecked() };
                     TraRes::OkMut(n_mut)
                 }
                 x if TraStrain::has(x.clone(), tsdv::EMP) => TraRes::Ok,
@@ -419,8 +419,8 @@ impl<T> Node<T> {
         }
     }
 
-    fn to_mut_ptr(n: &Node<T>) -> *mut Node<T> {
-        (n as *const Node<T>).cast_mut()
+    fn to_mut_ptr(&self) -> *mut Node<T> {
+        (self as *const Node<T>).cast_mut()
     }
 }
 
@@ -1306,7 +1306,7 @@ mod tests_of_units {
         fn to_mut_ptr() {
             let n = Node::<usize>::empty();
             let n_add = &n as *const Node<usize> as usize;
-            assert_eq!(n_add, Node::to_mut_ptr(&n) as usize);
+            assert_eq!(n_add, n.to_mut_ptr() as usize);
         }
     }
 

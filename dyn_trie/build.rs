@@ -4,6 +4,7 @@ use std::path::Path;
 fn main() {
     cp("tra");
     cp("res");
+    cp("uc");
 }
 
 fn cp(load: &str) {

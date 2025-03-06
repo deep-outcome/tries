@@ -82,8 +82,8 @@ impl Node {
         unsafe { n.as_ref().unwrap_unchecked() }
     }
 
-    fn to_mut_ptr(n: &Node) -> *mut Node {
-        (n as *const Node).cast_mut()
+    fn to_mut_ptr(&self) -> *mut Node {
+        (self as *const Node).cast_mut()
     }
 }
 
@@ -313,7 +313,7 @@ impl LrTrie {
 
         let tracing = TraStrain::has(ts.clone(), tsdv::TRA);
         if tracing {
-            trace.push(PathNode(usize::MAX, Node::to_mut_ptr(root)));
+            trace.push(PathNode(usize::MAX, root.to_mut_ptr()));
         }
 
         let mut key = key.chars();
@@ -323,7 +323,7 @@ impl LrTrie {
                 if let Some(ix) = index_of_c(l, c) {
                     node = &l[ix];
                     if tracing {
-                        trace.push(PathNode(ix, Node::to_mut_ptr(node)));
+                        trace.push(PathNode(ix, node.to_mut_ptr()));
                     }
 
                     continue;
@@ -686,7 +686,7 @@ mod tests_of_units {
         fn to_mut_ptr() {
             let n = Node::empty();
             let n_add = &n as *const Node as usize;
-            assert_eq!(n_add, Node::to_mut_ptr(&n) as usize);
+            assert_eq!(n_add, n.to_mut_ptr() as usize);
         }
     }
 
