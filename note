@@ -1,6 +1,3 @@
-- improve path generations (internal buffer)
-- replace rev with double-ended iterator approach
-- iterator key
 - clear
 - acq mut
 - extract + view
@@ -9,13 +6,10 @@
 - std::cell::UnsafeCell for all (t-oc also)
 
 - opts    
-    ▪ reduce memory demands by raw pointers (fruitfull?)
-    ▪ pseudo-root for all
+    ▪ reduce memory demands by raw pointers (fruitfull?)    
     ▪ keys and values (complement to ext method)
     ▪ view_mut methods
-    ▪ ext & view methods consumes capacity specifiers or put_trace_cap transforms to put_cap consuming enum denoting buff in question
-    
+    ▪ ext & view methods consumes capacity specifiers or put_trace_cap transforms to put_cap consuming enum denoting buff in question    
 
 - reckoning
-    ▪ crate with traits implemented by tries
     ▪ check with potential on extracting common code (ext, view, see res)
