@@ -6,8 +6,13 @@ use core::panic;
 use std::collections::hash_map::HashMap;
 
 mod res;
-use res::{tsdv, TraStrain};
 pub use res::{AcqMutRes, AcqRes, InsRes, KeyErr, RemRes};
+
+mod tra;
+use tra::{tsdv, TraStrain};
+
+mod uc;
+use uc::UC;
 
 type Links<T> = HashMap<char, Node<T>>;
 
@@ -78,7 +83,7 @@ fn view<'a, T>(l: &'a Links<T>, buff: &mut String, o: &mut Vec<(String, &'a T)>)
 pub struct Trie<T> {
     root: Node<T>,
     // backtrace buff
-    btr: Vec<(char, *mut Node<T>)>,
+    btr: UC<Vec<(char, *mut Node<T>)>>,
     // entries count
     cnt: usize,
 }
@@ -89,7 +94,7 @@ impl<T> Trie<T> {
     pub fn new() -> Trie<T> {
         Trie {
             root: Node::<T>::empty(),
-            btr: Vec::new(),
+            btr: UC::new(Vec::new()),
             cnt: 0,
         }
     }
@@ -125,8 +130,7 @@ impl<T> Trie<T> {
 
     /// Acquires reference to entry associted to `key`.
     pub fn acq(&self, key: impl Iterator<Item = char>) -> AcqRes<T> {
-        let this = self.as_mut();
-        let res = this.track(key, TraStrain::NonRef);
+        let res = self.track(key, TraStrain::NonRef);
 
         if let TraRes::OkRef(en) = res {
             let en = en.entry.as_ref();
@@ -134,11 +138,6 @@ impl<T> Trie<T> {
         } else {
             AcqRes::Err(res.key_err())
         }
-    }
-
-    fn as_mut(&self) -> &mut Self {
-        let mut_ptr = (self as *const Self).cast_mut();
-        unsafe { mut_ptr.as_mut().unwrap_unchecked() }
     }
 
     /// Acquires mutable reference to entry associted to `key`.
@@ -169,7 +168,7 @@ impl<T> Trie<T> {
             RemRes::Err(tra_res.key_err())
         };
 
-        self.btr.clear();
+        self.btr.get_mut().clear();
         res
     }
 
@@ -230,32 +229,28 @@ impl<T> Trie<T> {
     // - c is count of `char`s iterated over
     // - TC: Ω(c ⋅1~) when `tracing = true`, ϴ(c ⋅1~) otherwise
     // - SC: ϴ(c ⋅1~) when `tracing = true`, ϴ(0 ⋅1~) otherwise
-    fn track<'a>(
-        &'a mut self,
-        mut key: impl Iterator<Item = char>,
-        ts: TraStrain,
-    ) -> TraRes<'a, T> {
+    fn track<'a>(&'a self, mut key: impl Iterator<Item = char>, ts: TraStrain) -> TraRes<'a, T> {
         let mut next = key.next();
 
         if next.is_none() {
             return TraRes::ZeroLenKey;
         }
 
-        let mut node = &mut self.root;
-        let tr = &mut self.btr;
+        let mut node = &self.root;
+        let tr = self.btr.get_mut();
 
         let tracing = TraStrain::has(ts.clone(), tsdv::TRA);
         if tracing {
-            tr.push((NULL, node));
+            tr.push((NULL, Node::to_mut_ptr(node)));
         }
 
         while let Some(c) = next {
             next = key.next();
 
-            if let Some(l) = node.links.as_mut() {
-                if let Some(n) = l.get_mut(&c) {
+            if let Some(l) = node.links.as_ref() {
+                if let Some(n) = l.get(&c) {
                     if tracing {
-                        tr.push((c, n));
+                        tr.push((c, Node::to_mut_ptr(n)));
                     }
 
                     node = n;
@@ -270,7 +265,10 @@ impl<T> Trie<T> {
         if node.entry() {
             match ts {
                 x if TraStrain::has(x.clone(), tsdv::REF) => TraRes::OkRef(node),
-                x if TraStrain::has(x.clone(), tsdv::MUT) => TraRes::OkMut(node),
+                x if TraStrain::has(x.clone(), tsdv::MUT) => {
+                    let n_mut = unsafe { Node::to_mut_ptr(node).as_mut().unwrap_unchecked() };
+                    TraRes::OkMut(n_mut)
+                }
                 x if TraStrain::has(x.clone(), tsdv::EMP) => TraRes::Ok,
                 _ => panic!("Unsupported result scenario."),
             }
@@ -310,9 +308,9 @@ impl<T> Trie<T> {
         let cp = tr.capacity();
 
         if cp < approx_cap {
-            tr.reserve(approx_cap);
+            tr.get_mut().reserve(approx_cap);
         } else if cp > approx_cap {
-            *tr = Vec::with_capacity(approx_cap);
+            *tr = UC::new(Vec::with_capacity(approx_cap));
         }
 
         tr.capacity()
@@ -419,6 +417,10 @@ impl<T> Node<T> {
             links: None,
             entry: None,
         }
+    }
+
+    fn to_mut_ptr(n: &Node<T>) -> *mut Node<T> {
+        (n as *const Node<T>).cast_mut()
     }
 }
 
@@ -816,14 +818,6 @@ mod tests_of_units {
             }
         }
 
-        #[test]
-        fn as_mut() {
-            let trie = Trie::<usize>::new();
-            let trie_ptr = &trie as *const Trie<usize>;
-            let trie_mut = trie.as_mut();
-            assert_eq!(trie_ptr as usize, trie_mut as *mut Trie::<usize> as usize);
-        }
-
         mod rem {
             use crate::{AcqRes, KeyErr, RemRes, Trie};
 
@@ -1042,7 +1036,7 @@ mod tests_of_units {
 
             #[test]
             fn zero_length_key() {
-                let mut trie = Trie::<usize>::new();
+                let trie = Trie::<usize>::new();
                 let res = trie.track("".chars(), TraStrain::NonEmp);
                 assert_eq!(TraRes::ZeroLenKey, res);
             }
@@ -1083,7 +1077,7 @@ mod tests_of_units {
         }
 
         mod put_trace_cap {
-            use crate::Trie;
+            use crate::{uc::UC, Trie};
 
             #[test]
             fn extend() {
@@ -1103,7 +1097,7 @@ mod tests_of_units {
                 let old_cap = 50;
 
                 let mut trie = Trie::<usize>::new();
-                trie.btr = Vec::with_capacity(old_cap);
+                trie.btr = UC::new(Vec::with_capacity(old_cap));
 
                 let cap = trie.put_trace_cap(new_cap);
                 assert!(cap >= new_cap && cap < old_cap);
@@ -1118,7 +1112,7 @@ mod tests_of_units {
                 let b_tr = &mut trie.btr;
 
                 assert!(b_tr.capacity() < approx_cap);
-                b_tr.reserve_exact(approx_cap);
+                b_tr.get_mut().reserve_exact(approx_cap);
                 let cap = b_tr.capacity();
 
                 let size = trie.put_trace_cap(cap);
@@ -1134,7 +1128,7 @@ mod tests_of_units {
             let b_tr = &mut trie.btr;
 
             assert!(b_tr.capacity() < cap);
-            b_tr.reserve_exact(cap);
+            b_tr.get_mut().reserve_exact(cap);
             let cap = b_tr.capacity();
 
             assert_eq!(cap, trie.acq_trace_cap());
@@ -1306,6 +1300,13 @@ mod tests_of_units {
 
             assert!(node.links.is_none());
             assert!(node.entry.is_none());
+        }
+
+        #[test]
+        fn to_mut_ptr() {
+            let n = Node::<usize>::empty();
+            let n_add = &n as *const Node<usize> as usize;
+            assert_eq!(n_add, Node::to_mut_ptr(&n) as usize);
         }
     }
 
