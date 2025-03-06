@@ -3,8 +3,13 @@
 //! Maps any `T` using any `impl Iterator<Item = char>` type.
 
 mod res;
-use res::{tsdv, TraStrain};
 pub use res::{AcqMutRes, AcqRes, InsRes, KeyErr, RemRes};
+
+mod uc;
+use uc::UC;
+
+mod tra;
+use tra::{tsdv, TraStrain};
 
 use std::vec::Vec;
 /// `Letter` is `Alphabet` element, represents tree node.
@@ -32,6 +37,10 @@ impl<T> Letter<T> {
 
     const fn en(&self) -> bool {
         self.en.is_some()
+    }
+
+    fn to_mut_ptr(&self) -> *mut Self {
+        (self as *const Self).cast_mut()
     }
 }
 
@@ -219,7 +228,7 @@ pub struct Trie<T> {
     // alphabet len
     al: usize,
     // backtrace buff
-    tr: Vec<*mut Letter<T>>,
+    tr: UC<Vec<*mut Letter<T>>>,
     // entries count
     ct: usize,
 }
@@ -274,7 +283,7 @@ impl<T> Trie<T> {
             ix,
             re,
             al: ab_len,
-            tr: Vec::new(),
+            tr: UC::new(Vec::new()),
             ct: 0,
         }
     }
@@ -310,9 +319,9 @@ impl<T> Trie<T> {
         let cp = tr.capacity();
 
         if cp < approx_cap {
-            tr.reserve(approx_cap);
+            tr.get_mut().reserve(approx_cap);
         } else if cp > approx_cap {
-            *tr = Vec::with_capacity(approx_cap);
+            *tr = UC::new(Vec::with_capacity(approx_cap));
         }
 
         tr.capacity()
@@ -409,12 +418,16 @@ impl<T> Trie<T> {
             res => RemRes::Err(res.key_err()),
         };
 
-        self.tr.clear();
+        self.tr.get_mut().clear();
         res
     }
 
     fn rem_actual(&mut self, #[cfg(test)] en_esc: &mut bool) -> T {
-        let mut trace = self.tr.iter_mut().map(|x| unsafe { x.as_mut() }.unwrap());
+        let mut trace = self
+            .tr
+            .get_ref()
+            .iter()
+            .map(|x| unsafe { x.as_mut() }.unwrap());
         let entry = trace.next_back().unwrap();
 
         let en = entry.en.take();
@@ -456,11 +469,7 @@ impl<T> Trie<T> {
     // - c is count of `char`s iterated over
     // - TC: Ω(c) when `tracing = true`, ϴ(c) otherwise
     // - SC: ϴ(c) when `tracing = true`, ϴ(0) otherwise
-    fn track<'a>(
-        &'a mut self,
-        mut key: impl Iterator<Item = char>,
-        ts: TraStrain,
-    ) -> TraRes<'a, T> {
+    fn track<'a>(&'a self, mut key: impl Iterator<Item = char>, ts: TraStrain) -> TraRes<'a, T> {
         let c = key.next();
 
         if c.is_none() {
@@ -470,19 +479,19 @@ impl<T> Trie<T> {
         let c = unsafe { c.unwrap_unchecked() };
 
         let ix = &self.ix;
-        let tr = &mut self.tr;
+        let tr = self.tr.get_mut();
 
-        let mut letter = &mut self.rt[ix(c)];
+        let mut letter = &self.rt[ix(c)];
 
         let tracing = TraStrain::has(ts.clone(), tsdv::TRA);
         loop {
             if tracing {
-                tr.push(letter)
+                tr.push(letter.to_mut_ptr())
             }
 
             if let Some(c) = key.next() {
-                if let Some(ab) = letter.ab.as_mut() {
-                    letter = &mut ab[ix(c)];
+                if let Some(ab) = letter.ab.as_ref() {
+                    letter = &ab[ix(c)];
                 } else {
                     return TraRes::UnknownForAbsentPath;
                 }
@@ -494,7 +503,10 @@ impl<T> Trie<T> {
         if letter.en() {
             match ts {
                 x if TraStrain::has(x.clone(), tsdv::REF) => TraRes::OkRef(letter),
-                x if TraStrain::has(x.clone(), tsdv::MUT) => TraRes::OkMut(letter),
+                x if TraStrain::has(x.clone(), tsdv::MUT) => {
+                    let l_mut = unsafe { letter.to_mut_ptr().as_mut().unwrap_unchecked() };
+                    TraRes::OkMut(l_mut)
+                }
                 x if TraStrain::has(x.clone(), tsdv::EMP) => TraRes::Ok,
                 _ => panic!("Unsupported result scenario."),
             }
@@ -935,7 +947,7 @@ mod tests_of_units {
         }
 
         mod put_trace_cap {
-            use crate::Trie;
+            use crate::{uc::UC, Trie};
 
             #[test]
             fn extend() {
@@ -955,7 +967,7 @@ mod tests_of_units {
                 let old_cap = 50;
 
                 let mut trie = Trie::<usize>::new();
-                trie.tr = Vec::with_capacity(old_cap);
+                trie.tr = UC::new(Vec::with_capacity(old_cap));
 
                 let size = trie.put_trace_cap(new_cap);
                 assert!(size >= new_cap && size < old_cap);
@@ -970,7 +982,7 @@ mod tests_of_units {
                 let tr = &mut trie.tr;
 
                 assert!(tr.capacity() < cap);
-                tr.reserve_exact(cap);
+                tr.get_mut().reserve_exact(cap);
                 let cap = tr.capacity();
 
                 let size = trie.put_trace_cap(cap);
@@ -986,7 +998,7 @@ mod tests_of_units {
             let tr = &mut trie.tr;
 
             assert!(tr.capacity() < cap);
-            tr.reserve_exact(cap);
+            tr.get_mut().reserve_exact(cap);
             let cap = tr.capacity();
 
             assert_eq!(cap, trie.acq_trace_cap());
@@ -1315,7 +1327,7 @@ mod tests_of_units {
 
             #[test]
             fn zero_key() {
-                let mut trie = Trie::<usize>::new();
+                let trie = Trie::<usize>::new();
                 let res = trie.track("".chars(), TraStrain::NonRef);
                 assert_eq!(TraRes::ZeroLen, res);
             }
