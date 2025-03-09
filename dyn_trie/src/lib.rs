@@ -91,7 +91,7 @@ pub struct Trie<T> {
 const NULL: char = '\0';
 impl<T> Trie<T> {
     /// Ctor.
-    pub fn new() -> Trie<T> {
+    pub const fn new() -> Trie<T> {
         Trie {
             root: Node::<T>::empty(),
             btr: UC::new(Vec::new()),
@@ -241,7 +241,7 @@ impl<T> Trie<T> {
 
         let tracing = TraStrain::has(ts.clone(), tsdv::TRA);
         if tracing {
-            tr.push((NULL, Node::to_mut_ptr(node)));
+            tr.push((NULL, node.to_mut_ptr()));
         }
 
         while let Some(c) = next {
@@ -386,7 +386,7 @@ enum TraRes<'a, T> {
 }
 
 impl<'a, T> TraRes<'a, T> {
-    fn key_err(&self) -> KeyErr {
+    const fn key_err(&self) -> KeyErr {
         match self {
             TraRes::ZeroLenKey => KeyErr::ZeroLen,
             TraRes::UnknownForNotEntry
@@ -404,22 +404,22 @@ struct Node<T> {
 }
 
 impl<T> Node<T> {
-    fn entry(&self) -> bool {
+    const fn entry(&self) -> bool {
         self.entry.is_some()
     }
 
-    fn links(&self) -> bool {
+    const fn links(&self) -> bool {
         self.links.is_some()
     }
 
-    fn empty() -> Self {
+    const fn empty() -> Self {
         Node {
             links: None,
             entry: None,
         }
     }
 
-    fn to_mut_ptr(&self) -> *mut Self {
+    const fn to_mut_ptr(&self) -> *mut Self {
         (self as *const Self).cast_mut()
     }
 }
