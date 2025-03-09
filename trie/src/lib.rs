@@ -39,7 +39,7 @@ impl<T> Letter<T> {
         self.en.is_some()
     }
 
-    fn to_mut_ptr(&self) -> *mut Self {
+    const fn to_mut_ptr(&self) -> *mut Self {
         (self as *const Self).cast_mut()
     }
 }
@@ -176,7 +176,7 @@ enum TraRes<'a, T> {
 }
 
 impl<'a, T> TraRes<'a, T> {
-    fn key_err(&self) -> KeyErr {
+    const fn key_err(&self) -> KeyErr {
         match self {
             TraRes::ZeroLen => KeyErr::ZeroLen,
             TraRes::UnknownForNotEntry | TraRes::UnknownForAbsentPath => KeyErr::Unknown,
@@ -371,9 +371,7 @@ impl<T> Trie<T> {
 
     /// Used to acquire reference to entry of `key`.
     pub fn acq(&self, key: impl Iterator<Item = char>) -> AcqRes<T> {
-        let this = self.as_mut();
-
-        match this.track(key, TraStrain::NonRef) {
+        match self.track(key, TraStrain::NonRef) {
             TraRes::OkRef(l) => {
                 let en = l.en.as_ref();
                 AcqRes::Ok(unsafe { en.unwrap_unchecked() })
@@ -391,11 +389,6 @@ impl<T> Trie<T> {
             }
             res => AcqMutRes::Err(res.key_err()),
         }
-    }
-
-    fn as_mut(&self) -> &mut Self {
-        let mut_ptr = (self as *const Self).cast_mut();
-        unsafe { mut_ptr.as_mut().unwrap_unchecked() }
     }
 
     /// Used to remove key-entry from tree.
@@ -1139,14 +1132,6 @@ mod tests_of_units {
                 let proof = AcqMutRes::Err(KeyErr::ZeroLen);
                 assert_eq!(proof, test);
             }
-        }
-
-        #[test]
-        fn as_mut() {
-            let trie = Trie::<usize>::new();
-            let trie_ptr = &trie as *const Trie<usize>;
-            let trie_mut = trie.as_mut();
-            assert_eq!(trie_ptr as usize, trie_mut as *mut Trie::<usize> as usize);
         }
 
         mod rem {
