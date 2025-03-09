@@ -467,7 +467,7 @@ impl LrTrie {
 
     /// Clears both trees leaving `LrTrie` instance blank.
     ///
-    /// Does not reset internal buffers capacity. Check with `put_buf_cap` for details.
+    /// Keeps capacity of all of internal buffers intact. Check with `put_buf_cap` for details.
     pub fn clear(&mut self) {
         self.left = Node::empty();
         self.right = Node::empty();
