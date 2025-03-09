@@ -1,7 +1,7 @@
-- clear
-- acq mut
-- extract + view
-- ct method
+- method:    
+    - acq mut
+    - extract + view
+    - count
 - readme samples in unit tests
 
 - opts    
@@ -12,3 +12,4 @@
 
 - reckoning
     ▪ check with potential on extracting common code (ext, view, see res)
+    ▪ fixed size (of node) lr-trie

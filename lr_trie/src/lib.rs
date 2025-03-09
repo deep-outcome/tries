@@ -242,6 +242,7 @@ pub enum Buffer {
 /// is more requiring because of entry construction.
 ///
 /// Node occurs per every `char` as defined by Rust lang.
+#[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct LrTrie {
     left: Node,
     right: Node,
@@ -462,6 +463,14 @@ impl LrTrie {
 
             self.entry.capacity()
         }
+    }
+
+    /// Clears both trees leaving `LrTrie` instance blank.
+    ///
+    /// Does not reset internal buffers capacity. Check with `put_buf_cap` for details.
+    pub fn clear(&mut self) {
+        self.left = Node::empty();
+        self.right = Node::empty();
     }
 }
 
@@ -1595,6 +1604,19 @@ mod tests_of_units {
                 assert_eq!(cap, trie.aq_buf_cap(Buffer::Member));
             }
         }
+    }
+
+    use crate::KeyEntry;
+    #[test]
+    fn clear() {
+        let mut trie = LrTrie::new();
+        let entry = KeyEntry("Key");
+        trie.insert(&entry, &entry);
+
+        trie.clear();
+        assert_eq!(trie.left, Node::empty());
+        assert_eq!(trie.right, Node::empty());
+        assert_eq!(trie, LrTrie::new());
     }
 
     mod readme {

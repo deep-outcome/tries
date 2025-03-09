@@ -1,5 +1,16 @@
 use std::{cell::UnsafeCell, ops::Deref};
 
+#[cfg(test)]
+impl<T> PartialEq for UC<T>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.get_ref().eq(other.get_ref())
+    }
+}
+
+#[cfg_attr(test, derive(Debug))]
 pub struct UC<T>(UnsafeCell<T>);
 
 impl<T> UC<T> {
@@ -31,6 +42,24 @@ mod tests_of_units {
     use std::ops::Deref;
 
     use crate::UC;
+
+    mod partial_eq {
+        use crate::UC;
+
+        #[test]
+        fn eq() {
+            let uc1 = UC::new(vec![0; 1]);
+            let uc2 = UC::new(vec![0; 1]);
+            assert_eq!(true, uc1.eq(&uc2));
+        }
+
+        #[test]
+        fn not_eq() {
+            let uc1 = UC::new(vec![0; 1]);
+            let uc2 = UC::new(vec![0; 2]);
+            assert_eq!(false, uc1.eq(&uc2));
+        }
+    }
 
     #[test]
     fn get_ref() {
