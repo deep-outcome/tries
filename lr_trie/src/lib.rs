@@ -46,11 +46,11 @@ impl Node {
         !self.lrref.is_null()
     }
 
-    fn links(&self) -> bool {
+    const fn links(&self) -> bool {
         self.links.is_some()
     }
 
-    fn empty() -> Self {
+    const fn empty() -> Self {
         let null_ptr = ptr::null();
 
         Node {
@@ -63,7 +63,7 @@ impl Node {
         }
     }
 
-    fn new(c: char, supernode: *const Node) -> Self {
+    const fn new(c: char, supernode: *const Node) -> Self {
         Node {
             c,
             supernode,
@@ -82,7 +82,7 @@ impl Node {
         unsafe { n.as_ref().unwrap_unchecked() }
     }
 
-    fn to_mut_ptr(&self) -> *mut Self {
+    const fn to_mut_ptr(&self) -> *mut Self {
         (self as *const Self).cast_mut()
     }
 }
@@ -92,7 +92,7 @@ pub struct KeyEntry<'a>(&'a str);
 
 impl<'a> KeyEntry<'a> {
     /// Returns `None` for 0-len `key`.
-    pub fn new(key: &'a str) -> Option<Self> {
+    pub const fn new(key: &'a str) -> Option<Self> {
         if key.len() == 0 {
             None
         } else {
@@ -133,7 +133,7 @@ fn index_of_c(links: &Links, c: char) -> Option<usize> {
     None
 }
 
-fn cl_lrref(keyentry_n: &mut Node) -> bool {
+const fn cl_lrref(keyentry_n: &mut Node) -> bool {
     if keyentry_n.links() {
         keyentry_n.lrref = ptr::null();
         true
@@ -261,7 +261,7 @@ enum TraRes<'a> {
 
 impl LrTrie {
     /// Ctor.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         LrTrie {
             left: Node::empty(),
             right: Node::empty(),
@@ -374,7 +374,7 @@ impl LrTrie {
         }
     }
 
-    fn root(&self, lr: LeftRight) -> &Node {
+    const fn root(&self, lr: LeftRight) -> &Node {
         match lr {
             LeftRight::Left => &self.left,
             LeftRight::Right => &self.right,
