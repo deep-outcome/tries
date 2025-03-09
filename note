@@ -2,13 +2,12 @@
     - acq mut
     - extract + view
     - count
-- readme samples in unit tests
 
-- opts    
-    ▪ reduce memory demands by raw pointers (fruitfull?)    
+- opts        
     ▪ keys and values (complement to ext method)
-    ▪ view_mut methods
-    ▪ ext & view methods consumes capacity specifiers or put_trace_cap transforms to put_cap consuming enum denoting buff in question    
+    ▪ view_mut methods    
+    ▪ reduce memory demands by raw pointers (fruitfull?)    
+    ▪ ext & view methods consumes capacity specifiers or put_trace_cap transforms to put_cap consuming enum denoting buff in question
 
 - reckoning
     ▪ check with potential on extracting common code (ext, view, see res)
