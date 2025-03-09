@@ -11,4 +11,4 @@
 
 - reckoning
     ▪ check with potential on extracting common code (ext, view, see res)
-    ▪ fixed size (of node) lr-trie
+    ▪ fixed size (of node) lr-trie, two-languaged sides imply merged alphabet (=big node), one lang --> node is big by means of node size
