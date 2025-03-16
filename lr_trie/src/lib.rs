@@ -753,7 +753,7 @@ mod tests_of_units {
         #[test]
         fn deref() {
             const KEY: &str = "key";
-            let key = KeyEntry::new(KEY).unwrap();
+            let key = KeyEntry(KEY);
             assert_eq!(KEY, key.deref());
         }
     }
@@ -1114,8 +1114,8 @@ mod tests_of_units {
 
             #[test]
             fn basic_test() {
-                let left_ke = &KeyEntry::new("LEFT").unwrap();
-                let right_ke = &KeyEntry::new("RIGHT").unwrap();
+                let left_ke = &KeyEntry("LEFT");
+                let right_ke = &KeyEntry("RIGHT");
 
                 let trie = &mut LrTrie::new();
                 trie.insert(left_ke, right_ke);
@@ -1139,8 +1139,8 @@ mod tests_of_units {
 
             #[test]
             fn reinsert_same() {
-                let left_ke = &KeyEntry::new("LEFT").unwrap();
-                let right_ke = &KeyEntry::new("RIGHT").unwrap();
+                let left_ke = &KeyEntry("LEFT");
+                let right_ke = &KeyEntry("RIGHT");
 
                 let trie = &mut LrTrie::new();
 
@@ -1172,9 +1172,9 @@ mod tests_of_units {
 
             #[test]
             fn reinsert_different() {
-                let one = &KeyEntry::new("ONE").unwrap();
-                let another = &KeyEntry::new("ANOTHER").unwrap();
-                let replacement = &KeyEntry::new("REPLACEMENT").unwrap();
+                let one = &KeyEntry("ONE");
+                let another = &KeyEntry("ANOTHER");
+                let replacement = &KeyEntry("REPLACEMENT");
 
                 for lr in [LeftRight::Left, LeftRight::Right] {
                     let trie = &mut LrTrie::new();
@@ -1245,7 +1245,7 @@ mod tests_of_units {
                 const ENTRY: &str = "lr_links_inserT";
                 let limit = ENTRY.len() - 1;
 
-                let entry = Entry::new(ENTRY).unwrap();
+                let entry: Entry = KeyEntry(ENTRY);
                 let node = LrTrie::insert_crux(&mut root, &entry);
 
                 assert_eq!('T', node.c);
@@ -1280,8 +1280,8 @@ mod tests_of_units {
                 const OLD: &str = "touchstone";
                 const NEW: &str = "touch";
 
-                let old = KeyEntry::new(OLD).unwrap();
-                let new = KeyEntry::new(NEW).unwrap();
+                let old = KeyEntry(OLD);
+                let new = KeyEntry(NEW);
 
                 let mut trie = LrTrie::new();
 
@@ -1430,8 +1430,8 @@ mod tests_of_units {
 
             #[test]
             fn member() {
-                let left_ke = KeyEntry::new("LEFT").unwrap();
-                let right_ke = KeyEntry::new("RIGHT").unwrap();
+                let left_ke = KeyEntry("LEFT");
+                let right_ke = KeyEntry("RIGHT");
 
                 let mut trie = LrTrie::new();
                 trie.insert(&left_ke, &right_ke);
@@ -1451,14 +1451,14 @@ mod tests_of_units {
 
             #[test]
             fn not_member() {
-                let keyword = KeyEntry::new("Keyword").unwrap();
+                let keyword = KeyEntry("Keyword");
 
                 let mut trie = LrTrie::new();
                 trie.insert(&keyword, &keyword);
 
                 for lr in [LeftRight::Left, LeftRight::Right] {
                     for key in ["Key", "Opener"] {
-                        let key = KeyEntry::new(key).unwrap();
+                        let key = KeyEntry(key);
 
                         let member = trie.member(&key, lr.clone());
                         assert!(member.is_none());
@@ -1510,11 +1510,11 @@ mod tests_of_units {
             fn inner_entry() {
                 let mut trie = LrTrie::new();
 
-                let outer = KeyEntry::new("Keyword").unwrap();
+                let outer = KeyEntry("Keyword");
                 trie.insert(&outer, &outer);
 
                 for lr in [LeftRight::Left, LeftRight::Right] {
-                    let inner = KeyEntry::new("Key").unwrap();
+                    let inner = KeyEntry("Key");
                     trie.insert(&inner, &inner);
 
                     assert!(trie.delete(&inner, lr).is_ok());
@@ -1527,10 +1527,10 @@ mod tests_of_units {
 
             #[test]
             fn branching_node() {
-                let keyword = KeyEntry::new("Keyword").unwrap();
-                let keyboard = KeyEntry::new("Keyboard").unwrap();
-                let keypad = KeyEntry::new("Keypad").unwrap();
-                let key = Key::new("Key").unwrap();
+                let keyword = KeyEntry("Keyword");
+                let keyboard = KeyEntry("Keyboard");
+                let keypad = KeyEntry("Keypad");
+                let key: Key = KeyEntry("Key");
 
                 for lr in [LeftRight::Left, LeftRight::Right] {
                     let mut trie = LrTrie::new();
@@ -1557,7 +1557,7 @@ mod tests_of_units {
 
             #[test]
             fn links_removal() {
-                let keyword = KeyEntry::new("Keyword").unwrap();
+                let keyword = KeyEntry("Keyword");
                 let mut trie = LrTrie::new();
 
                 for lr in [LeftRight::Left, LeftRight::Right] {
@@ -1574,8 +1574,8 @@ mod tests_of_units {
 
             #[test]
             fn node_composing_path() {
-                let dissimilar = KeyEntry::new("Dissimilar").unwrap();
-                let keyword = KeyEntry::new("Keyword").unwrap();
+                let dissimilar = KeyEntry("Dissimilar");
+                let keyword = KeyEntry("Keyword");
 
                 for lr in [LeftRight::Left, LeftRight::Right] {
                     let mut trie = LrTrie::new();
@@ -1591,8 +1591,8 @@ mod tests_of_units {
 
             #[test]
             fn node_being_keyentry() {
-                let keyword = KeyEntry::new("Keyword").unwrap();
-                let k = KeyEntry::new("K").unwrap();
+                let keyword = KeyEntry("Keyword");
+                let k = KeyEntry("K");
 
                 let mut trie = LrTrie::new();
                 trie.insert(&k, &k);
@@ -1700,8 +1700,8 @@ mod tests_of_units {
         #[test]
         fn test() {
             let mut trie = LrTrie::new();
-            let one = KeyEntry::new("emoción").unwrap();
-            let another = KeyEntry::new("emotion").unwrap();
+            let one = KeyEntry("emoción");
+            let another = KeyEntry("emotion");
 
             trie.insert(&one, &another);
             assert!(trie.member(&one, LeftRight::Left).is_some());
