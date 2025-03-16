@@ -1,7 +1,5 @@
-- method:    
-    - acq mut
-    - extract + view
-    - count
+- method:
+    - extract
 
 - opts        
     ▪ keys and values (complement to ext method)
