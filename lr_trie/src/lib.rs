@@ -249,6 +249,7 @@ pub struct LrTrie {
     // backtracing buffer
     trace: UC<NodeTrace>,
     entry: UC<EntryTrace>,
+    count: usize,
 }
 
 #[cfg_attr(test, derive(PartialEq, Debug))]
@@ -268,6 +269,7 @@ impl LrTrie {
             right: Node::empty(),
             trace: UC::new(Vec::new()),
             entry: UC::new(Vec::new()),
+            count: 0,
         }
     }
 
@@ -277,14 +279,28 @@ impl LrTrie {
     pub fn insert(&mut self, l_entry: &Entry, r_entry: &Entry) {
         // let not make exercises for exact reinsert since
         // it is supposed to be very rare, if at all
-        _ = self.delete_crux(l_entry, LeftRight::Left, false);
-        _ = self.delete_crux(r_entry, LeftRight::Right, false);
+
+        let mut cntr = 0;
+        if self.delete_crux(l_entry, LeftRight::Left, false).is_ok() {
+            cntr += 1;
+        }
+        if self.delete_crux(r_entry, LeftRight::Right, false).is_ok() {
+            cntr += 1;
+        }
 
         let l_en = Self::insert_crux(&mut self.left, l_entry);
         let r_en = Self::insert_crux(&mut self.right, r_entry);
 
         l_en.lrref = r_en as *const Node;
         r_en.lrref = l_en as *const Node;
+
+        let count = self.count;
+        self.count = match cntr {
+            0 => count + 1,
+            1 => return,
+            2 => count - 1,
+            _ => panic!("Impossible value."),
+        }
     }
 
     fn insert_crux<'a>(mut node: &'a mut Node, e: &Entry) -> &'a mut Node {
@@ -388,6 +404,11 @@ impl LrTrie {
     pub fn delete(&mut self, key: &Key, lr: LeftRight) -> Result<(), ()> {
         let res = self.delete_crux(key, lr, true);
         self.trace.get_mut().clear();
+
+        if res.is_ok() {
+            self.count -= 1;
+        }
+
         res
     }
 
@@ -471,6 +492,12 @@ impl LrTrie {
     pub fn clear(&mut self) {
         self.left = Node::empty();
         self.right = Node::empty();
+        self.count = 0;
+    }
+
+    /// Returns actual count of entry-entry pairs.
+    pub fn count(&self) -> usize {
+        self.count
     }
 }
 
@@ -1038,7 +1065,7 @@ mod tests_of_units {
 
     mod trie {
 
-        use crate::{LeftRight, LrTrie, Node};
+        use crate::{uc::UC, LeftRight, LrTrie, Node};
 
         #[test]
         fn new() {
@@ -1047,6 +1074,9 @@ mod tests_of_units {
 
             assert_eq!(empty, trie.left);
             assert_eq!(empty, trie.right);
+            assert_eq!(UC::new(Vec::new()), trie.trace);
+            assert_eq!(UC::new(Vec::new()), trie.entry);
+            assert_eq!(0, trie.count);
         }
 
         mod insert {
@@ -1090,6 +1120,8 @@ mod tests_of_units {
                 let trie = &mut LrTrie::new();
                 trie.insert(left_ke, right_ke);
 
+                assert_eq!(1, trie.count);
+
                 let left = verify(trie, left_ke, LeftRight::Left, right_ke);
                 let right = verify(trie, right_ke, LeftRight::Right, left_ke);
 
@@ -1113,11 +1145,13 @@ mod tests_of_units {
                 let trie = &mut LrTrie::new();
 
                 let (lln_a_ptr, rln_a_ptr) = insert(trie, left_ke, right_ke);
+                assert_eq!(1, trie.count);
 
                 put_id(lln_a_ptr, 1);
                 put_id(rln_a_ptr, 2);
 
                 let (lln_b_ptr, rln_b_ptr) = insert(trie, left_ke, right_ke);
+                assert_eq!(1, trie.count);
 
                 let lln_b_ref = Node::as_ref(lln_b_ptr);
                 let rln_b_ref = Node::as_ref(rln_b_ptr);
@@ -1146,6 +1180,7 @@ mod tests_of_units {
                     let trie = &mut LrTrie::new();
 
                     let (lln_a_ptr, rln_a_ptr) = insert(trie, one, another);
+                    assert_eq!(1, trie.count);
 
                     put_id(lln_a_ptr, 97);
                     put_id(rln_a_ptr, 98);
@@ -1155,6 +1190,8 @@ mod tests_of_units {
                     } else {
                         insert(trie, one, replacement)
                     };
+
+                    assert_eq!(1, trie.count);
 
                     let (lln_b_ref, rln_b_ref) = (Node::as_ref(lln_b_ptr), Node::as_ref(rln_b_ptr));
 
@@ -1172,6 +1209,29 @@ mod tests_of_units {
                     assert!(trie.member(kept, lr.clone().invert()).is_some());
                     assert!(trie.member(removed, lr).is_none());
                 }
+            }
+
+            #[test]
+            fn entry_map_merge() {
+                let mut trie = LrTrie::new();
+
+                let a1 = &KeyEntry("A1");
+                let a2 = &KeyEntry("A2");
+                let b1 = &KeyEntry("B1");
+                let b2 = &KeyEntry("B2");
+
+                trie.insert(a1, b1);
+                trie.insert(b2, a2);
+
+                assert_eq!(2, trie.count);
+                trie.insert(a1, a2);
+                assert_eq!(1, trie.count);
+
+                assert_eq!(Some(a2.0.to_string()), trie.member(a1, LeftRight::Left));
+                assert_eq!(Some(a1.0.to_string()), trie.member(a2, LeftRight::Right));
+
+                assert_eq!(None, trie.member(b1, LeftRight::Right));
+                assert_eq!(None, trie.member(b2, LeftRight::Left));
             }
         }
 
@@ -1438,9 +1498,11 @@ mod tests_of_units {
 
                 assert_eq!(Err(()), trie.delete(&unknown, LeftRight::Left));
                 assert_eq!(0, trie.trace.len());
+                assert_eq!(1, trie.count);
 
                 assert_eq!(Ok(()), trie.delete(&known, LeftRight::Left));
                 assert_eq!(0, trie.trace.len());
+                assert_eq!(0, trie.count);
                 assert_eq!(None, trie.member(&known, LeftRight::Right));
             }
 
@@ -1614,9 +1676,22 @@ mod tests_of_units {
         trie.insert(&entry, &entry);
 
         trie.clear();
+
+        assert_eq!(0, trie.count);
+
         assert_eq!(trie.left, Node::empty());
         assert_eq!(trie.right, Node::empty());
         assert_eq!(trie, LrTrie::new());
+    }
+
+    #[test]
+    fn count() {
+        let mut trie = LrTrie::new();
+        assert_eq!(0, trie.count());
+
+        trie.count = 99;
+
+        assert_eq!(99, trie.count());
     }
 
     mod readme {
