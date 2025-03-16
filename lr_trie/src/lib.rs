@@ -496,7 +496,7 @@ impl LrTrie {
     }
 
     /// Returns actual count of entry-entry pairs.
-    pub fn count(&self) -> usize {
+    pub const fn count(&self) -> usize {
         self.count
     }
 }
