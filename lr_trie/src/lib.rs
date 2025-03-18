@@ -220,6 +220,25 @@ fn set_cap<T>(buf: &UC<Vec<T>>, approx_cap: usize) -> usize {
     buf.capacity()
 }
 
+fn construct_e(mut node: *const Node, e_buf: &mut Vec<char>) -> String {
+    let null = ptr::null();
+    loop {
+        let n = Node::as_ref(node);
+        let super_n = n.supernode;
+
+        if super_n == null {
+            break;
+        }
+
+        e_buf.push(n.c);
+        node = super_n;
+    }
+
+    let ret = e_buf.iter().rev().collect::<String>();
+    e_buf.clear();
+    ret
+}
+
 /// Denotes desired buffer on respective operations.
 #[derive(Clone, PartialEq, Debug)]
 pub enum Buffer {
@@ -371,22 +390,7 @@ impl LrTrie {
         if let TraRes::OkRef(en) = res {
             let entry = self.entry.get_mut();
 
-            let null = ptr::null();
-            let mut node = en.lrref;
-            loop {
-                let n = Node::as_ref(node);
-                let super_n = n.supernode;
-
-                if super_n == null {
-                    break;
-                }
-
-                entry.push(n.c);
-                node = super_n;
-            }
-
-            let ret = entry.iter().rev().collect::<String>();
-            entry.clear();
+            let ret = construct_e(en.lrref, entry);
             Some(ret)
         } else {
             None
@@ -1062,6 +1066,41 @@ mod tests_of_units {
             let size = set_cap(&buf, cap);
             assert_eq!(cap, size);
             assert_eq!(cap, buf.capacity());
+        }
+    }
+
+    mod construct_e {
+        use crate::{construct_e, Node};
+
+        #[test]
+        fn construction() {
+            let root = Node::empty();
+            let n1 = Node::new('l', &root);
+            let n2 = Node::new('r', &n1);
+            let n3 = Node::new('_', &n2);
+            let n4 = Node::new('t', &n3);
+            let n5 = Node::new('r', &n4);
+            let n6 = Node::new('i', &n5);
+            let n7 = Node::new('e', &n6);
+
+            let mut buf = Vec::new();
+
+            let res = construct_e(&n7, &mut buf);
+            assert_eq!("lr_trie", res.as_str());
+            assert_eq!(0, buf.len());
+        }
+
+        #[test]
+        fn root_escape() {
+            let mut root = Node::empty();
+            root.c = 'r';
+
+            let mut buf = Vec::new();
+
+            let res = construct_e(&root, &mut buf);
+            assert_eq!("", res.as_str());
+            assert_eq!(0, buf.len());
+            assert_eq!(0, buf.capacity());
         }
     }
 
