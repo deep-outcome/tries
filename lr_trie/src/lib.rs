@@ -39,11 +39,12 @@ struct Node {
     id: usize,
 }
 
-const NULL: char = '\0';
+const NULL_CHAR: char = '\0';
+const NULL_NODE: *const Node = ptr::null();
 
 impl Node {
     fn lrref(&self) -> bool {
-        !self.lrref.is_null()
+        self.lrref != NULL_NODE
     }
 
     const fn links(&self) -> bool {
@@ -51,13 +52,11 @@ impl Node {
     }
 
     const fn empty() -> Self {
-        let null_ptr = ptr::null();
-
         Node {
-            c: NULL,
-            supernode: null_ptr,
+            c: NULL_CHAR,
+            supernode: NULL_NODE,
             links: None,
-            lrref: null_ptr,
+            lrref: NULL_NODE,
             #[cfg(test)]
             id: 0,
         }
@@ -68,7 +67,7 @@ impl Node {
             c,
             supernode,
             links: None,
-            lrref: ptr::null(),
+            lrref: NULL_NODE,
             #[cfg(test)]
             id: 0,
         }
@@ -135,7 +134,7 @@ fn index_of_c(links: &Links, c: char) -> Option<usize> {
 
 const fn cl_lrref(keyentry_n: &mut Node) -> bool {
     if keyentry_n.links() {
-        keyentry_n.lrref = ptr::null();
+        keyentry_n.lrref = NULL_NODE;
         true
     } else {
         false
@@ -187,11 +186,11 @@ fn delete_entry_side(key_side_entry_n: &Node) {
         return;
     }
 
-    let null_mut = ptr::null_mut();
+    const NULL_MUT: *mut Node = ptr::null_mut();
     let mut node: &mut Node = node;
     loop {
         let super_n = node.supernode.cast_mut();
-        if super_n == null_mut {
+        if super_n == NULL_MUT {
             break;
         }
 
@@ -221,12 +220,11 @@ fn set_cap<T>(buf: &UC<Vec<T>>, approx_cap: usize) -> usize {
 }
 
 fn construct_e(mut node: *const Node, e_buf: &mut Vec<char>) -> String {
-    let null = ptr::null();
     loop {
         let n = Node::as_ref(node);
         let super_n = n.supernode;
 
-        if super_n == null {
+        if super_n == NULL_NODE {
             break;
         }
 
@@ -666,7 +664,7 @@ mod tests_of_units {
 
     mod node {
 
-        use crate::{Links, Node, NULL};
+        use crate::{Links, Node, NULL_CHAR};
         use std::ptr;
 
         #[test]
@@ -693,7 +691,7 @@ mod tests_of_units {
 
             let node = Node::empty();
 
-            assert_eq!(NULL, node.c);
+            assert_eq!(NULL_CHAR, node.c);
             assert_eq!(null_ptr, node.supernode);
             assert_eq!(None, node.links);
             assert_eq!(null_ptr, node.lrref);
