@@ -187,10 +187,11 @@ fn delete_entry_side(key_side_entry_n: &Node) {
         return;
     }
 
+    let null_mut = ptr::null_mut();
     let mut node: &mut Node = node;
     loop {
         let super_n = node.supernode.cast_mut();
-        if super_n == ptr::null_mut() {
+        if super_n == null_mut {
             break;
         }
 
@@ -370,12 +371,13 @@ impl LrTrie {
         if let TraRes::OkRef(en) = res {
             let entry = self.entry.get_mut();
 
+            let null = ptr::null();
             let mut node = en.lrref;
             loop {
                 let n = Node::as_ref(node);
                 let super_n = n.supernode;
 
-                if super_n == ptr::null() {
+                if super_n == null {
                     break;
                 }
 
