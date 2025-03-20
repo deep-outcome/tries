@@ -11,7 +11,7 @@ use tra::{tsdv, TraStrain};
 mod uc;
 use uc::UC;
 
-type Links = Vec<Node>;
+type Links = Vec<Box<Node>>;
 type NodeTrace = Vec<PathNode>;
 type EntryTrace = Vec<char>;
 
@@ -71,6 +71,14 @@ impl Node {
             #[cfg(test)]
             id: 0,
         }
+    }
+
+    fn empty_boxed() -> Box<Self> {
+        Box::new(Self::empty())
+    }
+
+    fn new_boxed(c: char, supernode: *const Node) -> Box<Self> {
+        Box::new(Self::new(c, supernode))
     }
 
     fn as_mut<'a>(n: *mut Self) -> &'a mut Self {
@@ -321,25 +329,37 @@ impl LrTrie {
         }
     }
 
-    fn insert_crux<'a>(mut node: &'a mut Node, e: &Entry) -> &'a mut Node {
+    fn insert_crux<'a>(mut supernode: &'a mut Node, e: &Entry) -> &'a mut Node {
         let e = e.0;
 
-        let mut super_n: *const Node = node;
+        let mut swap = Node::empty_boxed();
+        let mut sn_ptr: *const Node = supernode;
         for c in e.chars() {
-            let links = node.links.get_or_insert_with(|| Links::new());
+            let links = supernode.links.get_or_insert_with(|| Links::new());
 
             let ix = if let Some(i) = index_of_c(links, c) {
                 i
             } else {
-                links.push(Node::new(c, super_n));
+                let boxed = Node::new_boxed(c, sn_ptr);
+                links.push(boxed);
                 links.len() - 1
             };
 
-            node = &mut links[ix];
-            super_n = node;
+            let node = &mut links[ix];
+
+            // Can be made coherent after
+            // https://github.com/rust-lang/rust/issues/129090.
+            std::mem::swap(&mut swap, node);
+            let n_raw = Box::into_raw(swap);
+            swap = unsafe { Box::from_raw(n_raw) };
+            std::mem::swap(&mut swap, node);
+
+            supernode = node;
+
+            sn_ptr = n_raw;
         }
 
-        node
+        supernode
     }
 
     fn track(&self, key: &Key, lr: LeftRight, ts: TraStrain) -> TraRes {
@@ -526,7 +546,7 @@ mod tests_of_units {
         fn eq() {
             let sn = Node::empty();
             let mut n1 = Node::new('x', &sn);
-            let links = vec![Node::new('y', &sn)];
+            let links = vec![Node::new_boxed('y', &sn)];
             n1.links = Some(links);
             n1.lrref = &sn;
 
@@ -768,7 +788,7 @@ mod tests_of_units {
 
         fn links(cs: &[char]) -> Links {
             cs.iter()
-                .map(|x| Node::new(*x, 0 as *const Node))
+                .map(|x| Node::new_boxed(*x, 0 as *const Node))
                 .collect::<Links>()
         }
 
@@ -816,7 +836,7 @@ mod tests_of_units {
 
     mod delete_subnode {
         use crate::{delete_subnode, Links, Node};
-        use std::vec;
+        use std::{ops::Deref, vec};
 
         // deletion continues when and only when
         // node does not participates in path to another
@@ -824,7 +844,7 @@ mod tests_of_units {
         #[test]
         fn deletion_continues() {
             let mut node = Node::empty();
-            node.links = Some(vec![Node::empty()]);
+            node.links = Some(vec![Node::empty_boxed()]);
 
             assert_eq!(false, delete_subnode(&mut node, 0));
             assert_eq!(None, node.links);
@@ -838,10 +858,10 @@ mod tests_of_units {
 
             #[rustfmt::skip]
             let links = vec![                
-            Node::empty(),
-            Node::new('a', 0 as *const Node),
-            Node::new('b', 0 as *const Node),
-            Node::new('c', 0 as *const Node),
+            Node::empty_boxed(),
+            Node::new_boxed('a', 0 as *const Node),
+            Node::new_boxed('b', 0 as *const Node),
+            Node::new_boxed('c', 0 as *const Node),
             ];
 
             node.links = Some(links);
@@ -849,7 +869,7 @@ mod tests_of_units {
 
             let links = node.links.as_ref().unwrap();
             assert_eq!(3, links.len());
-            assert_eq!(&Node::empty(), &links[0]);
+            assert_eq!(&Node::empty(), links[0].deref());
             assert_eq!('c', links[1].c);
             assert_eq!('b', links[2].c);
         }
@@ -861,7 +881,7 @@ mod tests_of_units {
         fn key_node() {
             let mut node = Node::empty();
 
-            node.links = Some(vec![Node::empty()]);
+            node.links = Some(vec![Node::empty_boxed()]);
             node.lrref = &node;
 
             assert_eq!(true, delete_subnode(&mut node, 0));
@@ -879,7 +899,7 @@ mod tests_of_units {
 
     mod delete_key_side {
         use crate::{delete_key_side, Links, Node, PathNode};
-        use std::ptr;
+        use std::{ops::DerefMut, ptr};
 
         #[test]
         fn keynode_with_links() {
@@ -903,7 +923,7 @@ mod tests_of_units {
             let mut empty_n = Node::empty();
 
             let mut n = Node::empty();
-            n.links = Some(vec![Node::empty(), Node::empty()]);
+            n.links = Some(vec![Node::empty_boxed(), Node::empty_boxed()]);
 
             #[rustfmt::skip]
             let path = vec![
@@ -923,10 +943,10 @@ mod tests_of_units {
 
             let mut n1 = Node::empty();
             n1.lrref = &n1;
-            n1.links = Some(vec![Node::empty()]);
+            n1.links = Some(vec![Node::empty_boxed()]);
 
             let mut n2 = Node::empty();
-            n2.links = Some(vec![Node::empty()]);
+            n2.links = Some(vec![Node::empty_boxed()]);
 
             #[rustfmt::skip]
             let path = vec![
@@ -945,13 +965,13 @@ mod tests_of_units {
         #[test]
         fn root_escape() {
             let mut root = Node::empty();
-            let node = Node::new('a', &root);
+            let node = Node::new_boxed('a', &root);
             root.links = Some(vec![node]);
 
             #[rustfmt::skip]
             let path = vec![
                 PathNode(usize::MAX, &mut root),                
-                PathNode(0, &mut root.links.as_mut().unwrap()[0]),
+                PathNode(0, root.links.as_mut().unwrap()[0].deref_mut()),
             ];
 
             delete_key_side(&path);
@@ -961,7 +981,7 @@ mod tests_of_units {
 
     mod delete_entry_side {
         use crate::{delete_entry_side, Links, Node};
-        use std::ptr;
+        use std::{ops::Deref, ptr};
 
         #[test]
         fn keynode_with_links() {
@@ -979,10 +999,10 @@ mod tests_of_units {
         fn node_with_links() {
             let mut n = Node::empty();
             n.supernode = &n;
-            n.links = Some(vec![Node::new('a', &n), Node::empty()]);
+            n.links = Some(vec![Node::new_boxed('a', &n), Node::empty_boxed()]);
 
             let mut ks_en = Node::empty();
-            ks_en.lrref = &n.links.as_ref().unwrap()[0];
+            ks_en.lrref = n.links.as_ref().unwrap()[0].deref();
 
             delete_entry_side(&ks_en);
 
@@ -998,11 +1018,11 @@ mod tests_of_units {
         fn node_being_keyentry() {
             let mut n = Node::empty();
             n.supernode = &n;
-            n.links = Some(vec![Node::new('a', &n)]);
+            n.links = Some(vec![Node::new_boxed('a', &n)]);
             n.lrref = &n;
 
             let mut ks_en = Node::empty();
-            ks_en.lrref = &n.links.as_ref().unwrap()[0];
+            ks_en.lrref = n.links.as_ref().unwrap()[0].deref();
 
             delete_entry_side(&ks_en);
 
@@ -1012,11 +1032,11 @@ mod tests_of_units {
         #[test]
         fn root_escape() {
             let mut root = Node::empty();
-            let node = Node::new('a', &root);
+            let node = Node::new_boxed('a', &root);
             root.links = Some(vec![node]);
 
             let mut ks_en = Node::empty();
-            ks_en.lrref = &root.links.as_ref().unwrap()[0];
+            ks_en.lrref = root.links.as_ref().unwrap()[0].deref();
 
             delete_entry_side(&ks_en);
             assert_eq!(None, root.links);
@@ -1275,6 +1295,8 @@ mod tests_of_units {
         }
 
         mod insert_crux {
+            use std::ops::Deref;
+
             use crate::{tra::TraStrain, Entry, KeyEntry, LeftRight, LrTrie, Node};
 
             #[test]
@@ -1302,7 +1324,7 @@ mod tests_of_units {
 
                     assert_eq!(c, node.c);
                     assert_eq!(super_n, node.supernode);
-                    super_n = node;
+                    super_n = node.deref();
 
                     if ix < limit {
                         let temp = &node.links;
