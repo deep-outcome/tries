@@ -1619,6 +1619,124 @@ mod tests_of_units {
         }
     }
 
+    use crate::KeyEntry;
+
+    // exercise logic in greater deep
+    #[test]
+    fn load_1() {
+        const P_LEN: usize = 15;
+        let proof: [(&str, &str); P_LEN] = [
+            ("olivenite", "limelight"),
+            ("olivewood", "limehound"),
+            ("olivary", "limestone"),
+            ("oligotrophic", "limescale"),
+            ("lemon", "bandoline"),
+            ("lemonade", "podium"),
+            ("lemongrass", "rostrum"),
+            ("lemon balm", "platina"),
+            ("tapestry", "platform"),
+            ("tapis", "constituent"),
+            ("temperate", "region"),
+            ("cheque", "constellation"),
+            ("array", "formation"),
+            ("season", "crops"),
+            ("glassware", "glasswork"),
+        ];
+
+        let mut trie = LrTrie::new();
+        for es in proof {
+            trie.insert(&KeyEntry(es.0), &KeyEntry(es.1));
+        }
+        for p in proof {
+            let entry = trie.member(&KeyEntry(p.0), LeftRight::Left);
+            assert_eq!(p.1, entry.unwrap().as_str());
+
+            let entry = trie.member(&KeyEntry(p.1), LeftRight::Right);
+            assert_eq!(p.0, entry.unwrap().as_str());
+        }
+
+        for i in 0..P_LEN {
+            if i & 1 == 0 {
+                assert_eq!(Ok(()), trie.delete(&KeyEntry(proof[i].0), LeftRight::Left));
+            }
+        }
+
+        for i in 0..P_LEN {
+            let p = proof[i];
+
+            if i & 1 == 1 {
+                let entry = trie.member(&KeyEntry(p.0), LeftRight::Left);
+                assert_eq!(p.1, entry.unwrap().as_str());
+
+                let entry = trie.member(&KeyEntry(p.1), LeftRight::Right);
+                assert_eq!(p.0, entry.unwrap().as_str());
+            } else {
+                let entry = trie.member(&KeyEntry(p.0), LeftRight::Left);
+                assert_eq!(true, entry.is_none());
+
+                let entry = trie.member(&KeyEntry(p.1), LeftRight::Right);
+                assert_eq!(true, entry.is_none());
+            }
+        }
+    }
+
+    // exercise logic in greater deep
+    #[test]
+    fn load_2() {
+        const P_LEN: usize = 15;
+        let last_ix = P_LEN - 1;
+        let proof: [(&str, &str); P_LEN] = [
+            ("olivenite", "limelight"),
+            ("olivewood", "limehound"),
+            ("olivary", "limestone"),
+            ("oligotrophic", "limescale"),
+            ("lemon", "bandoline"),
+            ("lemonade", "podium"),
+            ("lemongrass", "rostrum"),
+            ("lemon balm", "platina"),
+            ("tapestry", "platform"),
+            ("tapis", "constituent"),
+            ("temperate", "region"),
+            ("cheque", "constellation"),
+            ("array", "formation"),
+            ("season", "crops"),
+            ("glassware", "glasswork"),
+        ];
+
+        let mut trie = LrTrie::new();
+        for es in proof {
+            trie.insert(&KeyEntry(es.0), &KeyEntry(es.1));
+        }
+        for p in proof {
+            let entry = trie.member(&KeyEntry(p.0), LeftRight::Left);
+            assert_eq!(p.1, entry.unwrap().as_str());
+
+            let entry = trie.member(&KeyEntry(p.1), LeftRight::Right);
+            assert_eq!(p.0, entry.unwrap().as_str());
+        }
+
+        for i in 1..last_ix {
+            assert_eq!(Ok(()), trie.delete(&KeyEntry(proof[i].1), LeftRight::Right));
+        }
+
+        for i in 1..last_ix {
+            let p = proof[i];
+
+            assert_eq!(None, trie.member(&KeyEntry(p.0), LeftRight::Left));
+            assert_eq!(None, trie.member(&KeyEntry(p.1), LeftRight::Right));
+        }
+
+        for i in [0, last_ix] {
+            let p = proof[i];
+
+            let entry = trie.member(&KeyEntry(p.0), LeftRight::Left);
+            assert_eq!(p.1, entry.unwrap().as_str());
+
+            let entry = trie.member(&KeyEntry(p.1), LeftRight::Right);
+            assert_eq!(p.0, entry.unwrap().as_str());
+        }
+    }
+
     mod readme {
         use crate::{KeyEntry, LeftRight, LrTrie};
 
