@@ -21,6 +21,8 @@ fn ext<T>(l: &mut Links<T>, buff: &mut String, o: &mut Vec<(String, T)>) {
     for lk in l.keys() {
         l_keys.push(*lk)
     }
+    
+    // possibly left sorting to consument
     l_keys.sort();
 
     let lk_len = l_keys.len();
