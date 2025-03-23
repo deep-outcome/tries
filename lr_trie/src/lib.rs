@@ -227,6 +227,33 @@ fn set_cap<T>(buf: &UC<Vec<T>>, approx_cap: usize) -> usize {
     buf.capacity()
 }
 
+fn ext(l: &Links, k_buf: &mut String, e_buf: &mut Vec<char>, o: &mut Vec<(String, String)>) {
+    let len = l.len();
+    let mut ix = 0;
+
+    while ix < len {
+        // use ptr later
+        let n = &l[ix];
+
+        k_buf.push(n.c);
+
+        ix += 1;
+
+        let lrref = n.lrref;
+        if lrref != NULL_NODE {
+            let k = k_buf.clone();
+            let e = construct_e(lrref, e_buf);
+            o.push((k, e));
+        }
+
+        if let Some(l) = n.links.as_ref() {
+            ext(l, k_buf, e_buf, o);
+        }
+
+        _ = k_buf.pop();
+    }
+}
+
 fn construct_e(mut node: *const Node, e_buf: &mut Vec<char>) -> String {
     loop {
         let n = Node::as_ref(node);
@@ -1084,6 +1111,83 @@ mod tests_of_units {
             let size = set_cap(&buf, cap);
             assert_eq!(cap, size);
             assert_eq!(cap, buf.capacity());
+        }
+    }
+
+    mod ext {
+        use crate::{ext, KeyEntry, LrTrie};
+
+        #[test]
+        fn basic_test() {
+            let proof = [("opalescence", "black locust"), ("olivewood", "limehound")];
+
+            let mut trie = LrTrie::new();
+            for es in proof {
+                trie.insert(&KeyEntry(es.0), &KeyEntry(es.1));
+            }
+
+            let mut k_buf = String::new();
+            let mut res = Vec::new();
+
+            let links = trie.left.links.as_ref().unwrap();
+            let e_buf = trie.entry.get_mut();
+
+            ext(links, &mut k_buf, e_buf, &mut res);
+
+            assert_eq!(2, res.len());
+            for z in proof.iter().zip(res.iter()) {
+                let p = z.0;
+                let t = z.1;
+
+                assert_eq!(p.0, t.0);
+                assert_eq!(p.1, t.1);
+            }
+
+            assert_eq!(0, k_buf.len());
+            assert_eq!(0, e_buf.len());
+        }
+
+        #[test]
+        fn load() {
+            let proof = [
+                ("olivenite", "limelight"),
+                ("olivewood", "limehound"),
+                ("olivary", "limestone"),
+                ("oligotrophic", "limescale"),
+                ("lemon", "bandoline"),
+                ("lemonade", "podium"),
+                ("lemon balm", "platina"),
+                ("tapestry", "platform"),
+                ("lemongrass", "rostrum"),
+                ("temperate", "region"),
+                ("tapis", "constituent"),
+                ("cheque", "constellation"),
+                ("season", "crops"),
+                ("array", "formation"),
+                ("glassware", "glasswork"),
+            ];
+
+            let mut trie = LrTrie::new();
+            for es in proof {
+                trie.insert(&KeyEntry(es.0), &KeyEntry(es.1));
+            }
+
+            let mut k_buf = String::new();
+            let mut res = Vec::new();
+
+            let links = trie.right.links.as_ref().unwrap();
+            let e_buf = trie.entry.get_mut();
+
+            ext(links, &mut k_buf, e_buf, &mut res);
+
+            assert_eq!(proof.len(), res.len());
+            for z in proof.iter().zip(res.iter()) {
+                let p = z.0;
+                let t = z.1;
+
+                assert_eq!(p.1, t.0, "{}", p.0);
+                assert_eq!(p.0, t.1, "{}", p.1);
+            }
         }
     }
 
