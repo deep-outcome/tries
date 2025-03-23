@@ -228,16 +228,8 @@ fn set_cap<T>(buf: &UC<Vec<T>>, approx_cap: usize) -> usize {
 }
 
 fn ext(l: &Links, k_buf: &mut String, e_buf: &mut Vec<char>, o: &mut Vec<(String, String)>) {
-    let len = l.len();
-    let mut ix = 0;
-
-    while ix < len {
-        // use ptr later
-        let n = &l[ix];
-
+    for n in l {
         k_buf.push(n.c);
-
-        ix += 1;
 
         let lrref = n.lrref;
         if lrref != NULL_NODE {
