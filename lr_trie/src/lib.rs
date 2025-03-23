@@ -441,6 +441,10 @@ impl LrTrie {
         }
     }
 
+    const fn links(&self, lr: LeftRight) -> Option<&Links> {
+        self.root(lr).links.as_ref()
+    }
+
     /// Deletes both key and its entry seeking key in specified tree.
     ///
     /// Returns `Err` when key is not associated with entry.
@@ -542,12 +546,36 @@ impl LrTrie {
     pub const fn count(&self) -> usize {
         self.count
     }
+
+    /// Extracts all entry-entry pairs.
+    ///
+    /// Returns `None` when `LrTrie` is empty.
+    ///
+    /// Returned set is alphabetically unordered. Exactly, order depends on current order of `char`s
+    /// at each node.
+    ///
+    /// Both trees are kept settled.
+    ///
+    /// Use `lr` `LeftRight` parameter for `0` field source tree selection.
+    pub fn extract(&self, lr: LeftRight) -> Option<Vec<(String, String)>> {
+        if let Some(l) = self.links(lr) {
+            let mut o = Vec::with_capacity(1000);
+            let mut e_buf = Vec::with_capacity(1000);
+            let mut k_buf = String::with_capacity(1000);
+
+            ext(l, &mut k_buf, &mut e_buf, &mut o);
+
+            Some(o)
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests_of_units {
 
-    use crate::{LeftRight, Links, LrTrie, Node};
+    use crate::{LeftRight, LrTrie, Node};
 
     impl PartialEq for Node {
         fn eq(&self, other: &Self) -> bool {
@@ -596,13 +624,6 @@ mod tests_of_units {
 
     use crate::NodeTrace;
     impl LrTrie {
-        fn links(&self, lr: LeftRight) -> Option<&Links> {
-            match lr {
-                LeftRight::Left => self.left.links.as_ref(),
-                LeftRight::Right => self.right.links.as_ref(),
-            }
-        }
-
         fn cc_trace(&mut self) -> NodeTrace {
             let trace = self.trace.get_mut();
             let clone = trace.clone();
@@ -614,20 +635,7 @@ mod tests_of_units {
     mod lrtrie_test_impl {
         use std::ptr::NonNull;
 
-        use crate::{LeftRight, Links, LrTrie, Node, PathNode};
-
-        #[test]
-        fn links() {
-            let mut trie = LrTrie::new();
-            let l_proof: *const Links = trie.left.links.get_or_insert(Links::new());
-            let r_proof: *const Links = trie.right.links.get_or_insert(Links::new());
-
-            let l_test: *const Links = trie.links(LeftRight::Left).unwrap();
-            let r_test: *const Links = trie.links(LeftRight::Right).unwrap();
-
-            assert_eq!(l_proof, l_test);
-            assert_eq!(r_proof, r_test);
-        }
+        use crate::{LrTrie, Node, PathNode};
 
         #[test]
         fn cc_trace() {
@@ -1119,12 +1127,12 @@ mod tests_of_units {
             }
 
             let mut k_buf = String::new();
+            let mut e_buf = Vec::new();
             let mut res = Vec::new();
 
             let links = trie.left.links.as_ref().unwrap();
-            let e_buf = trie.entry.get_mut();
 
-            ext(links, &mut k_buf, e_buf, &mut res);
+            ext(links, &mut k_buf, &mut e_buf, &mut res);
 
             assert_eq!(2, res.len());
             for z in proof.iter().zip(res.iter()) {
@@ -1165,12 +1173,12 @@ mod tests_of_units {
             }
 
             let mut k_buf = String::new();
+            let mut e_buf = Vec::new();
             let mut res = Vec::new();
 
             let links = trie.right.links.as_ref().unwrap();
-            let e_buf = trie.entry.get_mut();
 
-            ext(links, &mut k_buf, e_buf, &mut res);
+            ext(links, &mut k_buf, &mut e_buf, &mut res);
 
             assert_eq!(proof.len(), res.len());
             for z in proof.iter().zip(res.iter()) {
@@ -1638,6 +1646,21 @@ mod tests_of_units {
             }
         }
 
+        use crate::Links;
+
+        #[test]
+        fn links() {
+            let mut trie = LrTrie::new();
+            let l_proof: *const Links = trie.left.links.get_or_insert(Links::new());
+            let r_proof: *const Links = trie.right.links.get_or_insert(Links::new());
+
+            let l_test: *const Links = trie.links(LeftRight::Left).unwrap();
+            let r_test: *const Links = trie.links(LeftRight::Right).unwrap();
+
+            assert_eq!(l_proof, l_test);
+            assert_eq!(r_proof, r_test);
+        }
+
         /// Node in path to entry being deleted
         /// cannot be deleted if and only if participates
         /// in path to another entry. Path len varies 0…m.
@@ -1849,6 +1872,81 @@ mod tests_of_units {
         trie.count = 99;
 
         assert_eq!(99, trie.count());
+    }
+
+    mod extract {
+        use crate::{KeyEntry, LeftRight, LrTrie};
+
+        #[test]
+        fn left() {
+            let proof = [
+                ("olivenite", "limelight"),
+                ("olivewood", "limehound"),
+                ("tapestry", "platform"),
+                ("lemonade", "podium"),
+                ("lemongrass", "rostrum"),
+                ("cheque", "constellation"),
+                ("array", "formation"),
+            ];
+
+            let mut trie = LrTrie::new();
+            for es in proof {
+                trie.insert(&KeyEntry(es.0), &KeyEntry(es.1));
+            }
+
+            let ext = trie.extract(LeftRight::Left);
+            assert_eq!(true, ext.is_some());
+            let ext = ext.unwrap();
+
+            assert_eq!(proof.len(), ext.len());
+
+            for z in proof.iter().zip(ext.iter()) {
+                let p = z.0;
+                let l = z.1;
+
+                assert_eq!(p.0, l.0);
+                assert_eq!(p.1, l.1);
+            }
+        }
+
+        #[test]
+        fn right() {
+            let proof = [
+                ("olivenite", "limelight"),
+                ("olivewood", "limehound"),
+                ("lemon", "bandoline"),
+                ("lemonade", "podium"),
+                ("lemon balm", "platina"),
+                ("cheque", "constellation"),
+                ("season", "crops"),
+            ];
+
+            let mut trie = LrTrie::new();
+            for es in proof {
+                trie.insert(&KeyEntry(es.0), &KeyEntry(es.1));
+            }
+
+            let ext = trie.extract(LeftRight::Right);
+            assert_eq!(true, ext.is_some());
+            let ext = ext.unwrap();
+
+            assert_eq!(proof.len(), ext.len());
+
+            for z in proof.iter().zip(ext.iter()) {
+                let p = z.0;
+                let r = z.1;
+
+                assert_eq!(p.0, r.1);
+                assert_eq!(p.1, r.0);
+            }
+        }
+
+        #[test]
+        fn empty() {
+            let trie = LrTrie::new();
+            assert_eq!(None, trie.extract(LeftRight::Right));
+            assert_eq!(None, trie.extract(LeftRight::Left));
+        }
     }
 
     // exercise logic in greater deep
