@@ -53,6 +53,8 @@ fn view<'a, T>(l: &'a Links<T>, buff: &mut String, o: &mut Vec<(String, &'a T)>)
     for lk in l.keys() {
         l_keys.push(*lk)
     }
+    
+    // possibly left sorting to consument
     l_keys.sort();
 
     let lk_len = l_keys.len();

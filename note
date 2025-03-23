@@ -1,6 +1,8 @@
 - poetrie
     - customs equalizer (e.g. t =d, s =z, [x =eks (?)])
-
+- dyn_trie
+    - do not sort in ext & view
+    
 - opts        
     ▪ keys and values (complement to ext method)
     ▪ view_mut methods    
