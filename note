@@ -1,6 +1,3 @@
-- method:
-    - extract
-
 - opts        
     ▪ keys and values (complement to ext method)
     ▪ view_mut methods    
