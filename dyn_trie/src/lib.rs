@@ -1339,7 +1339,7 @@ mod tests_of_units {
     }
 
     mod readme {
-        use crate::{AcqRes, KeyErr, RemRes, Trie};
+        use crate::{AcqMutRes, AcqRes, KeyErr, RemRes, Trie};
 
         #[test]
         fn test() {
@@ -1353,7 +1353,13 @@ mod tests_of_units {
 
             assert_eq!(RemRes::Ok('😋'), trie.rem(one_more.clone()));
             assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(one_more.clone()));
-            assert_eq!(AcqRes::Ok(&'🌩'), trie.acq(some.clone()));
+
+            let mut res = trie.acq_mut(some.clone());
+            assert_eq!(AcqMutRes::Ok(&mut '🌩'), res);
+            let entry = res.uproot();
+            *entry = '🌞';
+
+            assert_eq!(AcqRes::Ok(&'🌞'), trie.acq(some.clone()));
         }
     }
 }
