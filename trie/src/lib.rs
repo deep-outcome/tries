@@ -512,10 +512,19 @@ impl<T> Trie<T> {
     ///
     /// Extraction is alphabetically ordered.
     ///
+    /// Return value is `None` for empty `Trie<T>`.     
+    ///
     /// - TC: Ω(n) where n is count of nodes in tree.
     /// - SC: Θ(s) where s is key lengths summation.
-    pub fn ext(&mut self) -> Vec<(String, T)> {
+    ///
+    /// Returned set can be overcapacitated, i.e. its capacity
+    /// will not be shrunken according to its length.
+    pub fn ext(&mut self) -> Option<Vec<(String, T)>> {
         if let Some(re) = self.re {
+            if self.ct == 0 {
+                return None;
+            }
+
             // capacity is prebuffered to 1000
             let mut buff = String::with_capacity(1000);
 
@@ -523,11 +532,9 @@ impl<T> Trie<T> {
             let mut res = Vec::with_capacity(1000);
 
             ext(&mut self.rt, &mut buff, re, &mut res);
-            res.shrink_to_fit();
-
             _ = self.clr();
 
-            res
+            Some(res)
         } else {
             panic!("This method is unsupported when `new_with` `re` parameter is provided with `None`.");
         }
@@ -537,10 +544,19 @@ impl<T> Trie<T> {
     ///
     /// View is alphabetically ordered.
     ///
+    /// Return value is `None` for empty `Trie<T>`.     
+    ///
     /// - TC: Ω(n) where n is count of nodes in tree.
     /// - SC: Θ(s) where s is key lengths summation.
-    pub fn view(&self) -> Vec<(String, &T)> {
+    ///
+    /// Returned set can be overcapacitated, i.e. its capacity
+    /// will not be shrunken according to its length.
+    pub fn view(&self) -> Option<Vec<(String, &T)>> {
         if let Some(re) = self.re {
+            if self.ct == 0 {
+                return None;
+            }
+
             // capacity is prebuffered to 1000
             let mut buff = String::with_capacity(1000);
 
@@ -548,9 +564,7 @@ impl<T> Trie<T> {
             let mut res = Vec::with_capacity(1000);
 
             view(&self.rt, &mut buff, re, &mut res);
-            res.shrink_to_fit();
-
-            res
+            Some(res)
         } else {
             panic!("This method is unsupported when `new_with` `re` parameter is provided with `None`.");
         }
@@ -1450,7 +1464,7 @@ mod tests_of_units {
 
             #[test]
             fn basic_test() {
-                let test = vec![
+                let proof = vec![
                     (String::from("aa"), 13),
                     (String::from("azbq"), 11),
                     (String::from("by"), 329),
@@ -1463,16 +1477,19 @@ mod tests_of_units {
                 ];
 
                 let mut trie = Trie::new();
-                for t in test.iter() {
-                    _ = trie.ins(t.0.chars(), t.1);
+                for p in proof.iter() {
+                    _ = trie.ins(p.0.chars(), p.1);
                 }
 
                 let ext = trie.ext();
-                assert_eq!(test, ext);
-                assert!(ext.capacity() < 1000);
+                assert_eq!(true, ext.is_some());
+                let ext = ext.unwrap();
 
-                for t in test.iter() {
-                    assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(t.0.chars()));
+                assert_eq!(proof, ext);
+                assert_eq!(true, ext.capacity() >= 1000);
+
+                for p in proof.iter() {
+                    assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(p.0.chars()));
                 }
             }
 
@@ -1491,7 +1508,7 @@ mod tests_of_units {
 
             #[test]
             fn basic_test() {
-                let test = vec![
+                let proof = vec![
                     (String::from("aa"), &13),
                     (String::from("azbq"), &11),
                     (String::from("by"), &329),
@@ -1504,16 +1521,19 @@ mod tests_of_units {
                 ];
 
                 let mut trie = Trie::new();
-                for t in test.iter() {
-                    _ = trie.ins(t.0.chars(), *t.1);
+                for p in proof.iter() {
+                    _ = trie.ins(p.0.chars(), *p.1);
                 }
 
                 let view = trie.view();
-                assert_eq!(test, view);
-                assert!(view.capacity() < 1000);
+                assert_eq!(true, view.is_some());
+                let view = view.unwrap();
 
-                for t in test.iter() {
-                    assert_eq!(AcqRes::Ok(t.1), trie.acq(t.0.chars()));
+                assert_eq!(proof, view);
+                assert_eq!(true, view.capacity() >= 1000);
+
+                for p in proof.iter() {
+                    assert_eq!(AcqRes::Ok(p.1), trie.acq(p.0.chars()));
                 }
             }
 
