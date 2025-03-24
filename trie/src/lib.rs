@@ -558,6 +558,8 @@ impl<T> Trie<T> {
 
     /// Used to clear tree.
     ///
+    /// Return value is key-entry duos count before clearing.
+    ///
     /// TC: Θ(n) where n is count of nodes in tree.
     pub fn clr(&mut self) -> usize {
         self.rt = ab(self.al);
