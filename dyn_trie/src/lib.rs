@@ -17,23 +17,8 @@ use uc::UC;
 type Links<T> = HashMap<char, Node<T>>;
 
 fn ext<T>(l: &mut Links<T>, buff: &mut String, o: &mut Vec<(String, T)>) {
-    let mut l_keys = Vec::with_capacity(8);
-    for lk in l.keys() {
-        l_keys.push(*lk)
-    }
-    
-    // possibly left sorting to consument
-    l_keys.sort();
-
-    let lk_len = l_keys.len();
-    let mut lk_ix = 0;
-    while lk_ix < lk_len {
-        let lk = l_keys[lk_ix];
-        lk_ix += 1;
-
-        buff.push(lk);
-
-        let n = unsafe { l.get_mut(&lk).unwrap_unchecked() };
+    for (k, n) in l.iter_mut() {
+        buff.push(*k);
 
         if let Some(e) = n.entry.take() {
             let key = buff.clone();
@@ -53,7 +38,7 @@ fn view<'a, T>(l: &'a Links<T>, buff: &mut String, o: &mut Vec<(String, &'a T)>)
     for lk in l.keys() {
         l_keys.push(*lk)
     }
-    
+
     // possibly left sorting to consument
     l_keys.sort();
 
@@ -329,10 +314,15 @@ impl<T> Trie<T> {
 
     /// Clears tree.
     ///
+    /// Return value is key-entry duos count before clearing.
+    ///
     /// Does not reset backtracing buffer. Check with `fn put_trace_cap` for details.
-    pub fn clr(&mut self) {
+    pub fn clr(&mut self) -> usize {
         self.root = Node::<T>::empty();
+
+        let cnt = self.cnt;
         self.cnt = 0;
+        cnt
     }
 
     /// Return value is count of entries in tree.
@@ -342,21 +332,30 @@ impl<T> Trie<T> {
 
     /// Extracts key-entry duos from tree. Leaves tree empty.
     ///
-    /// Extraction is alphabetically ordered.    
-    pub fn ext(&mut self) -> Vec<(String, T)> {
+    /// Extraction is alphabetically unordered. Exactly, order depends on
+    /// order given by `std::collections::hash_map::Keys` iterator produced by
+    /// `std::collections::HashMap::keys` at each node.
+    ///
+    /// Return value is `None` for empty `Trie<T>`.
+    ///
+    /// Returned set can be overcapacitated, i.e. its capacity 
+    /// will not be shrunken according to its length.
+    pub fn ext(&mut self) -> Option<Vec<(String, T)>> {
+        if self.cnt == 0 {
+            return None;
+        }
+
         // capacity is prebuffered to 1000
         let mut buff = String::with_capacity(1000);
 
         // capacity is prebuffered to 1000
         let mut res = Vec::with_capacity(1000);
 
-        if let Some(rl) = &mut self.root.links {
-            ext(rl, &mut buff, &mut res);
-        }
+        let rl = unsafe { self.root.links.as_mut().unwrap_unchecked() };
+        ext(rl, &mut buff, &mut res);
 
-        res.shrink_to_fit();
         self.clr();
-        res
+        Some(res)
     }
 
     /// Creates view onto key-entry duos in tree.
@@ -470,6 +469,9 @@ mod tests_of_units {
             ext(links, &mut buff, &mut test);
 
             let proof = vec![(String::from("a"), 1), (String::from("z"), 2)];
+            assert_eq!(proof.len(), test.len());
+            test.sort_by_key(|x| x.0.clone());
+
             assert_eq!(proof, test);
 
             assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(a()));
@@ -501,6 +503,9 @@ mod tests_of_units {
             let links = unsafe { trie.root.links.as_mut().unwrap_unchecked() };
             ext(links, &mut buff, &mut test);
 
+            assert_eq!(entries.len(), test.len());
+
+            test.sort_by_key(|x| x.clone());
             assert_eq!(entries, test);
         }
 
@@ -530,6 +535,9 @@ mod tests_of_units {
             let links = unsafe { trie.root.links.as_mut().unwrap_unchecked() };
             ext(links, &mut buff, &mut test);
 
+            assert_eq!(paths.len(), test.len());
+
+            test.sort_by_key(|x| x.clone());
             assert_eq!(paths, test);
         }
     }
@@ -1151,7 +1159,7 @@ mod tests_of_units {
             assert!(trie.acq_trace_cap() < cap);
             cap = trie.put_trace_cap(cap);
 
-            trie.clr();
+            assert_eq!(1, trie.clr());
             assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key));
             assert_eq!(Node::empty(), trie.root);
             assert_eq!(0, trie.cnt);
@@ -1173,7 +1181,7 @@ mod tests_of_units {
 
             #[test]
             fn basic_test() {
-                let test = vec![
+                let proof = vec![
                     (String::from("aa"), 13),
                     (String::from("azbq"), 11),
                     (String::from("by"), 329),
@@ -1186,16 +1194,23 @@ mod tests_of_units {
                 ];
 
                 let mut trie = Trie::new();
-                for t in test.iter() {
-                    _ = trie.ins(t.1, t.0.chars());
+                for p in proof.iter() {
+                    _ = trie.ins(p.1, p.0.chars());
                 }
 
                 let ext = trie.ext();
-                assert_eq!(test, ext);
-                assert!(ext.capacity() < 1000);
+                assert_eq!(true, ext.is_some());
+                let mut ext = ext.unwrap();
 
-                for t in test.iter() {
-                    assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(t.0.chars()));
+                assert_eq!(proof.len(), ext.len());                
+
+                ext.sort_by_key(|x| x.0.clone());
+                assert_eq!(proof, ext);
+
+                assert_eq!(true, ext.capacity() >= 1000);
+
+                for p in proof.iter() {
+                    assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(p.0.chars()));
                 }
             }
 
@@ -1204,8 +1219,7 @@ mod tests_of_units {
                 let mut trie = Trie::<usize>::new();
                 let ext = trie.ext();
 
-                assert_eq!(0, ext.len());
-                assert!(ext.capacity() < 1000);
+                assert_eq!(None, ext);
             }
         }
 
