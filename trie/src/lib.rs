@@ -525,7 +525,7 @@ impl<T> Trie<T> {
             ext(&mut self.rt, &mut buff, re, &mut res);
             res.shrink_to_fit();
 
-            self.clr();
+            _ = self.clr();
 
             res
         } else {
@@ -559,9 +559,11 @@ impl<T> Trie<T> {
     /// Used to clear tree.
     ///
     /// TC: Θ(n) where n is count of nodes in tree.
-    pub fn clr(&mut self) {
+    pub fn clr(&mut self) -> usize {
         self.rt = ab(self.al);
+        let ct = self.ct;
         self.ct = 0;
+        ct
     }
 
     /// Used to acquire count of entries in tree.
@@ -1530,7 +1532,7 @@ mod tests_of_units {
 
             let mut trie = Trie::<usize>::new();
             _ = trie.ins(key(), 99);
-            trie.clr();
+            assert_eq!(1, trie.clr());
 
             assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
             assert_eq!(ab(ALPHABET_LEN), trie.rt);

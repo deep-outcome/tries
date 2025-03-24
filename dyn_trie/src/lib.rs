@@ -339,7 +339,7 @@ impl<T> Trie<T> {
         let rl = unsafe { self.root.links.as_mut().unwrap_unchecked() };
         ext(rl, &mut buff, &mut res);
 
-        self.clr();
+        _ = self.clr();
         Some(res)
     }
 

@@ -1,6 +1,6 @@
 [package]
 name = "plain_trie"
-version = "7.2.4"
+version = "8.0.0"
 edition = "2021"
 keywords = [ "digital-tree", "prefix-tree", "trie", "retrieval-tree" ]
 authors = [ "software9119.technology" ]
