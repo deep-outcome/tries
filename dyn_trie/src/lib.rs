@@ -318,8 +318,8 @@ impl<T> Trie<T> {
     /// Extracts key-entry duos from tree. Leaves tree empty.
     ///
     /// Extraction is alphabetically unordered. Exactly, order depends on
-    /// order given by `std::collections::hash_map::Keys` iterator produced by
-    /// `std::collections::HashMap::keys` at each node.
+    /// order given by `std::collections::hash_map::IterMut` iterator produced by
+    /// `std::collections::HashMap::iter_mut` at each node.
     ///
     /// Return value is `None` for empty `Trie<T>`.
     ///
@@ -346,8 +346,8 @@ impl<T> Trie<T> {
     /// Creates view onto key-entry duos in tree.
     ///
     /// View is alphabetically unordered. Exactly, order depends on
-    /// order given by `std::collections::hash_map::Keys` iterator produced by
-    /// `std::collections::HashMap::keys` at each node.
+    /// order given by `std::collections::hash_map::Iter` iterator produced by
+    /// `std::collections::HashMap::iter` at each node.
     ///
     /// Return value is `None` for empty `Trie<T>`.    
     ///
