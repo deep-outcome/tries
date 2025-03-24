@@ -535,11 +535,15 @@ impl LrTrie {
 
     /// Clears both trees leaving `LrTrie` instance blank.
     ///
+    /// Returns entry-entry pairs count before clearing.
+    ///
     /// Keeps capacity of all of internal buffers intact. Check with `put_buf_cap` for details.
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self) -> usize {
         self.left = Node::empty();
         self.right = Node::empty();
+        let count = self.count;
         self.count = 0;
+        count
     }
 
     /// Returns actual count of entry-entry pairs.
@@ -549,7 +553,7 @@ impl LrTrie {
 
     /// Extracts all entry-entry pairs.
     ///
-    /// Returns `None` when `LrTrie` is empty.
+    /// Returns `None` when `LrTrie` is blank.
     ///
     /// Returned set is alphabetically unordered. Exactly, order depends on current order of `char`s
     /// at each node.
@@ -1855,8 +1859,7 @@ mod tests_of_units {
         let entry = KeyEntry("Key");
         trie.insert(&entry, &entry);
 
-        trie.clear();
-
+        assert_eq!(1, trie.clear());
         assert_eq!(0, trie.count);
 
         assert_eq!(trie.left, Node::empty());
