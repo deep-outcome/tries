@@ -1501,6 +1501,12 @@ mod tests_of_units {
             fn re_not_provided() {
                 _ = Trie::<usize>::new_with(ix, None, 0).ext()
             }
+
+            #[test]
+            fn empty_tree() {
+                let mut trie = Trie::<usize>::new();
+                assert_eq!(None, trie.ext());
+            }
         }
 
         mod view {
@@ -1545,6 +1551,12 @@ mod tests_of_units {
             )]
             fn re_not_provided() {
                 _ = Trie::<usize>::new_with(ix, None, 0).view()
+            }
+
+            #[test]
+            fn empty_tree() {
+                let trie = Trie::<usize>::new();
+                assert_eq!(None, trie.view());
             }
         }
 
