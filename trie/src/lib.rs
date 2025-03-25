@@ -265,7 +265,7 @@ impl<T> Trie<T> {
     ///         1 => '|',
     ///        _ => panic!("Only `0` or `1`."),
     ///     }
-    /// }    
+    /// }
     ///
     /// let ab_len = 2;
     ///
@@ -512,7 +512,7 @@ impl<T> Trie<T> {
     ///
     /// Extraction is alphabetically ordered.
     ///
-    /// Return value is `None` for empty `Trie<T>`.     
+    /// Return value is `None` for empty `Trie<T>`.
     ///
     /// - TC: Ω(n) where n is count of nodes in tree.
     /// - SC: Θ(s) where s is key lengths summation.
@@ -544,7 +544,7 @@ impl<T> Trie<T> {
     ///
     /// View is alphabetically ordered.
     ///
-    /// Return value is `None` for empty `Trie<T>`.     
+    /// Return value is `None` for empty `Trie<T>`.
     ///
     /// - TC: Ω(n) where n is count of nodes in tree.
     /// - SC: Θ(s) where s is key lengths summation.

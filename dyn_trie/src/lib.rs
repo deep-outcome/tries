@@ -349,7 +349,7 @@ impl<T> Trie<T> {
     /// order given by `std::collections::hash_map::Iter` iterator produced by
     /// `std::collections::HashMap::iter` at each node.
     ///
-    /// Return value is `None` for empty `Trie<T>`.    
+    /// Return value is `None` for empty `Trie<T>`.
     ///
     /// Returned set can be overcapacitated, i.e. its capacity
     /// will not be shrunken according to its length.
