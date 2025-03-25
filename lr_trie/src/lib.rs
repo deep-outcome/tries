@@ -562,7 +562,7 @@ impl LrTrie {
     ///
     /// Use `lr` `LeftRight` parameter for `0` field source tree selection.
     ///
-    /// Returned set can be overcapacitated, i.e. its capacity will not 
+    /// Returned set can be overcapacitated, i.e. its capacity will not
     /// be shrunken according to its length.
     pub fn extract(&self, lr: LeftRight) -> Option<Vec<(String, String)>> {
         if let Some(l) = self.links(lr) {
