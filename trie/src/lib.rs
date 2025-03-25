@@ -1485,6 +1485,7 @@ mod tests_of_units {
                 assert_eq!(true, ext.is_some());
                 let ext = ext.unwrap();
 
+                assert_eq!(proof.len(), ext.len());
                 assert_eq!(proof, ext);
                 assert_eq!(true, ext.capacity() >= 1000);
 
@@ -1529,6 +1530,7 @@ mod tests_of_units {
                 assert_eq!(true, view.is_some());
                 let view = view.unwrap();
 
+                assert_eq!(proof.len(), view.len());
                 assert_eq!(proof, view);
                 assert_eq!(true, view.capacity() >= 1000);
 
