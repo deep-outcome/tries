@@ -299,7 +299,7 @@ impl<T> Trie<T> {
 
     /// Clears tree.
     ///
-    /// Return value is key-entry duos count before clearing.
+    /// Return value is count of entries before clearing.
     ///
     /// Does not reset backtracing buffer. Check with `fn put_trace_cap` for details.
     pub fn clr(&mut self) -> usize {

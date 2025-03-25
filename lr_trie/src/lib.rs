@@ -535,7 +535,7 @@ impl LrTrie {
 
     /// Clears both trees leaving `LrTrie` instance blank.
     ///
-    /// Returns entry-entry pairs count before clearing.
+    /// Returns count of entry-entry pairs before clearing.
     ///
     /// Keeps capacity of all of internal buffers intact. Check with `put_buf_cap` for details.
     pub fn clear(&mut self) -> usize {
@@ -546,7 +546,7 @@ impl LrTrie {
         count
     }
 
-    /// Returns actual count of entry-entry pairs.
+    /// Returns count of entry-entry pairs.
     pub const fn count(&self) -> usize {
         self.count
     }
