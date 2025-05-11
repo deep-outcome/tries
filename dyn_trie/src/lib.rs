@@ -148,7 +148,7 @@ impl<T> Trie<T> {
 
     fn rem_actual(&mut self, #[cfg(test)] esc_code: &mut usize) -> T {
         let mut trace = self.btr.iter();
-        let en_duo = trace.next_back().unwrap();
+        let en_duo = unsafe { trace.next_back().unwrap_unchecked() };
         let mut node = unsafe { en_duo.1.as_mut() }.unwrap();
 
         let entry = node.entry.take().unwrap();
