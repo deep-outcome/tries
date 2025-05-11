@@ -421,7 +421,7 @@ impl<T> Trie<T> {
             .get_ref()
             .iter()
             .map(|x| unsafe { x.as_mut() }.unwrap());
-        let entry = trace.next_back().unwrap();
+        let entry = unsafe { trace.next_back().unwrap_unchecked() };
 
         let en = entry.en.take();
 
