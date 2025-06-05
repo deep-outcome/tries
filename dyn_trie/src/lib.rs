@@ -146,10 +146,10 @@ impl<T> Trie<T> {
         res
     }
 
-    fn rem_actual(&mut self, #[cfg(test)] esc_code: &mut usize) -> T {
+    fn rem_actual(&self, #[cfg(test)] esc_code: &mut usize) -> T {
         let mut trace = self.btr.iter();
         let en_duo = unsafe { trace.next_back().unwrap_unchecked() };
-        let mut node = unsafe { en_duo.1.as_mut() }.unwrap();
+        let mut node = unsafe { en_duo.1.as_mut().unwrap_unchecked() };
 
         let entry = node.entry.take().unwrap();
         if node.links() {
@@ -164,8 +164,8 @@ impl<T> Trie<T> {
         // subnode key
         let mut sn_key = en_duo.0;
         while let Some((c, n)) = trace.next_back() {
-            node = unsafe { n.as_mut() }.unwrap();
-            let links = node.links.as_mut().unwrap();
+            node = unsafe { n.as_mut().unwrap_unchecked() };
+            let links = unsafe { node.links.as_mut().unwrap_unchecked() };
             _ = links.remove(&sn_key);
 
             if links.len() > 0 {
@@ -1364,4 +1364,4 @@ mod tests_of_units {
     }
 }
 
-// cargo test --release
+// cargo fmt && cargo test --release
