@@ -14,12 +14,12 @@ where
 pub struct UC<T>(UnsafeCell<T>);
 
 impl<T> UC<T> {
-    pub fn get_ref(&self) -> &T {
+    pub const fn get_ref(&self) -> &T {
         let t = self.0.get();
         unsafe { t.as_mut().unwrap_unchecked() }
     }
 
-    pub fn get_mut(&self) -> &mut T {
+    pub const fn get_mut(&self) -> &mut T {
         let t = self.0.get();
         unsafe { t.as_mut().unwrap_unchecked() }
     }
