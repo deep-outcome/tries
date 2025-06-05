@@ -162,11 +162,11 @@ impl<T> Trie<T> {
         }
 
         // subnode key
-        let mut sn_key = en_duo.0;
+        let mut sn_key = &en_duo.0;
         while let Some((c, n)) = trace.next_back() {
             node = unsafe { n.as_mut().unwrap_unchecked() };
             let links = unsafe { node.links.as_mut().unwrap_unchecked() };
-            _ = links.remove(&sn_key);
+            _ = links.remove(sn_key);
 
             if links.len() > 0 {
                 #[cfg(test)]
@@ -186,7 +186,7 @@ impl<T> Trie<T> {
                 break;
             }
 
-            sn_key = *c;
+            sn_key = c;
         }
 
         node.links = None;
