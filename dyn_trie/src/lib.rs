@@ -642,8 +642,10 @@ mod tests_of_units {
             assert_eq!(false, root.entry());
             assert_eq!(None, root.links);
             assert_eq!(0, trie.cnt);
-            assert_eq!(0, trie.btr.len());
-            assert_eq!(0, trie.btr.capacity());
+
+            let btr = &trie.btr;
+            assert_eq!(0, btr.len());
+            assert_eq!(0, btr.capacity());
         }
 
         mod ins {
