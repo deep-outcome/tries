@@ -433,7 +433,7 @@ where
         let links = if self.links() { "Some" } else { "None" };
 
         f.write_fmt(format_args!(
-            "Node {{\n  links: {:?}\n  entry: {:?}\n}}",
+            "Node {{\n  links: {}\n  entry: {:?}\n}}",
             links, self.entry
         ))
     }

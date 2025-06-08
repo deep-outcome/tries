@@ -600,7 +600,7 @@ mod tests_of_units {
             let en = some_none(self.en.as_ref());
 
             return f.write_fmt(format_args!(
-                "Letter {{\n  val: {}\n  ab: {}\n  en: {:?}\n}}",
+                "Letter {{\n  val: {}\n  ab: {}\n  en: {}\n}}",
                 self.val, ab, en
             ));
 
