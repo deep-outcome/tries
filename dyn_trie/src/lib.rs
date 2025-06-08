@@ -459,7 +459,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            let links = unsafe { trie.root.links.as_mut().unwrap_unchecked() };
+            let links = trie.root.links.as_mut().unwrap();
             ext(links, &mut buff, &mut test);
 
             let proof = vec![(String::from("a"), 1), (String::from("z"), 2)];
@@ -494,7 +494,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            let links = unsafe { trie.root.links.as_mut().unwrap_unchecked() };
+            let links = trie.root.links.as_mut().unwrap();
             ext(links, &mut buff, &mut test);
 
             assert_eq!(entries.len(), test.len());
@@ -526,7 +526,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            let links = unsafe { trie.root.links.as_mut().unwrap_unchecked() };
+            let links = trie.root.links.as_mut().unwrap();
             ext(links, &mut buff, &mut test);
 
             assert_eq!(paths.len(), test.len());
@@ -638,13 +638,12 @@ mod tests_of_units {
         fn new() {
             let trie = Trie::<usize>::new();
 
-            let root = trie.root;
-            assert!(!root.entry());
-
-            let links = &root.links;
-            assert!(links.is_none());
-
+            let root = &trie.root;
+            assert_eq!(false, root.entry());
+            assert_eq!(None, root.links);
             assert_eq!(0, trie.cnt);
+            assert_eq!(0, trie.btr.len());
+            assert_eq!(0, trie.btr.capacity());
         }
 
         mod ins {
