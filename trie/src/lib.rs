@@ -1205,6 +1205,43 @@ mod tests_of_units {
             }
 
             #[test]
+            fn one_letter_a() {
+                let key = || "a".chars();
+                let entry = 60;
+
+                let mut trie = Trie::new();
+                _ = trie.ins(key(), entry);
+
+                _ = trie.track(key(), TraStrain::TraEmp);
+
+                let mut en_esc = false;
+                assert_eq!(entry, trie.rem_actual(&mut en_esc));
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
+                assert_eq!(false, en_esc);
+            }
+
+            #[test]
+            fn one_letter_b() {
+                let key1 = || "a".chars();
+                let key2 = || "al".chars();
+
+                let entry1 = 50;
+                let entry2 = 60;
+
+                let mut trie = Trie::new();
+                _ = trie.ins(key1(), entry1);
+                _ = trie.ins(key2(), entry2);
+
+                _ = trie.track(key1(), TraStrain::TraEmp);
+
+                let mut en_esc = false;
+                assert_eq!(entry1, trie.rem_actual(&mut en_esc));
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key1()));
+                assert_eq!(AcqRes::Ok(&entry2), trie.acq(key2()));
+                assert_eq!(false, en_esc);
+            }
+
+            #[test]
             fn ab_len_test() {
                 let ix = |c| match c {
                     'a' => 0,
