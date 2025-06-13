@@ -154,9 +154,7 @@ impl<T> Trie<T> {
         let entry = node.entry.take().unwrap();
         if node.links() {
             #[cfg(test)]
-            {
-                *esc_code = 1;
-            }
+            set_code(1, esc_code);
 
             return entry;
         }
@@ -168,20 +166,19 @@ impl<T> Trie<T> {
             let links = unsafe { node.links.as_mut().unwrap_unchecked() };
             _ = links.remove(sn_key);
 
+            #[cfg(test)]
+            set_code(2, esc_code);
+
             if links.len() > 0 {
                 #[cfg(test)]
-                {
-                    *esc_code = 2;
-                }
+                set_code(4, esc_code);
 
                 return entry;
             }
 
             if node.entry() {
                 #[cfg(test)]
-                {
-                    *esc_code = 3;
-                }
+                set_code(8, esc_code);
 
                 break;
             }
@@ -191,13 +188,17 @@ impl<T> Trie<T> {
 
         node.links = None;
         #[cfg(test)]
-        {
-            if *esc_code != 3 {
-                *esc_code = 4;
-            }
+        if *esc_code != (2 | 8) {
+            set_code(16, esc_code);
         }
 
-        entry
+        return entry;
+
+        #[cfg(test)]
+        fn set_code(c: usize, esc_code: &mut usize) {
+            let code = *esc_code;
+            *esc_code = code | c;
+        }
     }
 
     // - c is count of `char`s iterated over
@@ -887,6 +888,43 @@ mod tests_of_units {
             }
 
             #[test]
+            fn one_letter_a() {
+                let key = || "a".chars();
+                let entry = 60;
+
+                let mut trie = Trie::new();
+                _ = trie.ins(entry, key());
+                _ = trie.track(key(), TraStrain::TraEmp);
+
+                let mut esc_code = 0;
+                assert_eq!(entry, trie.rem_actual(&mut esc_code));
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
+                assert_eq!(18, esc_code);
+                assert_eq!(false, trie.root.links());
+            }
+
+            #[test]
+            fn one_letter_b() {
+                let key1 = || "a".chars();
+                let key2 = || "al".chars();
+
+                let entry1 = 50;
+                let entry2 = 60;
+
+                let mut trie = Trie::new();
+                _ = trie.ins(entry1, key1());
+                _ = trie.ins(entry2, key2());
+
+                _ = trie.track(key1(), TraStrain::TraEmp);
+
+                let mut esc_code = 0;
+                assert_eq!(entry1, trie.rem_actual(&mut esc_code));
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key1()));
+                assert_eq!(AcqRes::Ok(&entry2), trie.acq(key2()));
+                assert_eq!(1, esc_code);
+            }
+
+            #[test]
             fn inner_entry() {
                 let mut trie = Trie::new();
 
@@ -915,7 +953,7 @@ mod tests_of_units {
                 let mut esc_code = 0;
                 _ = trie.track(key(), TraStrain::TraEmp);
                 assert_eq!(1, trie.rem_actual(&mut esc_code));
-                assert_eq!(4, esc_code);
+                assert_eq!(18, esc_code);
 
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
                 assert_eq!(None, trie.root.links);
@@ -933,7 +971,7 @@ mod tests_of_units {
                 let mut esc_code = 0;
                 _ = trie.track(keyword(), TraStrain::TraEmp);
                 assert_eq!(1, trie.rem_actual(&mut esc_code));
-                assert_eq!(2, esc_code);
+                assert_eq!(6, esc_code);
 
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(keyword()));
                 assert_eq!(true, trie.acq(dissimilar()).is_ok());
@@ -950,7 +988,7 @@ mod tests_of_units {
                 let mut esc_code = 0;
                 _ = trie.track(under(), TraStrain::TraEmp);
                 assert_eq!(1, trie.rem_actual(&mut esc_code));
-                assert_eq!(3, esc_code);
+                assert_eq!(10, esc_code);
 
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(under()));
                 assert_eq!(true, trie.acq(above()).is_ok());
