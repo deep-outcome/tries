@@ -906,6 +906,25 @@ mod tests_of_units {
             #[test]
             fn one_letter_b() {
                 let key1 = || "a".chars();
+                let key2 = || "b".chars();
+                let entry1 = 50;
+                let entry2 = 60;
+
+                let mut trie = Trie::new();
+                _ = trie.ins(entry1, key1());
+                _ = trie.ins(entry2, key2());
+                _ = trie.track(key1(), TraStrain::TraEmp);
+
+                let mut esc_code = 0;
+                assert_eq!(entry1, trie.rem_actual(&mut esc_code));
+                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key1()));
+                assert_eq!(AcqRes::Ok(&entry2), trie.acq(key2()));
+                assert_eq!(6, esc_code);
+            }
+
+            #[test]
+            fn one_letter_c() {
+                let key1 = || "a".chars();
                 let key2 = || "al".chars();
 
                 let entry1 = 50;
