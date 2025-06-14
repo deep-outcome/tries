@@ -891,7 +891,7 @@ mod tests_of_units {
             let mut node = Node::empty();
 
             #[rustfmt::skip]
-            let links = vec![                
+            let links = vec![
             Node::empty_boxed(),
             Node::new_boxed('a', 0 as *const Node),
             Node::new_boxed('b', 0 as *const Node),
@@ -1004,7 +1004,7 @@ mod tests_of_units {
 
             #[rustfmt::skip]
             let path = vec![
-                PathNode(usize::MAX, &mut root),                
+                PathNode(usize::MAX, &mut root),
                 PathNode(0, root.links.as_mut().unwrap()[0].deref_mut()),
             ];
 
@@ -1309,75 +1309,100 @@ mod tests_of_units {
 
             #[test]
             fn reinsert_same() {
-                let left_ke = &KeyEntry("LEFT");
-                let right_ke = &KeyEntry("RIGHT");
+                #[rustfmt::skip]
+                let duos = [
+                    ("LEFT", "RIGHT"),
+                    ("L", "R"),
+                    ("LEFT", "R"),
+                    ("L", "RIGHT")
+                ];
 
-                let trie = &mut LrTrie::new();
+                for d in duos {
+                    let left_ke = &KeyEntry(d.0);
+                    let right_ke = &KeyEntry(d.1);
 
-                let (lln_a_ptr, rln_a_ptr) = insert(trie, left_ke, right_ke);
-                assert_eq!(1, trie.count);
+                    let trie = &mut LrTrie::new();
 
-                put_id(lln_a_ptr, 1);
-                put_id(rln_a_ptr, 2);
+                    let (lln_a_ptr, rln_a_ptr) = insert(trie, left_ke, right_ke);
+                    assert_eq!(1, trie.count);
 
-                let (lln_b_ptr, rln_b_ptr) = insert(trie, left_ke, right_ke);
-                assert_eq!(1, trie.count);
+                    put_id(lln_a_ptr, 1);
+                    put_id(rln_a_ptr, 2);
 
-                let lln_b_ref = Node::as_ref(lln_b_ptr);
-                let rln_b_ref = Node::as_ref(rln_b_ptr);
+                    let (lln_b_ptr, rln_b_ptr) = insert(trie, left_ke, right_ke);
+                    assert_eq!(1, trie.count);
 
-                assert_eq!(1, lln_b_ref.id); // left (key side) preserved
-                assert_ne!(2, rln_b_ref.id); // right (entry side) removed
-                assert_eq!(0, rln_b_ref.id); // right (entry side) removed
+                    let lln_b_ref = Node::as_ref(lln_b_ptr);
+                    let rln_b_ref = Node::as_ref(rln_b_ptr);
 
-                verify(trie, left_ke, LeftRight::Left, right_ke);
-                verify(trie, right_ke, LeftRight::Right, left_ke);
+                    assert_eq!(1, lln_b_ref.id); // left (key side) preserved
+                    assert_ne!(2, rln_b_ref.id); // right (entry side) removed
+                    assert_eq!(0, rln_b_ref.id); // right (entry side) removed
 
-                fn verify(trie: &LrTrie, key: &Key, lr: LeftRight, e: &Entry) {
-                    let member = trie.member(key, lr);
-                    assert!(member.is_some());
-                    assert_eq!(e.0, member.unwrap());
+                    verify(trie, left_ke, LeftRight::Left, right_ke);
+                    verify(trie, right_ke, LeftRight::Right, left_ke);
+
+                    fn verify(trie: &LrTrie, key: &Key, lr: LeftRight, e: &Entry) {
+                        let member = trie.member(key, lr);
+                        assert!(member.is_some());
+                        assert_eq!(e.0, member.unwrap());
+                    }
                 }
             }
 
             #[test]
             fn reinsert_different() {
-                let one = &KeyEntry("ONE");
-                let another = &KeyEntry("ANOTHER");
-                let replacement = &KeyEntry("REPLACEMENT");
+                #[rustfmt::skip]
+                let triplets = [
+                    ("ONE", "ANOTHER", "REPLACEMENT"),
+                    ("ONE", "A", "R"),
+                    ("ONE", "ANOTHER", "R"),
+                    ("ONE", "A", "REPLACEMENT"),
 
-                for lr in [LeftRight::Left, LeftRight::Right] {
-                    let trie = &mut LrTrie::new();
+                    ("O", "ANOTHER", "REPLACEMENT"),
+                    ("O", "A", "R"),
+                    ("O", "A", "REPLACEMENT"),
+                    ("O", "ANOTHER", "R"),
+                ];
 
-                    let (lln_a_ptr, rln_a_ptr) = insert(trie, one, another);
-                    assert_eq!(1, trie.count);
+                for t in triplets {
+                    let one = &KeyEntry(t.0);
+                    let another = &KeyEntry(t.1);
+                    let replacement = &KeyEntry(t.2);
 
-                    put_id(lln_a_ptr, 97);
-                    put_id(rln_a_ptr, 98);
+                    for lr in [LeftRight::Left, LeftRight::Right] {
+                        let trie = &mut LrTrie::new();
 
-                    let (lln_b_ptr, rln_b_ptr) = if lr == LeftRight::Left {
-                        insert(trie, replacement, another)
-                    } else {
-                        insert(trie, one, replacement)
-                    };
+                        let (lln_a_ptr, rln_a_ptr) = insert(trie, one, another);
+                        assert_eq!(1, trie.count);
 
-                    assert_eq!(1, trie.count);
+                        put_id(lln_a_ptr, 97);
+                        put_id(rln_a_ptr, 98);
 
-                    let (lln_b_ref, rln_b_ref) = (Node::as_ref(lln_b_ptr), Node::as_ref(rln_b_ptr));
+                        let (lln_b_ptr, rln_b_ptr) = if lr == LeftRight::Left {
+                            insert(trie, replacement, another)
+                        } else {
+                            insert(trie, one, replacement)
+                        };
 
-                    let (kept, removed) = if lr == LeftRight::Left {
-                        assert_eq!(0, lln_b_ref.id);
-                        assert_eq!(98, rln_b_ref.id);
-                        (another, one)
-                    } else {
-                        assert_eq!(97, lln_b_ref.id);
-                        assert_eq!(0, rln_b_ref.id);
-                        (one, another)
-                    };
+                        assert_eq!(1, trie.count);
 
-                    assert!(trie.member(replacement, lr.clone()).is_some());
-                    assert!(trie.member(kept, lr.clone().invert()).is_some());
-                    assert!(trie.member(removed, lr).is_none());
+                        let (lln_b_ref, rln_b_ref) = (Node::as_ref(lln_b_ptr), Node::as_ref(rln_b_ptr));
+
+                        let (kept, removed) = if lr == LeftRight::Left {
+                            assert_eq!(0, lln_b_ref.id);
+                            assert_eq!(98, rln_b_ref.id);
+                            (another, one)
+                        } else {
+                            assert_eq!(97, lln_b_ref.id);
+                            assert_eq!(0, rln_b_ref.id);
+                            (one, another)
+                        };
+
+                        assert!(trie.member(replacement, lr.clone()).is_some());
+                        assert!(trie.member(kept, lr.clone().invert()).is_some());
+                        assert!(trie.member(removed, lr).is_none());
+                    }
                 }
             }
 
@@ -1673,6 +1698,8 @@ mod tests_of_units {
         /// in path to another entry. Path len varies 0…m.
         mod delete {
 
+            use std::ops::Deref;
+
             use crate::{tra::TraStrain, Key, KeyEntry, LeftRight, LrTrie};
 
             #[test]
@@ -1794,6 +1821,49 @@ mod tests_of_units {
                     let links = trie.links(lr);
                     let k = &links.unwrap()[0];
                     assert_eq!(false, k.links());
+                }
+            }
+
+            #[test]
+            fn one_letter_a() {
+                let keyword = KeyEntry("Keyword");
+                let k = KeyEntry("K");
+
+                let mut trie = LrTrie::new();
+                trie.insert(&keyword, &keyword);
+
+                for lr in [LeftRight::Left, LeftRight::Right] {
+                    trie.insert(&k, &k);
+
+                    assert!(trie.delete(&k, lr.clone()).is_ok());
+                    assert!(trie.member(&k, lr.clone()).is_none());
+                    assert!(trie.member(&keyword, lr.clone()).is_some());
+
+                    let links = trie.links(lr);
+                    let k = links.unwrap()[0].deref();
+                    assert_eq!('K', k.c);
+                    assert_eq!(true, k.links());
+                }
+            }
+
+            #[test]
+            fn one_letter_b() {
+                let c = KeyEntry("C");
+                let k = KeyEntry("K");
+
+                let mut trie = LrTrie::new();
+                trie.insert(&c, &c);
+
+                for lr in [LeftRight::Left, LeftRight::Right] {
+                    trie.insert(&k, &k);
+
+                    assert!(trie.delete(&k, lr.clone()).is_ok());
+                    assert!(trie.member(&k, lr.clone()).is_none());
+                    assert!(trie.member(&c, lr.clone()).is_some());
+
+                    let links = trie.links(lr);
+                    let c = links.unwrap()[0].deref();
+                    assert_eq!('C', c.c);
                 }
             }
         }
