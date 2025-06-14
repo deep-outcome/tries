@@ -1387,7 +1387,8 @@ mod tests_of_units {
 
                         assert_eq!(1, trie.count);
 
-                        let (lln_b_ref, rln_b_ref) = (Node::as_ref(lln_b_ptr), Node::as_ref(rln_b_ptr));
+                        let (lln_b_ref, rln_b_ref) =
+                            (Node::as_ref(lln_b_ptr), Node::as_ref(rln_b_ptr));
 
                         let (kept, removed) = if lr == LeftRight::Left {
                             assert_eq!(0, lln_b_ref.id);
