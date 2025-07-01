@@ -1,13 +1,6 @@
 //! Poetrie, poetic trie, is trie designated for finding rhymes for your verses.
 //!
 //! For given input, and populated tree, it will find word with lengthiest shared suffix for you.
-// improvements:
-//      - return n (10, max 10, …) words with x-length shared suffix
-//      - allow to speficy expected min a max suffix match length
-//      - custom letter equalizer
-//      - use verbose method names
-//      - case insensivity
-// check 'imp:' also
 use std::{collections::hash_map::HashMap, ops::Deref};
 
 mod uc;

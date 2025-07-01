@@ -1,0 +1,8 @@
+ideas:
+  - return n (10, max 10, …) words with x-length shared suffix ❌
+  - allow to speficy expected min a max suffix match length ❌
+  - custom letter equalizer — use guidance instead
+  - use verbose method names ✓
+  - case insensivity ✓
+  - return n words ✓
+  - check with 'imp:' also  ✓
