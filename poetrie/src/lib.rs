@@ -371,6 +371,17 @@ impl Poetrie {
         self.cnt
     }
 
+    /// Use clear entire tree.
+    ///
+    /// Return value is count of entries before clearing.    
+    pub fn clr(&mut self) -> usize {
+        self.root = Node::empty();
+
+        let cnt = self.cnt;
+        self.cnt = 0;
+        cnt
+    }
+
     /// Use to extract entries from tree.
     ///
     /// Extraction is alphabetically unordered. Leaves tree intact.
@@ -1698,6 +1709,29 @@ mod tests_of_units {
                 let res = poetrie.track(&bad_entry.entry(), false);
                 assert_eq!(TraRes::UnknownForNotEntry, res);
             }
+        }
+
+        use crate::{Entry, Node};
+
+        #[test]
+        fn clr() {
+            let keyentry = Entry("keyentry");
+            let mut poetrie = Poetrie::new();
+
+            _ = poetrie.ins(&keyentry);
+            let cap = 50;
+            poetrie.btr.get_mut().reserve(cap);
+            poetrie.buf.get_mut().reserve(cap);
+
+            assert_eq!(1, poetrie.clr());
+            assert_eq!(false, poetrie.en(&keyentry));
+            let root = &poetrie.root;
+            assert_eq!(false, root.links());
+            assert_eq!(false, root.entry);
+            assert_eq!(0, poetrie.cnt);
+
+            assert_eq!(true, poetrie.btr.capacity() >= cap);
+            assert_eq!(true, poetrie.buf.capacity() >= cap);
         }
 
         #[test]
