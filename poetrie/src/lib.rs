@@ -106,8 +106,8 @@ impl Poetrie {
     /// Use to verify entry presence in tree.
     ///
     /// Return value is `true` if entry is present in tree, `false` otherwise.
-    pub fn en(&self, entry: &Key) -> bool {
-        let res = self.track(entry, false);
+    pub fn en(&self, key: &Key) -> bool {
+        let res = self.track(key, false);
 
         TraRes::Ok == res
     }
@@ -1790,6 +1790,40 @@ mod tests_of_units {
             let n = Node::empty();
             let n_add = addr_of!(n) as usize;
             assert_eq!(n_add, n.to_mut_ptr() as usize);
+        }
+    }
+
+    mod readme {
+        use crate::{Entry, FindErr, Poetrie};
+
+        #[test]
+        fn sample1() {
+            let mut poetrie = Poetrie::new();
+            let words = ["analytics", "metrics", "ethics", "Acoustics"]
+                .map(|x| Entry::new_from_str(x).unwrap());
+            for w in words {
+                poetrie.ins(&w);
+            }
+
+            let probe = Entry::new_from_str("lyrics").unwrap();
+            let matchee = poetrie.suf(&probe);
+            assert_eq!(Ok(String::from("metrics")), matchee);
+
+            let probe = Entry::new_from_str("solemn").unwrap();
+            assert_eq!(Err(FindErr::NoJointSuffix), poetrie.suf(&probe));
+        }
+
+        #[test]
+        fn sample2() {
+            let mut poetrie = Poetrie::new();
+            let words = ["lynx", "index"].map(|x| Entry::new_from_str(x).unwrap());
+            for w in words {
+                poetrie.ins(&w);
+            }
+
+            let probe = Entry::new_from_str("ynx").unwrap();
+            let matchee = poetrie.suf(&probe);
+            assert_eq!(Ok(String::from("lynx")), matchee);
         }
     }
 }
