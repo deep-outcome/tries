@@ -8,6 +8,52 @@ use uc::UC;
 
 type Links = HashMap<char, Node>;
 
+fn get_node<'a>(l: &'a Links, c: &char, #[cfg(test)] ecode: &mut usize) -> Option<&'a Node> {
+    let g = l.get(c);
+    if g.is_some() {
+        #[cfg(test)]
+        set_ecode(1, ecode);
+
+        return g;
+    }
+
+    let iter: &mut dyn ExactSizeIterator<Item = char> = if c.is_lowercase() {
+        #[cfg(test)]
+        set_ecode(2, ecode);
+
+        &mut c.to_uppercase()
+    } else if c.is_uppercase() {
+        #[cfg(test)]
+        set_ecode(4, ecode);
+
+        &mut c.to_lowercase()
+    } else {
+        #[cfg(test)]
+        set_ecode(8, ecode);
+
+        return None;
+    };
+
+    return if iter.len() == 1 {
+        #[cfg(test)]
+        set_ecode(32, ecode);
+
+        let c = unsafe { iter.next().unwrap_unchecked() };
+        l.get(&c)
+    } else {
+        #[cfg(test)]
+        set_ecode(16, ecode);
+
+        None
+    };
+
+    #[cfg(test)]
+    fn set_ecode(c: usize, ecode: &mut usize) {
+        let code = *ecode;
+        *ecode = code | c;
+    }
+}
+
 fn ext(l: &Links, buff: &mut Vec<char>, o: &mut Vec<String>) {
     for (k, n) in l.iter() {
         buff.push(*k);
@@ -57,8 +103,6 @@ impl<'a> Deref for Entry<'a> {
 ///
 /// Inputs are validated only for 0 length thus is up to consumer code
 /// to allow population with sensible values only.
-///
-/// All methods are case sensitive.
 pub struct Poetrie {
     root: Node,
     // backtrace buff
@@ -115,7 +159,29 @@ impl Poetrie {
     /// Use to find entry with most shared suffix to key.
     ///
     /// If there are more entries with equal suffix length,
-    /// only one in unguaranteed precedence is returned.    
+    /// only one in unguaranteed precedence is returned.
+    ///
+    /// This and only this method is case insensitive. Exactly, if char
+    /// in question provides one-to-one mapping as described at
+    /// [`char::to_lowercase`] and [`char::to_uppercase`], attempt to find
+    /// other casing on miss is made.
+    ///
+    /// Case insesitivy is wild as it uses key casing for result as long
+    /// as it is possible. Let check with example bellow.
+    /// ```
+    /// use poetrie::{Poetrie, Entry};
+    ///
+    /// let entry = Entry::new_from_str("ForenOOn").unwrap();
+    ///
+    /// let mut poetrie = Poetrie::new();
+    /// _ = poetrie.ins(&entry);
+    ///
+    /// let key = Entry::new_from_str("NooN").unwrap();
+    /// let find = poetrie.suf(&key);
+    ///
+    /// let proof = String::from("ForeNooN");
+    /// assert_eq!(Ok(proof), find);
+    /// ```
     pub fn suf(&self, key: &Key) -> Result<String, FindErr> {
         let res = self.find(
             key,
@@ -214,7 +280,12 @@ impl Poetrie {
         let mut op_node = &self.root;
         if let Some(l) = op_node.links.as_ref() {
             c = unsafe { chars.next_back().unwrap_unchecked() };
-            if let Some(n) = l.get(&c) {
+            if let Some(n) = get_node(
+                l,
+                &c,
+                #[cfg(test)]
+                &mut 0,
+            ) {
                 op_node = n;
                 buff.push(c)
             } else {
@@ -243,7 +314,12 @@ impl Poetrie {
             };
 
             if let Some(l) = op_node.links.as_ref() {
-                if let Some(n) = l.get(&c) {
+                if let Some(n) = get_node(
+                    l,
+                    &c,
+                    #[cfg(test)]
+                    &mut 0,
+                ) {
                     if l.len() > 1 {
                         branching = Some((l, (buff.len(), c)));
                     }
@@ -494,6 +570,84 @@ mod tests_of_units {
             fn deref(&self) -> &String {
                 &self.0
             }
+        }
+    }
+
+    mod get_node {
+        use crate::{Links, Node, get_node};
+
+        #[test]
+        fn direct_return() {
+            let mut l = Links::new();
+            let c = 'a';
+            let mut ecode = 0;
+
+            _ = l.insert(c.clone(), Node::empty());
+
+            let res = get_node(&l, &c, &mut ecode);
+            assert_eq!(true, res.is_some());
+            assert_eq!(1, ecode);
+        }
+
+        #[test]
+        fn uppercasing() {
+            let mut l = Links::new();
+            let mut ecode = 0;
+
+            _ = l.insert('A', Node::empty());
+
+            let res = get_node(&l, &'a', &mut ecode);
+            assert_eq!(true, res.is_some());
+            assert_eq!(34, ecode);
+        }
+
+        #[test]
+        fn lowercasing() {
+            let mut l = Links::new();
+            let mut ecode = 0;
+
+            _ = l.insert('a', Node::empty());
+
+            let res = get_node(&l, &'A', &mut ecode);
+            assert_eq!(true, res.is_some());
+            assert_eq!(36, ecode);
+        }
+
+        #[test]
+        fn uncaseable() {
+            let mut l = Links::new();
+            let mut ecode = 0;
+
+            _ = l.insert('-', Node::empty());
+
+            let res = get_node(&l, &'_', &mut ecode);
+            assert_eq!(true, res.is_none());
+            assert_eq!(8, ecode);
+        }
+
+        #[test]
+        fn not_one_to_one() {
+            let mut l = Links::new();
+            let c = 'ß';
+            let mut ecode = 0;
+
+            _ = l.insert('S', Node::empty());
+
+            let res = get_node(&l, &c, &mut ecode);
+            assert_eq!(true, res.is_none());
+            assert_eq!(18, ecode);
+        }
+
+        #[test]
+        fn not_match() {
+            let mut l = Links::new();
+            let mut ecode = 0;
+
+            _ = l.insert('a', Node::empty());
+
+            let res = get_node(&l, &'B', &mut ecode);
+            assert_eq!(true, res.is_none());
+            assert_eq!(36, ecode);
         }
     }
 
@@ -1087,6 +1241,21 @@ mod tests_of_units {
             }
 
             #[test]
+            fn exactly_last_match_4() {
+                let entry = &Entry("s");
+                let key = &Entry("S");
+
+                let mut poetrie = Poetrie::new();
+                _ = poetrie.ins(entry);
+
+                let mut b_code = 0;
+                let find = poetrie.find(key, &mut b_code);
+
+                assert_eq!(18, b_code);
+                assert_eq!(Err(FindErr::OnlyKeyMatches), find);
+            }
+
+            #[test]
             fn no_data() {
                 let key = &Entry("lyrics");
 
@@ -1559,6 +1728,25 @@ mod tests_of_units {
             }
 
             #[test]
+            fn case_ignoring() {
+                let subentry = RevEntry::new("DoCuMeNt");
+                let entry = RevEntry::new("DoCuMeNtAlIsT");
+                let proof = "dOcUmEnTaLIsT".chars().rev().collect();
+
+                let key = RevEntry::new("dOcUmEnTaL");
+
+                let mut poetrie = Poetrie::new();
+                _ = poetrie.ins(&subentry.entry());
+                _ = poetrie.ins(&entry.entry());
+
+                let mut b_code = 0;
+                let find = poetrie.find(&key.entry(), &mut b_code);
+
+                assert_eq!(130, b_code);
+                assert_eq!(Ok(proof), find);
+            }
+
+            #[test]
             fn load() {
                 let mut poetrie = Poetrie::new();
 
@@ -1711,7 +1899,7 @@ mod tests_of_units {
             }
         }
 
-        use crate::{Entry, Node};
+        use crate::Entry;
 
         #[test]
         fn clr() {
