@@ -1,8 +1,7 @@
-ideas:
-  - return n (10, max 10, …) words with x-length shared suffix ❌
-  - allow to speficy expected min a max suffix match length ❌
-  - custom letter equalizer — use guidance instead
-  - use verbose method names ✓
-  - case insensivity ✓
-  - return n words ✓
-  - check with 'imp:' also  ✓
+ideas:    
+  - use non-verbose method names 👍
+  - return n words ✓  
+  
+  👍 custom letter equalizer; develop in as separate "amplifier":
+    - for given input it generates n-words using given char-char mapping (e.g. for phonemes mapping)
+    - inspect casing capabilities of this, so built-in suf case insensitivity can be removed

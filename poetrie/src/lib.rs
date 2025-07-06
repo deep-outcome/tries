@@ -365,7 +365,6 @@ impl Poetrie {
 
                 buff.truncate(blen);
 
-                // imp: possibly randomize somehow node selection
                 for (&test_c, n) in blinks.iter() {
                     if test_c == skip_c {
                         continue;
@@ -388,8 +387,7 @@ impl Poetrie {
             }
         }
 
-        while let Some(l) = op_node.links.as_ref() {
-            // imp: possibly randomize hashmap key selection
+        while let Some(l) = op_node.links.as_ref() {            
             let (c, n) = unsafe { l.iter().next().unwrap_unchecked() };
             buff.push(*c);
             op_node = n;
