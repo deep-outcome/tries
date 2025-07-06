@@ -24,7 +24,7 @@ assert_eq!(Err(FindErr::NoJointSuffix), poetrie.suf(&probe));
 
 ##### handy use case
 
-Thinking about what could be good rhyming with word of choise, simple try search for that suffix directly. Let say, having _"lyrics"_ as word without match, thinking it should rhyme with something ending with _"ynx"_. 
+Thinking about what could be good rhyming with word of choice, simple try search for that suffix directly. Let say, having _"lyrics"_ as word without match, thinking it should rhyme with something ending with _"ynx"_. 
 
 ```rust
 let mut poetrie = Poetrie::new();
@@ -39,6 +39,6 @@ assert_eq!(Ok(String::from("lynx")), matchee);
 ```
 
 Now, one goes: _"As the paws in a snow, </br>
-layed down by lightening lynx, </br>
+lain down by lightening lynx, </br>
 my word goes there and forth, </br>
 composing the aerial lyrics."_.
