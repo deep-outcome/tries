@@ -39,6 +39,6 @@ assert_eq!(Ok(String::from("lynx")), matchee);
 ```
 
 Now, one goes: _"As the paws in a snow, </br>
-lain down by lightening lynx, </br>
+laid down by lightening lynx, </br>
 my word goes there and forth, </br>
 composing the aerial lyrics."_.
