@@ -1,6 +1,6 @@
 ideas:
-  - return n words ✓  
+  - return n words
+  - return at least n-long words
   
-  👍 custom letter equalizer; develop in as separate "amplifier":
+👍 custom letter equalizer; develop in as separate "amplifier":
     - for given input it generates n-words using given char-char mapping (e.g. for phonemes mapping)
-    - inspect casing capabilities of this, so built-in suf case insensitivity can be removed
