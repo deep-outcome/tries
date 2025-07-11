@@ -116,7 +116,7 @@ pub struct Poetrie {
 const NULL: char = '\0';
 impl Poetrie {
     /// Use for `Poetrie` construction.    
-    pub const fn new() -> Poetrie {
+    pub const fn nw() -> Poetrie {
         Poetrie {
             root: Node::empty(),
             btr: UC::new(Vec::new()),
@@ -129,7 +129,7 @@ impl Poetrie {
     ///
     /// Return value is `true` if entry was inserted into tree,
     /// `false` if it was present already.
-    pub fn ins(&mut self, entry: &Entry) -> bool {
+    pub fn it(&mut self, entry: &Entry) -> bool {
         let mut node = &mut self.root;
         let mut chars = entry.chars();
         while let Some(c) = chars.next_back() {
@@ -150,7 +150,7 @@ impl Poetrie {
     /// Use to verify entry presence in tree.
     ///
     /// Return value is `true` if entry is present in tree, `false` otherwise.
-    pub fn en(&self, key: &Key) -> bool {
+    pub fn ey(&self, key: &Key) -> bool {
         let res = self.track(key, false);
 
         TraRes::Ok == res
@@ -173,16 +173,16 @@ impl Poetrie {
     ///
     /// let entry = Entry::new_from_str("ForenOOn").unwrap();
     ///
-    /// let mut poetrie = Poetrie::new();
-    /// _ = poetrie.ins(&entry);
+    /// let mut poetrie = Poetrie::nw();
+    /// _ = poetrie.it(&entry);
     ///
     /// let key = Entry::new_from_str("NooN").unwrap();
-    /// let find = poetrie.suf(&key);
+    /// let find = poetrie.sx(&key);
     ///
     /// let proof = String::from("ForeNooN");
     /// assert_eq!(Ok(proof), find);
     /// ```
-    pub fn suf(&self, key: &Key) -> Result<String, FindErr> {
+    pub fn sx(&self, key: &Key) -> Result<String, FindErr> {
         let res = self.find(
             key,
             #[cfg(test)]
@@ -197,10 +197,10 @@ impl Poetrie {
     /// Use to remove entry from tree.
     ///
     /// Return value is `true` if entry was removed, `false` if it was not present.
-    pub fn rem(&mut self, entry: &Entry) -> bool {
+    pub fn re(&mut self, entry: &Entry) -> bool {
         let tra_res = self.track(entry, true);
         let res = if let TraRes::Ok = tra_res {
-            self.rem_actual(
+            self.re_actual(
                 #[cfg(test)]
                 &mut 0,
             );
@@ -215,7 +215,7 @@ impl Poetrie {
         res
     }
 
-    fn rem_actual(&mut self, #[cfg(test)] esc_code: &mut usize) {
+    fn re_actual(&mut self, #[cfg(test)] esc_code: &mut usize) {
         let mut trace = self.btr.iter();
         let en_duo = unsafe { trace.next_back().unwrap_unchecked() };
         let mut node = unsafe { en_duo.1.as_mut().unwrap_unchecked() };
@@ -387,7 +387,7 @@ impl Poetrie {
             }
         }
 
-        while let Some(l) = op_node.links.as_ref() {            
+        while let Some(l) = op_node.links.as_ref() {
             let (c, n) = unsafe { l.iter().next().unwrap_unchecked() };
             buff.push(*c);
             op_node = n;
@@ -448,7 +448,7 @@ impl Poetrie {
     /// Use clear entire tree.
     ///
     /// Return value is count of entries before clearing.    
-    pub fn clr(&mut self) -> usize {
+    pub fn cr(&mut self) -> usize {
         self.root = Node::empty();
 
         let cnt = self.cnt;
@@ -461,7 +461,7 @@ impl Poetrie {
     /// Extraction is alphabetically unordered. Leaves tree intact.
     ///
     /// Return value is `None` for empty `Poetrie`.    
-    pub fn ext(&mut self) -> Option<Vec<String>> {
+    pub fn et(&mut self) -> Option<Vec<String>> {
         if self.cnt == 0 {
             return None;
         }
@@ -655,13 +655,13 @@ mod tests_of_units {
 
         #[test]
         fn basic_test() {
-            let mut poetrie = Poetrie::new();
+            let mut poetrie = Poetrie::nw();
 
             let a = &Entry("a");
             let z = &Entry("z");
 
-            _ = poetrie.ins(a);
-            _ = poetrie.ins(z);
+            _ = poetrie.it(a);
+            _ = poetrie.it(z);
 
             let mut buff = Vec::new();
             let mut test = Vec::new();
@@ -675,13 +675,13 @@ mod tests_of_units {
 
             assert_eq!(proof, test);
 
-            assert_eq!(true, poetrie.en(a));
-            assert_eq!(true, poetrie.en(z));
+            assert_eq!(true, poetrie.ey(a));
+            assert_eq!(true, poetrie.ey(z));
         }
 
         #[test]
         fn nesting() {
-            let mut poetrie = Poetrie::new();
+            let mut poetrie = Poetrie::nw();
 
             let entries = vec![
                 String::from("a"),
@@ -695,7 +695,7 @@ mod tests_of_units {
             ];
 
             for e in entries.iter() {
-                _ = poetrie.ins(&Entry(e.as_str()));
+                _ = poetrie.it(&Entry(e.as_str()));
             }
 
             let mut buff = Vec::new();
@@ -712,7 +712,7 @@ mod tests_of_units {
 
         #[test]
         fn in_depth_recursion() {
-            let mut poetrie = Poetrie::new();
+            let mut poetrie = Poetrie::nw();
 
             let paths = vec![
                 String::from("aa"),
@@ -727,7 +727,7 @@ mod tests_of_units {
             ];
 
             for p in paths.iter() {
-                _ = poetrie.ins(&Entry(p.as_str()));
+                _ = poetrie.it(&Entry(p.as_str()));
             }
 
             let mut buff = Vec::new();
@@ -774,8 +774,8 @@ mod tests_of_units {
         use crate::Poetrie;
 
         #[test]
-        fn new() {
-            let poetrie = Poetrie::new();
+        fn nw() {
+            let poetrie = Poetrie::nw();
 
             let root = poetrie.root;
             assert_eq!(false, root.entry);
@@ -791,15 +791,15 @@ mod tests_of_units {
             assert_eq!(0, buf.capacity());
         }
 
-        mod ins {
+        mod it {
             use crate::{Entry, Poetrie};
 
             #[test]
             fn basic_test() {
                 let entry = Entry("touchstone");
 
-                let mut poetrie = Poetrie::new();
-                let res = poetrie.ins(&entry);
+                let mut poetrie = Poetrie::nw();
+                let res = poetrie.it(&entry);
                 assert_eq!(true, res);
 
                 let links = &poetrie.root.links.as_ref();
@@ -831,26 +831,26 @@ mod tests_of_units {
                 let existing = &Entry("touchstone");
                 let new = &Entry("touch");
 
-                let mut poetrie = Poetrie::new();
+                let mut poetrie = Poetrie::nw();
 
-                let res = poetrie.ins(existing);
+                let res = poetrie.it(existing);
                 assert_eq!(true, res);
                 assert_eq!(1, poetrie.cnt);
 
-                let res = poetrie.ins(new);
+                let res = poetrie.it(new);
                 assert_eq!(true, res);
                 assert_eq!(2, poetrie.cnt);
 
-                assert_eq!(true, poetrie.en(existing));
-                assert_eq!(true, poetrie.en(new));
+                assert_eq!(true, poetrie.ey(existing));
+                assert_eq!(true, poetrie.ey(new));
             }
 
             #[test]
             fn singular_entry() {
                 let e = Entry("a");
 
-                let mut poetrie = Poetrie::new();
-                let res = poetrie.ins(&e);
+                let mut poetrie = Poetrie::nw();
+                let res = poetrie.it(&e);
                 assert_eq!(true, res);
                 assert_eq!(1, poetrie.cnt);
 
@@ -866,12 +866,12 @@ mod tests_of_units {
             fn double_insert() {
                 let entry = &Entry("appealing delicacy");
 
-                let mut poetrie = Poetrie::new();
-                let res = poetrie.ins(&entry);
+                let mut poetrie = Poetrie::nw();
+                let res = poetrie.it(&entry);
                 assert_eq!(true, res);
                 assert_eq!(1, poetrie.cnt);
 
-                let res = poetrie.ins(&entry);
+                let res = poetrie.it(&entry);
                 assert_eq!(false, res);
                 assert_eq!(1, poetrie.cnt);
 
@@ -897,74 +897,74 @@ mod tests_of_units {
             }
         }
 
-        mod en {
+        mod ey {
 
             use crate::{Entry, Poetrie};
 
             #[test]
             fn member() {
                 let e = &Entry("Keyword");
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(e);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(e);
 
-                let res = poetrie.en(e);
+                let res = poetrie.ey(e);
                 assert_eq!(true, res);
             }
 
             #[test]
             fn not_member() {
                 let e = &Entry("Keyword");
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(e);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(e);
 
                 for e in ["Key", "Opener"] {
                     let e = Entry(e);
-                    let res = poetrie.en(&e);
+                    let res = poetrie.ey(&e);
                     assert_eq!(false, res);
                 }
             }
         }
 
-        mod suf {
+        mod sx {
             use crate::{Entry, FindErr, Poetrie};
 
             #[test]
             fn basic_test() {
-                let mut poetrie = Poetrie::new();
+                let mut poetrie = Poetrie::nw();
 
                 let proof = String::from("quadriliteral");
                 let entry = Entry(proof.as_str());
-                _ = poetrie.ins(&entry);
+                _ = poetrie.it(&entry);
 
                 let key = Entry("semiliteral");
-                let res = poetrie.suf(&key);
+                let res = poetrie.sx(&key);
                 assert_eq!(Ok(proof), res);
             }
 
             #[test]
             fn err() {
-                let poetrie = Poetrie::new();
+                let poetrie = Poetrie::nw();
 
                 let key = Entry("semiliteral");
-                let res = poetrie.suf(&key);
+                let res = poetrie.sx(&key);
                 assert_eq!(Err(FindErr::EmptyTree), res);
             }
 
             #[test]
             fn buf_clearing() {
-                let mut poetrie = Poetrie::new();
+                let mut poetrie = Poetrie::nw();
 
                 let key_entry = Entry("quadriliteral");
-                _ = poetrie.ins(&key_entry);
+                _ = poetrie.it(&key_entry);
 
-                let res = poetrie.suf(&key_entry);
+                let res = poetrie.sx(&key_entry);
                 assert_eq!(Err(FindErr::OnlyKeyMatches), res);
                 assert_eq!(0, poetrie.buf.len());
                 assert_eq!(true, poetrie.buf.capacity() > 0);
             }
         }
 
-        mod rem {
+        mod re {
             use crate::{Entry, Poetrie};
 
             #[test]
@@ -972,25 +972,25 @@ mod tests_of_units {
                 let known = &Entry("safe-hideaway");
                 let unknown = &Entry("grave-monition");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(known);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(known);
 
-                assert_eq!(false, poetrie.rem(unknown));
+                assert_eq!(false, poetrie.re(unknown));
                 assert_eq!(0, poetrie.btr.len());
                 assert_eq!(true, poetrie.btr.capacity() > 0);
                 assert_eq!(1, poetrie.cnt);
 
-                assert_eq!(true, poetrie.rem(known));
+                assert_eq!(true, poetrie.re(known));
                 assert_eq!(0, poetrie.btr.len());
                 assert_eq!(0, poetrie.cnt);
-                assert_eq!(false, poetrie.en(known));
+                assert_eq!(false, poetrie.ey(known));
             }
         }
 
         // node in path to entry being deleted cannot
         // be deleted if and only if participates in
         // path to another entry where path len varies 0…m
-        mod rem_actual {
+        mod re_actual {
 
             use super::super::rev_entry::RevEntry;
             use crate::{Entry, Poetrie};
@@ -1000,25 +1000,25 @@ mod tests_of_units {
                 let entry = RevEntry::new("abcxyz");
                 let entry = &entry.entry();
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
                 _ = poetrie.track(entry, true);
 
-                poetrie.rem_actual(&mut 0);
-                assert_eq!(false, poetrie.en(entry));
+                poetrie.re_actual(&mut 0);
+                assert_eq!(false, poetrie.ey(entry));
             }
 
             #[test]
             fn one_letter_a() {
                 let entry = &Entry("a");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
                 _ = poetrie.track(entry, true);
 
                 let mut esc_code = 0;
-                poetrie.rem_actual(&mut esc_code);
-                assert_eq!(false, poetrie.en(entry));
+                poetrie.re_actual(&mut esc_code);
+                assert_eq!(false, poetrie.ey(entry));
                 assert_eq!(18, esc_code);
             }
 
@@ -1027,15 +1027,15 @@ mod tests_of_units {
                 let entry1 = &Entry("a");
                 let entry2 = &Entry("b");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry1);
-                _ = poetrie.ins(entry2);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry1);
+                _ = poetrie.it(entry2);
                 _ = poetrie.track(entry1, true);
 
                 let mut esc_code = 0;
-                poetrie.rem_actual(&mut esc_code);
-                assert_eq!(false, poetrie.en(entry1));
-                assert_eq!(true, poetrie.en(entry2));
+                poetrie.re_actual(&mut esc_code);
+                assert_eq!(false, poetrie.ey(entry1));
+                assert_eq!(true, poetrie.ey(entry2));
                 assert_eq!(6, esc_code);
             }
 
@@ -1045,53 +1045,53 @@ mod tests_of_units {
                 let entry2 = RevEntry::new("al");
                 let entry2 = &entry2.entry();
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry1);
-                _ = poetrie.ins(entry2);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry1);
+                _ = poetrie.it(entry2);
                 _ = poetrie.track(entry1, true);
 
                 let mut esc_code = 0;
-                poetrie.rem_actual(&mut esc_code);
-                assert_eq!(false, poetrie.en(entry1));
-                assert_eq!(true, poetrie.en(entry2));
+                poetrie.re_actual(&mut esc_code);
+                assert_eq!(false, poetrie.ey(entry1));
+                assert_eq!(true, poetrie.ey(entry2));
                 assert_eq!(1, esc_code);
             }
 
             #[test]
             fn inner_entry() {
-                let mut poetrie = Poetrie::new();
+                let mut poetrie = Poetrie::nw();
 
                 let outer = RevEntry::new("Keyword");
                 let outer = &outer.entry();
-                _ = poetrie.ins(&outer);
+                _ = poetrie.it(&outer);
 
                 let inner = RevEntry::new("Key");
                 let inner = &inner.entry();
-                _ = poetrie.ins(inner);
+                _ = poetrie.it(inner);
 
                 let mut esc_code = 0;
                 _ = poetrie.track(inner, true);
 
-                poetrie.rem_actual(&mut esc_code);
+                poetrie.re_actual(&mut esc_code);
                 assert_eq!(1, esc_code);
 
-                assert_eq!(false, poetrie.en(inner));
-                assert_eq!(true, poetrie.en(outer));
+                assert_eq!(false, poetrie.ey(inner));
+                assert_eq!(true, poetrie.ey(outer));
             }
 
             #[test]
             fn links_removal() {
                 let entry = RevEntry::new("Keyword");
                 let entry = &entry.entry();
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
 
                 let mut esc_code = 0;
                 _ = poetrie.track(entry, true);
-                poetrie.rem_actual(&mut esc_code);
+                poetrie.re_actual(&mut esc_code);
                 assert_eq!(18, esc_code);
 
-                assert_eq!(false, poetrie.en(entry));
+                assert_eq!(false, poetrie.ey(entry));
                 assert_eq!(None, poetrie.root.links);
             }
 
@@ -1102,17 +1102,17 @@ mod tests_of_units {
                 let keyword = RevEntry::new("Keyword");
                 let keyword = &keyword.entry();
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(dissimilar);
-                _ = poetrie.ins(keyword);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(dissimilar);
+                _ = poetrie.it(keyword);
 
                 let mut esc_code = 0;
                 _ = poetrie.track(keyword, true);
-                poetrie.rem_actual(&mut esc_code);
+                poetrie.re_actual(&mut esc_code);
                 assert_eq!(6, esc_code);
 
-                assert_eq!(false, poetrie.en(keyword));
-                assert_eq!(true, poetrie.en(dissimilar));
+                assert_eq!(false, poetrie.ey(keyword));
+                assert_eq!(true, poetrie.ey(dissimilar));
             }
 
             #[test]
@@ -1121,17 +1121,17 @@ mod tests_of_units {
                 let above = &above.entry();
                 let under = RevEntry::new("keyworders");
                 let under = &under.entry();
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(above);
-                _ = poetrie.ins(under);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(above);
+                _ = poetrie.it(under);
 
                 let mut esc_code = 0;
                 _ = poetrie.track(under, true);
-                poetrie.rem_actual(&mut esc_code);
+                poetrie.re_actual(&mut esc_code);
                 assert_eq!(10, esc_code);
 
-                assert_eq!(false, poetrie.en(under));
-                assert_eq!(true, poetrie.en(above));
+                assert_eq!(false, poetrie.ey(under));
+                assert_eq!(true, poetrie.ey(above));
 
                 _ = poetrie.track(above, true);
                 let btr = &poetrie.btr;
@@ -1150,9 +1150,9 @@ mod tests_of_units {
                 let proof = String::from("halieutics");
                 let entry = &Entry(proof.as_str());
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
-                _ = poetrie.ins(&Entry("codecs"));
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
+                _ = poetrie.it(&Entry("codecs"));
 
                 let key = &Entry("lyrics");
                 let find = poetrie.find(key, &mut 0);
@@ -1165,8 +1165,8 @@ mod tests_of_units {
                 let entry = &Entry("s");
                 let key = &Entry("lyrics");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1180,9 +1180,9 @@ mod tests_of_units {
                 let entry = &Entry("s");
                 let key = &Entry("lyrics");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
-                _ = poetrie.ins(key);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
+                _ = poetrie.it(key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1197,8 +1197,8 @@ mod tests_of_units {
                 let entry = &Entry(proof.as_str());
                 let key = &Entry("s");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1213,9 +1213,9 @@ mod tests_of_units {
                 let entry = &Entry(proof.as_str());
                 let key = &Entry("s");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
-                _ = poetrie.ins(key);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
+                _ = poetrie.it(key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1228,8 +1228,8 @@ mod tests_of_units {
             fn exactly_last_match_3() {
                 let key_entry = &Entry("s");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(key_entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(key_entry);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key_entry, &mut b_code);
@@ -1243,8 +1243,8 @@ mod tests_of_units {
                 let entry = &Entry("s");
                 let key = &Entry("S");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1257,7 +1257,7 @@ mod tests_of_units {
             fn no_data() {
                 let key = &Entry("lyrics");
 
-                let poetrie = Poetrie::new();
+                let poetrie = Poetrie::nw();
                 let find = poetrie.find(key, &mut 0);
 
                 assert_eq!(Err(FindErr::EmptyTree), find);
@@ -1268,8 +1268,8 @@ mod tests_of_units {
                 let entry = &Entry("epicalyx");
                 let key = &Entry("lyrics");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
 
                 let find = poetrie.find(key, &mut 0);
 
@@ -1280,8 +1280,8 @@ mod tests_of_units {
             fn key_matches_itself_only() {
                 let itself = &Entry("lyrics");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(itself);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(itself);
 
                 let mut b_code = 0;
                 let find = poetrie.find(itself, &mut b_code);
@@ -1298,9 +1298,9 @@ mod tests_of_units {
 
                 let key = RevEntry::new("documental");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&subentry.entry());
-                _ = poetrie.ins(&entry.entry());
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&subentry.entry());
+                _ = poetrie.it(&entry.entry());
 
                 let mut b_code = 0;
                 let find = poetrie.find(&key.entry(), &mut b_code);
@@ -1318,10 +1318,10 @@ mod tests_of_units {
                 let key = RevEntry::new("documental");
                 let key = &key.entry();
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&subentry.entry());
-                _ = poetrie.ins(&entry.entry());
-                _ = poetrie.ins(key);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&subentry.entry());
+                _ = poetrie.it(&entry.entry());
+                _ = poetrie.it(key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1339,10 +1339,10 @@ mod tests_of_units {
                 let key = RevEntry::new("documentalist");
                 let key = &key.entry();
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&subentry.entry());
-                _ = poetrie.ins(&entry.entry());
-                _ = poetrie.ins(key);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&subentry.entry());
+                _ = poetrie.it(&entry.entry());
+                _ = poetrie.it(key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1358,9 +1358,9 @@ mod tests_of_units {
 
                 let key = &Entry("anagram");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&subentry);
-                _ = poetrie.ins(key);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&subentry);
+                _ = poetrie.it(key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1376,9 +1376,9 @@ mod tests_of_units {
 
                 let key = &Entry("YXconundrum");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&entry);
-                _ = poetrie.ins(&key);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&entry);
+                _ = poetrie.it(&key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1396,9 +1396,9 @@ mod tests_of_units {
                 let key = RevEntry::new("documentalist");
                 let key = &key.entry();
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&subentry.entry());
-                _ = poetrie.ins(&entry.entry());
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&subentry.entry());
+                _ = poetrie.it(&entry.entry());
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1414,8 +1414,8 @@ mod tests_of_units {
 
                 let key = &Entry("conundrum");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&entry);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1431,8 +1431,8 @@ mod tests_of_units {
 
                 let key = &Entry("YXconundrum");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&entry);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1449,10 +1449,10 @@ mod tests_of_units {
 
                 let key = &Entry("haulm");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&subentry);
-                _ = poetrie.ins(&entry);
-                _ = poetrie.ins(key);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&subentry);
+                _ = poetrie.it(&entry);
+                _ = poetrie.it(key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1469,9 +1469,9 @@ mod tests_of_units {
 
                 let key = &Entry("haulm");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&subentry);
-                _ = poetrie.ins(&entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&subentry);
+                _ = poetrie.it(&entry);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1487,8 +1487,8 @@ mod tests_of_units {
 
                 let key = &Entry("athletics");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1504,8 +1504,8 @@ mod tests_of_units {
 
                 let key = &Entry("carboniferous");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1521,9 +1521,9 @@ mod tests_of_units {
 
                 let key = &Entry("athletics");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
-                _ = poetrie.ins(key);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
+                _ = poetrie.it(key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1539,9 +1539,9 @@ mod tests_of_units {
 
                 let key = &Entry("carboniferous");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
-                _ = poetrie.ins(key);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
+                _ = poetrie.it(key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1557,9 +1557,9 @@ mod tests_of_units {
 
                 let key = &Entry("A-lyrics");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
-                _ = poetrie.ins(key);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
+                _ = poetrie.it(key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1575,8 +1575,8 @@ mod tests_of_units {
 
                 let key = &Entry("A-lyrics");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1595,11 +1595,11 @@ mod tests_of_units {
 
                 let key = &Entry("athletics");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry_1);
-                _ = poetrie.ins(entry_2);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry_1);
+                _ = poetrie.it(entry_2);
 
-                _ = poetrie.ins(key);
+                _ = poetrie.it(key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1621,11 +1621,11 @@ mod tests_of_units {
 
                 let key = &Entry("carboniferous");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry_1);
-                _ = poetrie.ins(entry_2);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry_1);
+                _ = poetrie.it(entry_2);
 
-                _ = poetrie.ins(key);
+                _ = poetrie.it(key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1647,9 +1647,9 @@ mod tests_of_units {
                 let key = RevEntry::new("documentalist");
                 let key = &key.entry();
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&suf_ent.entry());
-                _ = poetrie.ins(&bra_ent.entry());
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&suf_ent.entry());
+                _ = poetrie.it(&bra_ent.entry());
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1668,10 +1668,10 @@ mod tests_of_units {
                 let key = RevEntry::new("documentalist");
                 let key = &key.entry();
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&suf_ent.entry());
-                _ = poetrie.ins(&bra_ent.entry());
-                _ = poetrie.ins(key);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&suf_ent.entry());
+                _ = poetrie.it(&bra_ent.entry());
+                _ = poetrie.it(key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1691,9 +1691,9 @@ mod tests_of_units {
                 let key = RevEntry::new("documentalist");
                 let key = &key.entry();
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&suf_ent.entry());
-                _ = poetrie.ins(&bra_ent.entry());
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&suf_ent.entry());
+                _ = poetrie.it(&bra_ent.entry());
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1713,10 +1713,10 @@ mod tests_of_units {
                 let key = RevEntry::new("documentalist");
                 let key = &key.entry();
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&suf_ent.entry());
-                _ = poetrie.ins(&bra_ent.entry());
-                _ = poetrie.ins(key);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&suf_ent.entry());
+                _ = poetrie.it(&bra_ent.entry());
+                _ = poetrie.it(key);
 
                 let mut b_code = 0;
                 let find = poetrie.find(key, &mut b_code);
@@ -1733,9 +1733,9 @@ mod tests_of_units {
 
                 let key = RevEntry::new("dOcUmEnTaL");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&subentry.entry());
-                _ = poetrie.ins(&entry.entry());
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&subentry.entry());
+                _ = poetrie.it(&entry.entry());
 
                 let mut b_code = 0;
                 let find = poetrie.find(&key.entry(), &mut b_code);
@@ -1746,7 +1746,7 @@ mod tests_of_units {
 
             #[test]
             fn load() {
-                let mut poetrie = Poetrie::new();
+                let mut poetrie = Poetrie::nw();
 
                 let rev_entries = ["document", "documentalist"];
                 let rev_entries = rev_entries.map(|x| RevEntry::new(x));
@@ -1762,7 +1762,7 @@ mod tests_of_units {
                     "epically",
                 ];
                 for e in entries.iter().map(|x| *x).chain(rev_entries) {
-                    _ = poetrie.ins(&Entry(e));
+                    _ = poetrie.it(&Entry(e));
                 }
 
                 let key = Entry("musics");
@@ -1820,13 +1820,13 @@ mod tests_of_units {
 
             #[test]
             fn tracing() {
-                let mut poetrie = Poetrie::new();
+                let mut poetrie = Poetrie::nw();
 
                 let keyword = "keyword";
                 let entries = ["k", "key", keyword].map(|x| RevEntry::new(x));
 
                 for e in entries.iter() {
-                    _ = poetrie.ins(&e.entry());
+                    _ = poetrie.it(&e.entry());
                 }
 
                 let keyword_e = &entries[2].entry();
@@ -1855,8 +1855,8 @@ mod tests_of_units {
                 let entry = RevEntry::new("información meteorológica");
                 let entry = &entry.entry();
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(entry);
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
                 let res = poetrie.track(entry, false);
 
                 assert_eq!(TraRes::Ok, res);
@@ -1867,8 +1867,8 @@ mod tests_of_units {
                 let entry = RevEntry::new("wordbook");
                 let bad_entry = RevEntry::new("wordbooks");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&entry.entry());
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&entry.entry());
                 let res = poetrie.track(&bad_entry.entry(), false);
                 assert_eq!(TraRes::UnknownForAbsentPathLinks, res);
             }
@@ -1878,8 +1878,8 @@ mod tests_of_units {
                 let entry = RevEntry::new("wordbookz");
                 let bad_entry = RevEntry::new("wordbooks");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&entry.entry());
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&entry.entry());
                 let res = poetrie.track(&bad_entry.entry(), false);
                 assert_eq!(TraRes::UnknownForAbsentPathNode, res);
             }
@@ -1889,8 +1889,8 @@ mod tests_of_units {
                 let entry = RevEntry::new("wordbooks");
                 let bad_entry = RevEntry::new("wordbook");
 
-                let mut poetrie = Poetrie::new();
-                _ = poetrie.ins(&entry.entry());
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&entry.entry());
 
                 let res = poetrie.track(&bad_entry.entry(), false);
                 assert_eq!(TraRes::UnknownForNotEntry, res);
@@ -1900,17 +1900,17 @@ mod tests_of_units {
         use crate::Entry;
 
         #[test]
-        fn clr() {
+        fn cr() {
             let keyentry = Entry("keyentry");
-            let mut poetrie = Poetrie::new();
+            let mut poetrie = Poetrie::nw();
 
-            _ = poetrie.ins(&keyentry);
+            _ = poetrie.it(&keyentry);
             let cap = 50;
             poetrie.btr.get_mut().reserve(cap);
             poetrie.buf.get_mut().reserve(cap);
 
-            assert_eq!(1, poetrie.clr());
-            assert_eq!(false, poetrie.en(&keyentry));
+            assert_eq!(1, poetrie.cr());
+            assert_eq!(false, poetrie.ey(&keyentry));
             let root = &poetrie.root;
             assert_eq!(false, root.links());
             assert_eq!(false, root.entry);
@@ -1923,13 +1923,13 @@ mod tests_of_units {
         #[test]
         fn ct() {
             let test = 3;
-            let mut poetrie = Poetrie::new();
+            let mut poetrie = Poetrie::nw();
             assert_eq!(0, poetrie.ct());
             poetrie.cnt = test;
             assert_eq!(test, poetrie.ct());
         }
 
-        mod ext {
+        mod et {
             use crate::{Entry, Poetrie};
 
             #[test]
@@ -1948,12 +1948,12 @@ mod tests_of_units {
 
                 let entries = proof.iter().map(|x| Entry(x.as_str()));
 
-                let mut poetrie = Poetrie::new();
+                let mut poetrie = Poetrie::nw();
                 for e in entries.clone() {
-                    _ = poetrie.ins(&e);
+                    _ = poetrie.it(&e);
                 }
 
-                let ext = poetrie.ext();
+                let ext = poetrie.et();
                 assert_eq!(true, ext.is_some());
                 let mut ext = ext.unwrap();
 
@@ -1969,14 +1969,14 @@ mod tests_of_units {
                 assert_eq!(true, cap < CAP * 2);
 
                 for e in entries.clone() {
-                    assert_eq!(true, poetrie.en(&e));
+                    assert_eq!(true, poetrie.ey(&e));
                 }
             }
 
             #[test]
             fn empty_tree() {
-                let mut poetrie = Poetrie::new();
-                let ext = poetrie.ext();
+                let mut poetrie = Poetrie::nw();
+                let ext = poetrie.et();
 
                 assert_eq!(None, ext);
             }
@@ -2018,31 +2018,31 @@ mod tests_of_units {
 
         #[test]
         fn sample1() {
-            let mut poetrie = Poetrie::new();
+            let mut poetrie = Poetrie::nw();
             let words = ["analytics", "metrics", "ethics", "Acoustics"]
                 .map(|x| Entry::new_from_str(x).unwrap());
             for w in words {
-                poetrie.ins(&w);
+                poetrie.it(&w);
             }
 
             let probe = Entry::new_from_str("lyrics").unwrap();
-            let matchee = poetrie.suf(&probe);
+            let matchee = poetrie.sx(&probe);
             assert_eq!(Ok(String::from("metrics")), matchee);
 
             let probe = Entry::new_from_str("solemn").unwrap();
-            assert_eq!(Err(FindErr::NoJointSuffix), poetrie.suf(&probe));
+            assert_eq!(Err(FindErr::NoJointSuffix), poetrie.sx(&probe));
         }
 
         #[test]
         fn sample2() {
-            let mut poetrie = Poetrie::new();
+            let mut poetrie = Poetrie::nw();
             let words = ["lynx", "index"].map(|x| Entry::new_from_str(x).unwrap());
             for w in words {
-                poetrie.ins(&w);
+                poetrie.it(&w);
             }
 
             let probe = Entry::new_from_str("ynx").unwrap();
-            let matchee = poetrie.suf(&probe);
+            let matchee = poetrie.sx(&probe);
             assert_eq!(Ok(String::from("lynx")), matchee);
         }
     }

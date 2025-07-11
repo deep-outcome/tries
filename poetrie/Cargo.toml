@@ -1,6 +1,6 @@
 [package]
 name = "poetrie"
-version = "0.9.4"
+version = "0.9.5"
 edition = "2024"
 keywords = [ "digital-tree", "prefix-tree", "trie", "retrieval-tree", "poetry" ]
 authors = [ "software9119.technology" ]
@@ -10,5 +10,4 @@ license = "MIT"
 categories = [ "data-structures" ]
 documentation = "https://docs.rs/poetrie/latest/poetrie/index.html"
 readme = "README.md"
-
-[dependencies]
+exclude = ["note"]
