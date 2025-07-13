@@ -124,6 +124,39 @@ pub enum LeftRight {
     Right = 1,
 }
 
+fn insert_crux<'a>(mut supernode: &'a mut Node, e: &Entry) -> &'a mut Node {
+    let e = e.0;
+
+    let mut swap = Node::empty_boxed();
+    let mut sn_ptr: *const Node = supernode;
+    for c in e.chars() {
+        let links = supernode.links.get_or_insert_with(|| Links::new());
+
+        let ix = if let Some(i) = index_of_c(links, c) {
+            i
+        } else {
+            let boxed = Node::new_boxed(c, sn_ptr);
+            links.push(boxed);
+            links.len() - 1
+        };
+
+        let node = &mut links[ix];
+
+        // Can be made coherent after
+        // https://github.com/rust-lang/rust/issues/129090.
+        std::mem::swap(&mut swap, node);
+        let n_raw = Box::into_raw(swap);
+        swap = unsafe { Box::from_raw(n_raw) };
+        std::mem::swap(&mut swap, node);
+
+        supernode = node;
+
+        sn_ptr = n_raw;
+    }
+
+    supernode
+}
+
 fn index_of_c(links: &Links, c: char) -> Option<usize> {
     let links_len = links.len();
     let mut ix = 0;
@@ -333,8 +366,8 @@ impl LrTrie {
             cntr += 1;
         }
 
-        let l_en = Self::insert_crux(&mut self.left, l_entry);
-        let r_en = Self::insert_crux(&mut self.right, r_entry);
+        let l_en = insert_crux(&mut self.left, l_entry);
+        let r_en = insert_crux(&mut self.right, r_entry);
 
         l_en.lrref = r_en as *const Node;
         r_en.lrref = l_en as *const Node;
@@ -346,39 +379,6 @@ impl LrTrie {
             2 => count - 1,
             _ => panic!("Impossible value."),
         }
-    }
-
-    fn insert_crux<'a>(mut supernode: &'a mut Node, e: &Entry) -> &'a mut Node {
-        let e = e.0;
-
-        let mut swap = Node::empty_boxed();
-        let mut sn_ptr: *const Node = supernode;
-        for c in e.chars() {
-            let links = supernode.links.get_or_insert_with(|| Links::new());
-
-            let ix = if let Some(i) = index_of_c(links, c) {
-                i
-            } else {
-                let boxed = Node::new_boxed(c, sn_ptr);
-                links.push(boxed);
-                links.len() - 1
-            };
-
-            let node = &mut links[ix];
-
-            // Can be made coherent after
-            // https://github.com/rust-lang/rust/issues/129090.
-            std::mem::swap(&mut swap, node);
-            let n_raw = Box::into_raw(swap);
-            swap = unsafe { Box::from_raw(n_raw) };
-            std::mem::swap(&mut swap, node);
-
-            supernode = node;
-
-            sn_ptr = n_raw;
-        }
-
-        supernode
     }
 
     fn track(&self, key: &Key, lr: LeftRight, ts: TraStrain) -> TraRes {
@@ -813,6 +813,72 @@ mod tests_of_units {
             const KEY: &str = "key";
             let key = KeyEntry(KEY);
             assert_eq!(KEY, key.deref());
+        }
+    }
+
+    mod insert_crux {
+        use std::ops::Deref;
+
+        use crate::{insert_crux, tra::TraStrain, Entry, KeyEntry, LeftRight, LrTrie, Node};
+
+        #[test]
+        fn basic_test() {
+            let mut root = Node::empty();
+
+            const ENTRY: &str = "lr_links_inserT";
+            let limit = ENTRY.len() - 1;
+
+            let entry: Entry = KeyEntry(ENTRY);
+            let node = insert_crux(&mut root, &entry);
+
+            assert_eq!('T', node.c);
+            assert_eq!(None, node.links);
+
+            assert!(root.links.is_some());
+
+            let mut links = root.links.as_ref().unwrap();
+            let mut super_n: *const Node = &root;
+            for (ix, c) in ENTRY.chars().enumerate() {
+                let node = links.get(0);
+
+                assert!(node.is_some());
+                let node = node.unwrap();
+
+                assert_eq!(c, node.c);
+                assert_eq!(super_n, node.supernode);
+                super_n = node.deref();
+
+                if ix < limit {
+                    let temp = &node.links;
+                    assert!(temp.is_some());
+                    links = temp.as_ref().unwrap();
+                } else {
+                    assert!(&node.links.is_none());
+                }
+            }
+        }
+
+        #[test]
+        fn existing_path_insert() {
+            const OLD: &str = "touchstone";
+            const NEW: &str = "touch";
+
+            let old = KeyEntry(OLD);
+            let new = KeyEntry(NEW);
+
+            let mut trie = LrTrie::new();
+
+            _ = insert_crux(&mut trie.left, &old);
+            _ = insert_crux(&mut trie.left, &new);
+
+            _ = trie.track(&old, LeftRight::Left, TraStrain::TraEmp);
+            let old_path = trie.cc_trace();
+
+            _ = trie.track(&new, LeftRight::Left, TraStrain::TraEmp);
+            let new_path = trie.cc_trace();
+
+            assert_eq!(OLD.len() + 1, old_path.len());
+            assert_eq!(new_path, old_path[..NEW.len() + 1]);
         }
     }
 
@@ -1428,72 +1494,6 @@ mod tests_of_units {
 
                 assert_eq!(None, trie.member(b1, LeftRight::Right));
                 assert_eq!(None, trie.member(b2, LeftRight::Left));
-            }
-        }
-
-        mod insert_crux {
-            use std::ops::Deref;
-
-            use crate::{tra::TraStrain, Entry, KeyEntry, LeftRight, LrTrie, Node};
-
-            #[test]
-            fn basic_test() {
-                let mut root = Node::empty();
-
-                const ENTRY: &str = "lr_links_inserT";
-                let limit = ENTRY.len() - 1;
-
-                let entry: Entry = KeyEntry(ENTRY);
-                let node = LrTrie::insert_crux(&mut root, &entry);
-
-                assert_eq!('T', node.c);
-                assert_eq!(None, node.links);
-
-                assert!(root.links.is_some());
-
-                let mut links = root.links.as_ref().unwrap();
-                let mut super_n: *const Node = &root;
-                for (ix, c) in ENTRY.chars().enumerate() {
-                    let node = links.get(0);
-
-                    assert!(node.is_some());
-                    let node = node.unwrap();
-
-                    assert_eq!(c, node.c);
-                    assert_eq!(super_n, node.supernode);
-                    super_n = node.deref();
-
-                    if ix < limit {
-                        let temp = &node.links;
-                        assert!(temp.is_some());
-                        links = temp.as_ref().unwrap();
-                    } else {
-                        assert!(&node.links.is_none());
-                    }
-                }
-            }
-
-            #[test]
-            fn existing_path_insert() {
-                const OLD: &str = "touchstone";
-                const NEW: &str = "touch";
-
-                let old = KeyEntry(OLD);
-                let new = KeyEntry(NEW);
-
-                let mut trie = LrTrie::new();
-
-                _ = LrTrie::insert_crux(&mut trie.left, &old);
-                _ = LrTrie::insert_crux(&mut trie.left, &new);
-
-                _ = trie.track(&old, LeftRight::Left, TraStrain::TraEmp);
-                let old_path = trie.cc_trace();
-
-                _ = trie.track(&new, LeftRight::Left, TraStrain::TraEmp);
-                let new_path = trie.cc_trace();
-
-                assert_eq!(OLD.len() + 1, old_path.len());
-                assert_eq!(new_path, old_path[..NEW.len() + 1]);
             }
         }
 
@@ -2183,4 +2183,4 @@ mod tests_of_units {
     }
 }
 
-// cargo test --release
+// cargo fmt && cargo test --release
