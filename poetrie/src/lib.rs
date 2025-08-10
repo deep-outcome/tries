@@ -54,7 +54,7 @@ fn get_node<'a>(l: &'a Links, c: &char, #[cfg(test)] ecode: &mut usize) -> Optio
     }
 }
 
-fn ext(l: &Links, buff: &mut Vec<char>, o: &mut Vec<String>) {
+fn extract(l: &Links, buff: &mut Vec<char>, o: &mut Vec<String>) {
     for (k, n) in l.iter() {
         buff.push(*k);
 
@@ -64,11 +64,49 @@ fn ext(l: &Links, buff: &mut Vec<char>, o: &mut Vec<String>) {
         }
 
         if let Some(l) = n.links.as_ref() {
-            ext(l, buff, o);
+            extract(l, buff, o);
         }
 
         _ = buff.pop();
     }
+}
+
+struct Extender<'a> {
+    b: &'a mut Vec<char>,
+    f: &'a mut Vec<String>,
+    l: usize,
+}
+
+impl<'a> Extender<'a> {
+    pub fn extend(&mut self, n: &Node, c: char) -> bool {
+        let b = &mut self.b;
+        b.push(c);
+
+        if n.entry {
+            if push_match(b, self.f, self.l) {
+                return true;
+            }
+        }
+
+        if let Some(l) = n.links.as_ref() {
+            for (c, node) in l.iter() {
+                if self.extend(node, *c) {
+                    return true;
+                }
+            }
+        }
+
+        _ = self.b.pop();
+
+        false
+    }
+}
+
+fn push_match(c: &[char], f: &mut Vec<String>, l: usize) -> bool {
+    let e = c.iter().rev().collect();
+    f.push(e);
+
+    f.len() == l
 }
 
 /// `Entry` alias for using in key role.
@@ -473,7 +511,7 @@ impl Poetrie {
         let mut res = Vec::with_capacity(5000);
 
         let rl = unsafe { self.root.links.as_ref().unwrap_unchecked() };
-        ext(rl, &mut buff, &mut res);
+        extract(rl, &mut buff, &mut res);
 
         Some(res)
     }
@@ -549,16 +587,21 @@ mod tests_of_units {
     mod rev_entry {
         use crate::Entry;
 
+        #[derive(PartialEq, Debug)]
         pub struct RevEntry(pub String);
 
         impl RevEntry {
             pub fn new(e: &str) -> Self {
-                let rev = e.chars().rev().collect();
+                let rev = Self::rev(e);
                 RevEntry(rev)
             }
 
             pub fn entry(&self) -> Entry {
                 Entry(self.0.as_str())
+            }
+
+            pub fn rev(s: &str) -> String {
+                s.chars().rev().collect()
             }
         }
 
@@ -567,6 +610,39 @@ mod tests_of_units {
             type Target = String;
             fn deref(&self) -> &String {
                 &self.0
+            }
+        }
+
+        mod tests_of_units {
+            use super::RevEntry;
+            use crate::Entry;
+
+            #[test]
+            fn new() {
+                let proof = RevEntry(String::from("abcd"));
+                let test = RevEntry::new("dcba");
+                assert_eq!(proof, test);
+            }
+
+            #[test]
+            fn entry() {
+                let proof = Entry("abcd");
+                let test = RevEntry::new("dcba");
+                assert_eq!(proof, test.entry());
+            }
+
+            #[test]
+            fn rev() {
+                let proof = String::from("abcd");
+                let test = RevEntry::rev("dcba");
+                assert_eq!(proof, test);
+            }
+
+            #[test]
+            fn deref() {
+                let proof = String::from("abcd");
+                let test = RevEntry::rev("dcba");
+                assert_eq!(proof, *test);
             }
         }
     }
@@ -649,9 +725,9 @@ mod tests_of_units {
         }
     }
 
-    mod ext {
+    mod extract {
 
-        use crate::{Entry, Poetrie, ext};
+        use crate::{Entry, Poetrie, extract};
 
         #[test]
         fn basic_test() {
@@ -667,7 +743,7 @@ mod tests_of_units {
             let mut test = Vec::new();
 
             let links = poetrie.root.links.as_mut().unwrap();
-            ext(links, &mut buff, &mut test);
+            extract(links, &mut buff, &mut test);
 
             let proof = vec![String::from("a"), String::from("z")];
             assert_eq!(proof.len(), test.len());
@@ -702,7 +778,7 @@ mod tests_of_units {
             let mut test = Vec::new();
 
             let links = poetrie.root.links.as_mut().unwrap();
-            ext(links, &mut buff, &mut test);
+            extract(links, &mut buff, &mut test);
 
             assert_eq!(entries.len(), test.len());
 
@@ -734,7 +810,7 @@ mod tests_of_units {
             let mut test = Vec::new();
 
             let links = poetrie.root.links.as_mut().unwrap();
-            ext(links, &mut buff, &mut test);
+            extract(links, &mut buff, &mut test);
 
             assert_eq!(paths.len(), test.len());
 
