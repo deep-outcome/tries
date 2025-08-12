@@ -819,6 +819,286 @@ mod tests_of_units {
         }
     }
 
+    mod extender {
+        use seg::*;
+        use std::collections::HashSet;
+
+        use crate::{Extender, Node, tests_of_units::rev_entry::RevEntry};
+
+        // segment
+        mod seg {
+            use crate::{Links, Node};
+
+            pub fn add_linked<'a>(mut n: &'a mut Node, s: &[&str]) -> &'a mut Node {
+                for s in s {
+                    n = add_one(n, s, true);
+                }
+
+                n
+            }
+
+            pub fn add_rooted<'a>(n: &'a mut Node, s: &[&str]) {
+                for s in s {
+                    _ = add_one(n, s, true);
+                }
+            }
+
+            pub fn add_one<'a>(mut n: &'a mut Node, s: &str, e: bool) -> &'a mut Node {
+                for c in s.chars() {
+                    let l = n.links.get_or_insert(Links::new());
+
+                    let e = l.entry(c);
+                    n = e.or_insert(Node::empty());
+                }
+
+                n.entry = e;
+                n
+            }
+
+            mod tests_of_units {
+                use super::*;
+                use crate::Node;
+
+                fn as_usize(n: &Node) -> usize {
+                    n as *const Node as usize
+                }
+
+                #[test]
+                fn _add_linked() {
+                    let mut n = Node::empty();
+                    let res = as_usize(add_linked(&mut n, &["a", "b"]));
+
+                    let mut n = &n;
+                    for c in "ab".chars() {
+                        let links = n.links.as_ref().unwrap();
+                        n = links.get(&c).unwrap();
+
+                        assert_eq!(true, n.entry);
+                    }
+
+                    assert_eq!(as_usize(n), res);
+                }
+
+                #[test]
+                fn _add_rooted() {
+                    let n = &mut Node::empty();
+                    add_rooted(n, &["a", "b"]);
+
+                    let links = n.links.as_ref().unwrap();
+                    for c in "ab".chars() {
+                        let n = links.get(&c).unwrap();
+                        assert_eq!(true, n.entry);
+                    }
+                }
+
+                #[test]
+                fn _add_one_a() {
+                    let n = &mut Node::empty();
+
+                    let a1 = as_usize(add_one(n, "a", true));
+                    let l = n.links.as_ref().unwrap();
+
+                    one_test(a1, l, 'a', true);
+
+                    let b1 = as_usize(add_one(n, "b", false));
+                    let l = n.links.as_ref().unwrap();
+
+                    one_test(b1, l, 'b', false);
+
+                    assert_eq!(true, l.get(&'a').is_some());
+
+                    fn one_test(res: usize, l: &Links, key: char, e: bool) {
+                        let test = l.get(&key).unwrap();
+                        assert_eq!(e, test.entry);
+                        assert_eq!(false, test.links());
+                        assert_eq!(res, as_usize(test));
+                    }
+                }
+
+                #[test]
+                fn _add_one_b() {
+                    let mut root = Node::empty();
+
+                    let seg = "ab";
+                    let b = as_usize(add_one(&mut root, seg, true));
+
+                    let mut n = &root;
+                    for c in seg.chars() {
+                        let l = n.links.as_ref().unwrap();
+                        n = l.get(&c).unwrap();
+                    }
+
+                    assert_eq!(b, as_usize(n));
+
+                    let seg = "ac";
+                    let c = as_usize(add_one(&mut root, seg, true));
+
+                    let mut l = root.links.as_ref().unwrap();
+                    let a = l.get(&'a').unwrap();
+                    assert_eq!(false, a.entry);
+                    l = a.links.as_ref().unwrap();
+                    assert_eq!(true, l.get(&'b').is_some());
+                    assert_eq!(c, as_usize(l.get(&'c').unwrap()));
+                }
+            }
+        }
+
+        #[test]
+        fn basic_test() {
+            let mut f = Vec::new();
+            let mut b: Vec<char> = "end".chars().collect();
+
+            let mut n = Node::empty();
+            add_linked(&mut n, &["rse", "ment"]);
+
+            let mut extender = Extender {
+                b: &mut b,
+                f: &mut f,
+                l: usize::MAX,
+            };
+            _ = extender.extend(&n, 'o');
+
+            assert_eq!(2, f.len());
+
+            let p = ["endorse", "endorsement"].map(|x| RevEntry::rev(x));
+            assert_eq!(p[0], f[0]);
+            assert_eq!(p[1], f[1]);
+        }
+
+        #[test]
+        fn limit1() {
+            let mut f = Vec::new();
+            let mut b = "en".chars().collect();
+
+            let mut n = Node::empty();
+            n.entry = true;
+
+            _ = add_one(&mut n, "orse", true);
+
+            let mut extender = Extender {
+                b: &mut b,
+                f: &mut f,
+                l: 2,
+            };
+
+            let lim = extender.extend(&n, 'd');
+            assert_eq!(true, lim);
+
+            assert_eq!(2, f.len());
+
+            let pb = "endorse";
+            let p = ["end", pb].map(|x| RevEntry::rev(x));
+            assert_eq!(p[0], f[0]);
+            assert_eq!(p[1], f[1]);
+
+            assert_eq!(pb, b.iter().collect::<String>().as_str());
+        }
+
+        #[test]
+        fn limit2() {
+            let outset = "en";
+
+            let mut f = Vec::new();
+            let mut b = outset.chars().collect();
+
+            let mut n = Node::empty();
+            n.entry = true;
+
+            _ = add_one(&mut n, "orse", true);
+            let mut extender = Extender {
+                b: &mut b,
+                f: &mut f,
+                l: 3,
+            };
+            let lim = extender.extend(&n, 'd');
+            assert_eq!(false, lim);
+
+            assert_eq!(2, f.len());
+            let p = ["end", "endorse"].map(|x| RevEntry::rev(x));
+            assert_eq!(p[0], f[0]);
+            assert_eq!(p[1], f[1]);
+
+            assert_eq!(outset, b.iter().collect::<String>().as_str());
+        }
+
+        #[test]
+        fn load_bearing() {
+            let mut f = Vec::new();
+            let mut b = "ser".chars().collect();
+
+            let mut n = Node::empty();
+
+            _ = add_one(&mut n, "sity", true);
+
+            let mut n_serot = add_one(&mut n, "t", false);
+            add_rooted(&mut n_serot, &["axonomy", "herapy"]);
+
+            let mut n_serotin = add_one(&mut n_serot, "in", false);
+            add_rooted(&mut n_serotin, &["al", "e", "ous", "y"]);
+
+            let mut n_seroton = add_one(&mut n_serot, "on", false);
+            add_rooted(&mut n_seroton, &["ergic", "in"]);
+
+            let mut extender = Extender {
+                b: &mut b,
+                f: &mut f,
+                l: usize::MAX,
+            };
+            _ = extender.extend(&n, 'o');
+
+            let p = [
+                "serosity",
+                "serotaxonomy",
+                "serotherapy",
+                "serotinal",
+                "serotine",
+                "serotinous",
+                "serotiny",
+                "serotonergic",
+                "serotonin",
+            ]
+            .map(|x| RevEntry::rev(x))
+            .into_iter()
+            .collect::<HashSet<String>>();
+
+            assert_eq!(p.len(), f.len());
+
+            for f in f {
+                assert_eq!(true, p.contains(&f), "{f}");
+            }
+        }
+    }
+
+    mod push_match {
+        use super::rev_entry::RevEntry;
+        use crate::push_match;
+
+        #[test]
+        fn limit_hit1() {
+            let proof = "poetship";
+            let cs = RevEntry::rev(proof).chars().collect::<Vec<char>>();
+            let mut f = Vec::new();
+
+            let lim = push_match(&cs, &mut f, 2);
+            assert_eq!(false, lim);
+            assert_eq!(1, f.len());
+            assert_eq!(proof, f[0]);
+        }
+
+        #[test]
+        fn limit_hit2() {
+            let proof = "poet-cruiser";
+            let cs = RevEntry::rev(proof).chars().collect::<Vec<char>>();
+            let mut f = Vec::new();
+            f.push(String::with_capacity(0));
+
+            let lim = push_match(&cs, &mut f, 2);
+            assert_eq!(true, lim);
+            assert_eq!(2, f.len());
+            assert_eq!(proof, f[1]);
+        }
+    }
+
     mod entry {
         use crate::Entry;
         use std::ops::Deref;
