@@ -137,6 +137,98 @@ impl<'a> Deref for Entry<'a> {
     }
 }
 
+/// Various match behavior requirement errors.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReqErr {
+    /// Matches can be limited to one at least.
+    ZeroMaxMatches,
+    /// Suffix match is posed by at least one `char` match.
+    ZeroMinSuffix,
+    /// Maximum match length cannot be less than its minimum length.
+    LenMaxLessThanMin,
+}
+
+/// Requirements for [`Poetrie::sx`] match behavior adjustments.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MatchConduct {
+    // max matches
+    pub(crate) max_n: usize,
+    // min suffix match length
+    pub(crate) min_s: usize,
+    // min match length
+    pub(crate) min_l: usize,
+    // max match length
+    pub(crate) max_l: usize,
+}
+
+impl MatchConduct {
+    pub const DEFAULT_MAX_N: usize = 1;
+    pub const DEFAULT_MIN_S: usize = 1;
+    pub const DEFAULT_EXT_L: usize = 0;
+    pub const DEFAULT_MAX_L: usize = usize::MAX;
+
+    /// Parameterized constructor:
+    ///
+    /// - `max_n` – matches limit.
+    /// - `min_s` – minimal suffix match.
+    /// - `ext_l` – extra length requirement used for minimal match length computation using formula `min_l =min_s +ext_l`.
+    /// - `max_l` – maximal match length.
+    ///
+    /// Every parameter provided with `None` will use default as expressed at [`MatchConduct::default`].
+    ///
+    /// Inputs are validated for various conditions in non-exhaustive plan, first error encountered
+    /// is returned. See [`ReqErr`] for details.
+    pub fn new(
+        max_n: Option<usize>,
+        min_s: Option<usize>,
+        ext_l: Option<usize>,
+        max_l: Option<usize>,
+    ) -> Result<MatchConduct, ReqErr> {
+        let max_n = max_n.unwrap_or(MatchConduct::DEFAULT_MAX_N);
+        let min_s = min_s.unwrap_or(MatchConduct::DEFAULT_MIN_S);
+        let ext_l = ext_l.unwrap_or(MatchConduct::DEFAULT_EXT_L);
+        let max_l = max_l.unwrap_or(MatchConduct::DEFAULT_MAX_L);
+
+        let min_l = min_s + ext_l;
+
+        let err = if max_n == 0 {
+            ReqErr::ZeroMaxMatches
+        } else if min_s == 0 {
+            ReqErr::ZeroMinSuffix
+        } else if max_l < min_l {
+            ReqErr::LenMaxLessThanMin
+        } else {
+            return Ok(Self {
+                max_n,
+                min_s,
+                min_l,
+                max_l,
+            });
+        };
+
+        Err(err)
+    }
+
+    /// Parameterless constructor.
+    ///
+    /// Defaults:
+    /// - `max_n` = [`MatchConduct::DEFAULT_MAX_N`].
+    /// - `min_s` = [`MatchConduct::DEFAULT_MIN_S`].
+    /// - `ext_l` = [`MatchConduct::DEFAULT_EXT_L`].
+    /// - `max_l` = [`MatchConduct::DEFAULT_MAX_L`].
+    ///
+    /// Check with [`MatchConduct::new`] for details.
+    pub fn default() -> MatchConduct {
+        let min_l = MatchConduct::DEFAULT_MIN_S + MatchConduct::DEFAULT_EXT_L;
+        Self {
+            max_n: MatchConduct::DEFAULT_MAX_N,
+            min_s: MatchConduct::DEFAULT_MIN_S,
+            min_l,
+            max_l: MatchConduct::DEFAULT_MAX_L,
+        }
+    }
+}
+
 /// Poetrie is poetic retrieval tree implementation for finding words with shared suffixes.
 ///
 /// Inputs are validated only for 0 length thus is up to consumer code
@@ -1123,6 +1215,80 @@ mod tests_of_units {
             let entry = "entry";
             let test = Entry(entry);
             assert_eq!(entry, test.deref());
+        }
+    }
+
+    mod match_conduct {
+        use crate::MatchConduct;
+
+        #[test]
+        fn constants() {
+            assert_eq!(1, MatchConduct::DEFAULT_MAX_N);
+            assert_eq!(1, MatchConduct::DEFAULT_MIN_S);
+            assert_eq!(0, MatchConduct::DEFAULT_EXT_L);
+            assert_eq!(usize::MAX, MatchConduct::DEFAULT_MAX_L);
+        }
+
+        mod new {
+            use crate::{MatchConduct, ReqErr};
+
+            #[test]
+            fn basic_test() {
+                let mc = MatchConduct::new(Some(10), Some(11), Some(1), Some(13)).unwrap();
+                assert_eq!(10, mc.max_n);
+                assert_eq!(11, mc.min_s);
+                assert_eq!(12, mc.min_l);
+                assert_eq!(13, mc.max_l);
+            }
+
+            #[test]
+            fn zero_n() {
+                let err = MatchConduct::new(Some(0), None, None, None).unwrap_err();
+                assert_eq!(ReqErr::ZeroMaxMatches, err);
+            }
+
+            #[test]
+            fn zero_suffix_requirement() {
+                let err = MatchConduct::new(None, Some(0), None, None).unwrap_err();
+                assert_eq!(ReqErr::ZeroMinSuffix, err);
+            }
+
+            #[test]
+            fn min_length_greater_max_length() {
+                let err = MatchConduct::new(None, Some(1), Some(1), Some(1)).unwrap_err();
+                assert_eq!(ReqErr::LenMaxLessThanMin, err);
+
+                let err = MatchConduct::new(None, None, Some(1), Some(1)).unwrap_err();
+                assert_eq!(ReqErr::LenMaxLessThanMin, err);
+            }
+
+            #[test]
+            fn min_length_equal_max_length() {
+                let mc = MatchConduct::new(None, Some(1), Some(1), Some(2)).unwrap();
+                assert_eq!(2, mc.min_l);
+                assert_eq!(2, mc.max_l);
+
+                let mc = MatchConduct::new(None, None, Some(1), Some(2)).unwrap();
+                assert_eq!(2, mc.min_l);
+                assert_eq!(2, mc.max_l);
+            }
+
+            #[test]
+            fn defaults() {
+                let mc = MatchConduct::new(None, None, None, None).unwrap();
+                assert_eq!(MatchConduct::default(), mc);
+            }
+        }
+
+        #[test]
+        fn default() {
+            let mc = MatchConduct::default();
+            let min_l = MatchConduct::DEFAULT_MIN_S + MatchConduct::DEFAULT_EXT_L;
+
+            assert_eq!(MatchConduct::DEFAULT_MAX_N, mc.max_n);
+            assert_eq!(MatchConduct::DEFAULT_MIN_S, mc.min_s);
+            assert_eq!(min_l, mc.min_l);
+            assert_eq!(MatchConduct::DEFAULT_MAX_L, mc.max_l);
         }
     }
 

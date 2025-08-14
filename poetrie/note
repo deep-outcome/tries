@@ -1,6 +1,2 @@
-ideas:
-  - return n words
-  - return at least n-long words
-  
 👍 custom letter equalizer; develop as separate "amplifier":
     - for given input it generates n-words using given char-char mapping (e.g. for phonemes mapping)
