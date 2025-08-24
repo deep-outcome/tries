@@ -1,2 +1,7 @@
+- extend find
+- fullfil comprehensive find tests
+- update readme
+
+
 👍 custom letter equalizer; develop as separate "amplifier":
     - for given input it generates n-words using given char-char mapping (e.g. for phonemes mapping)

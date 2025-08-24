@@ -144,35 +144,58 @@ pub enum ReqErr {
     ZeroMaxMatches,
     /// Suffix match is posed by at least one `char` match.
     ZeroMinSuffix,
+    /// Maximum suffix match length cannot be less than minimum suffix match length.
+    SufMaxLessThanMin,
     /// Maximum match length cannot be less than its minimum length.
     LenMaxLessThanMin,
+
+    #[cfg(test)]
+    LenMinLessThanSufMin,
+}
+
+/// [`MatchConduct`] default values.
+pub mod mc_defaults {
+    /// Matches limit default.
+    pub const MAX_N: usize = 1;
+    /// Minimum suffix match default.
+    pub const MIN_S: usize = 1;
+    /// Maximum suffix match default.
+    pub const MAX_S: usize = usize::MAX;
+    /// Match extra length requirement default.
+    pub const EXT_L: usize = 0;
+    /// Maximal match length default.
+    pub const MAX_L: usize = usize::MAX;
+    /// Sub-entries inclusion flag.
+    pub const SUB_E: bool = false;
 }
 
 /// Requirements for [`Poetrie::sx`] match behavior adjustments.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchConduct {
     // max matches
-    pub(crate) max_n: usize,
+    max_n: usize,
     // min suffix match length
-    pub(crate) min_s: usize,
+    min_s: usize,
+    // max suffix match length
+    max_s: usize,
     // min match length
-    pub(crate) min_l: usize,
+    min_l: usize,
     // max match length
-    pub(crate) max_l: usize,
+    max_l: usize,
+    // sub-entries inclusion
+    sub_e: bool,
 }
 
+use crate::mc_defaults::*;
 impl MatchConduct {
-    pub const DEFAULT_MAX_N: usize = 1;
-    pub const DEFAULT_MIN_S: usize = 1;
-    pub const DEFAULT_EXT_L: usize = 0;
-    pub const DEFAULT_MAX_L: usize = usize::MAX;
-
     /// Parameterized constructor:
     ///
     /// - `max_n` – matches limit.
     /// - `min_s` – minimal suffix match.
+    /// - `max_s` – maximal suffix match.
     /// - `ext_l` – extra length requirement used for minimal match length computation using formula `min_l =min_s +ext_l`.
     /// - `max_l` – maximal match length.
+    /// - `sub_e` – sub-entries inclusion flag.
     ///
     /// Every parameter provided with `None` will use default as expressed at [`MatchConduct::default`].
     ///
@@ -181,50 +204,158 @@ impl MatchConduct {
     pub fn new(
         max_n: Option<usize>,
         min_s: Option<usize>,
+        max_s: Option<usize>,
         ext_l: Option<usize>,
         max_l: Option<usize>,
+        sub_e: Option<bool>,
     ) -> Result<MatchConduct, ReqErr> {
-        let max_n = max_n.unwrap_or(MatchConduct::DEFAULT_MAX_N);
-        let min_s = min_s.unwrap_or(MatchConduct::DEFAULT_MIN_S);
-        let ext_l = ext_l.unwrap_or(MatchConduct::DEFAULT_EXT_L);
-        let max_l = max_l.unwrap_or(MatchConduct::DEFAULT_MAX_L);
+        let max_n = max_n.unwrap_or(MAX_N);
+        let min_s = min_s.unwrap_or(MIN_S);
+        let max_s = max_s.unwrap_or(MAX_S);
+        let ext_l = ext_l.unwrap_or(EXT_L);
+        let max_l = max_l.unwrap_or(MAX_L);
+        let sub_e = sub_e.unwrap_or(SUB_E);
 
         let min_l = min_s + ext_l;
-
-        let err = if max_n == 0 {
-            ReqErr::ZeroMaxMatches
-        } else if min_s == 0 {
-            ReqErr::ZeroMinSuffix
-        } else if max_l < min_l {
-            ReqErr::LenMaxLessThanMin
-        } else {
-            return Ok(Self {
-                max_n,
-                min_s,
-                min_l,
-                max_l,
-            });
+        let new = Self {
+            max_n,
+            min_s,
+            max_s,
+            min_l,
+            max_l,
+            sub_e,
         };
 
-        Err(err)
+        if let Some(e) = Self::val(&new) {
+            Err(e)
+        } else {
+            Ok(new)
+        }
     }
 
     /// Parameterless constructor.
     ///
     /// Defaults:
-    /// - `max_n` = [`MatchConduct::DEFAULT_MAX_N`].
-    /// - `min_s` = [`MatchConduct::DEFAULT_MIN_S`].
-    /// - `ext_l` = [`MatchConduct::DEFAULT_EXT_L`].
-    /// - `max_l` = [`MatchConduct::DEFAULT_MAX_L`].
+    /// - `max_n` = [`mc_defaults::MAX_N`].
+    /// - `min_s` = [`mc_defaults::MIN_S`].
+    /// - `max_s` = [`mc_defaults::MAX_S`].
+    /// - `ext_l` = [`mc_defaults::EXT_L`].
+    /// - `max_l` = [`mc_defaults::MAX_L`].
+    /// - `sub_e` = [`mc_defaults::SUB_E`].
     ///
     /// Check with [`MatchConduct::new`] for details.
     pub fn default() -> MatchConduct {
-        let min_l = MatchConduct::DEFAULT_MIN_S + MatchConduct::DEFAULT_EXT_L;
-        Self {
-            max_n: MatchConduct::DEFAULT_MAX_N,
-            min_s: MatchConduct::DEFAULT_MIN_S,
-            min_l,
-            max_l: MatchConduct::DEFAULT_MAX_L,
+        let new = Self {
+            max_n: MAX_N,
+            min_s: MIN_S,
+            max_s: MAX_S,
+            min_l: MIN_S + EXT_L,
+            max_l: MAX_L,
+            sub_e: SUB_E,
+        };
+
+        #[cfg(test)]
+        Self::val(&new);
+
+        new
+    }
+
+    fn val(s: &Self) -> Option<ReqErr> {
+        #[cfg(test)]
+        if s.min_l < s.min_s {
+            return Some(ReqErr::LenMinLessThanSufMin);
+        }
+
+        let min_s = s.min_s;
+
+        let err = if s.max_n == 0 {
+            ReqErr::ZeroMaxMatches
+        } else if min_s == 0 {
+            ReqErr::ZeroMinSuffix
+        } else if s.max_s < min_s {
+            ReqErr::SufMaxLessThanMin
+        } else if s.max_l < s.min_l {
+            ReqErr::LenMaxLessThanMin
+        } else {
+            return None;
+        };
+
+        Some(err)
+    }
+}
+
+/// Chain-of-adjustments refining type.
+///
+/// Use various _with_ methods to adjust [`MatchConduct`]
+/// values as desired.
+///
+/// Check with [`MatchConduct::new`] for detailed explanation.
+///
+/// ```
+/// use poetrie::{MatchConductWith, MatchConduct};
+///
+/// let mut chain = MatchConductWith::init();
+/// _ = chain.with_max_n(10).with_max_l(8);
+///
+/// let mc = chain.with().unwrap();
+#[derive(Debug, Clone, PartialEq)]
+pub struct MatchConductWith(MatchConduct);
+
+impl MatchConductWith {
+    /// Use to construct new `MatchConductWith` instance with
+    /// default `MatchConduct` ([`MatchConduct::default`]) as initial value.
+    ///
+    /// Check with [`MatchConductWith::with`] for more details.
+    pub fn init() -> MatchConductWith {
+        Self(MatchConduct::default())
+    }
+
+    /// Use to adjust matches limit.
+    pub fn with_max_n(&mut self, max_n: usize) -> &mut Self {
+        self.0.max_n = max_n;
+        self
+    }
+
+    /// Use to adjust minimal suffix match.
+    pub fn with_min_s(&mut self, min_s: usize) -> &mut Self {
+        self.0.min_s = min_s;
+        self
+    }
+
+    /// Use to adjust maximal suffix match.
+    pub fn with_max_s(&mut self, max_s: usize) -> &mut Self {
+        self.0.max_s = max_s;
+        self
+    }
+
+    /// Use to adjust extra length requirement.
+    pub fn with_ext_l(&mut self, ext_l: usize) -> &mut Self {
+        let mc = &mut self.0;
+        mc.min_l = mc.min_s + ext_l;
+        self
+    }
+
+    /// Use to adjust maximal match length.
+    pub fn with_max_l(&mut self, max_l: usize) -> &mut Self {
+        self.0.max_l = max_l;
+        self
+    }
+
+    /// Use to adjust sub-entries inclusion flag.
+    pub fn with_sub_e(&mut self, sub_e: bool) -> &mut Self {
+        self.0.sub_e = sub_e;
+        self
+    }
+
+    /// Use to validate `MatchConduct` instance.
+    ///
+    /// Return value is `Result` with either valid `MatchConduct`
+    /// instance or with [`ReqErr`] error information.
+    pub fn with(&self) -> Result<MatchConduct, ReqErr> {
+        if let Some(e) = MatchConduct::val(&self.0) {
+            Err(e)
+        } else {
+            Ok(self.0.clone())
         }
     }
 }
@@ -1218,64 +1349,49 @@ mod tests_of_units {
         }
     }
 
-    mod match_conduct {
-        use crate::MatchConduct;
+    mod mc_defaults {
+        use crate::mc_defaults;
 
         #[test]
         fn constants() {
-            assert_eq!(1, MatchConduct::DEFAULT_MAX_N);
-            assert_eq!(1, MatchConduct::DEFAULT_MIN_S);
-            assert_eq!(0, MatchConduct::DEFAULT_EXT_L);
-            assert_eq!(usize::MAX, MatchConduct::DEFAULT_MAX_L);
+            assert_eq!(mc_defaults::MAX_N, 1);
+            assert_eq!(mc_defaults::MIN_S, 1);
+            assert_eq!(mc_defaults::MAX_S, usize::MAX);
+            assert_eq!(mc_defaults::EXT_L, 0);
+            assert_eq!(mc_defaults::MAX_L, usize::MAX);
+            assert_eq!(mc_defaults::SUB_E, false);
         }
+    }
+
+    mod match_conduct {
+        use crate::{MatchConduct, mc_defaults};
 
         mod new {
-            use crate::{MatchConduct, ReqErr};
+            use crate::{MatchConduct, mc_defaults};
 
             #[test]
             fn basic_test() {
-                let mc = MatchConduct::new(Some(10), Some(11), Some(1), Some(13)).unwrap();
+                let mc =
+                    MatchConduct::new(Some(10), Some(11), Some(12), Some(2), Some(14), Some(true))
+                        .unwrap();
                 assert_eq!(10, mc.max_n);
                 assert_eq!(11, mc.min_s);
-                assert_eq!(12, mc.min_l);
-                assert_eq!(13, mc.max_l);
+                assert_eq!(12, mc.max_s);
+                assert_eq!(13, mc.min_l);
+                assert_eq!(14, mc.max_l);
+                assert_eq!(true, mc.sub_e);
+                assert_ne!(mc_defaults::SUB_E, mc.sub_e);
             }
 
             #[test]
-            fn zero_n() {
-                let err = MatchConduct::new(Some(0), None, None, None).unwrap_err();
-                assert_eq!(ReqErr::ZeroMaxMatches, err);
-            }
-
-            #[test]
-            fn zero_suffix_requirement() {
-                let err = MatchConduct::new(None, Some(0), None, None).unwrap_err();
-                assert_eq!(ReqErr::ZeroMinSuffix, err);
-            }
-
-            #[test]
-            fn min_length_greater_max_length() {
-                let err = MatchConduct::new(None, Some(1), Some(1), Some(1)).unwrap_err();
-                assert_eq!(ReqErr::LenMaxLessThanMin, err);
-
-                let err = MatchConduct::new(None, None, Some(1), Some(1)).unwrap_err();
-                assert_eq!(ReqErr::LenMaxLessThanMin, err);
-            }
-
-            #[test]
-            fn min_length_equal_max_length() {
-                let mc = MatchConduct::new(None, Some(1), Some(1), Some(2)).unwrap();
-                assert_eq!(2, mc.min_l);
-                assert_eq!(2, mc.max_l);
-
-                let mc = MatchConduct::new(None, None, Some(1), Some(2)).unwrap();
-                assert_eq!(2, mc.min_l);
-                assert_eq!(2, mc.max_l);
+            fn validation() {
+                let err = MatchConduct::new(Some(0), None, None, None, None, None);
+                assert_eq!(true, err.is_err());
             }
 
             #[test]
             fn defaults() {
-                let mc = MatchConduct::new(None, None, None, None).unwrap();
+                let mc = MatchConduct::new(None, None, None, None, None, None).unwrap();
                 assert_eq!(MatchConduct::default(), mc);
             }
         }
@@ -1283,12 +1399,153 @@ mod tests_of_units {
         #[test]
         fn default() {
             let mc = MatchConduct::default();
-            let min_l = MatchConduct::DEFAULT_MIN_S + MatchConduct::DEFAULT_EXT_L;
 
-            assert_eq!(MatchConduct::DEFAULT_MAX_N, mc.max_n);
-            assert_eq!(MatchConduct::DEFAULT_MIN_S, mc.min_s);
-            assert_eq!(min_l, mc.min_l);
-            assert_eq!(MatchConduct::DEFAULT_MAX_L, mc.max_l);
+            assert_eq!(mc_defaults::MAX_N, mc.max_n);
+            assert_eq!(mc_defaults::MIN_S, mc.min_s);
+            assert_eq!(mc_defaults::MAX_S, mc.max_s);
+            assert_eq!(mc_defaults::MIN_S + mc_defaults::EXT_L, mc.min_l);
+            assert_eq!(mc_defaults::MAX_L, mc.max_l);
+            assert_eq!(mc_defaults::SUB_E, mc.sub_e);
+        }
+
+        mod val {
+            use crate::{MatchConduct, ReqErr};
+
+            #[test]
+            fn zero_n() {
+                let mut mc = MatchConduct::default();
+                mc.max_n = 0;
+
+                let err = MatchConduct::val(&mc);
+                assert_eq!(Some(ReqErr::ZeroMaxMatches), err);
+            }
+
+            #[test]
+            fn zero_suffix_requirement() {
+                let mut mc = MatchConduct::default();
+                mc.min_s = 0;
+
+                let err = MatchConduct::val(&mc);
+                assert_eq!(Some(ReqErr::ZeroMinSuffix), err);
+            }
+
+            #[test]
+            fn suffix_min_greater_its_max() {
+                let mut mc = MatchConduct::default();
+                mc.min_s = 1;
+                mc.max_s = 0;
+
+                let err = MatchConduct::val(&mc);
+                assert_eq!(Some(ReqErr::SufMaxLessThanMin), err);
+            }
+
+            #[test]
+            fn suffix_min_equal_max() {
+                let mut mc = MatchConduct::default();
+                mc.min_s = 1;
+                mc.max_s = 1;
+
+                let none = MatchConduct::val(&mc);
+                assert_eq!(None, none);
+            }
+
+            #[test]
+            fn length_min_greater_its_max() {
+                let mut mc = MatchConduct::default();
+                mc.min_l = 1;
+                mc.max_l = 0;
+
+                let err = MatchConduct::val(&mc);
+                assert_eq!(Some(ReqErr::LenMaxLessThanMin), err);
+            }
+
+            #[test]
+            fn length_min_equal_max() {
+                let mut mc = MatchConduct::default();
+                mc.min_l = 1;
+                mc.max_l = 1;
+
+                let none = MatchConduct::val(&mc);
+                assert_eq!(None, none);
+            }
+
+            #[test]
+            fn length_min_less_than_suffix_min() {
+                let mut mc = MatchConduct::default();
+                mc.min_l = 1;
+                mc.min_s = 2;
+
+                let err = MatchConduct::val(&mc);
+                assert_eq!(Some(ReqErr::LenMinLessThanSufMin), err);
+            }
+
+            #[test]
+            fn length_max_less_than_suffix_max() {
+                // alogrithmically not problem
+                // even connotes with concept of unbound
+                // suffix, usize::MAX, still can be understood
+                // as miscofiguration, kept loose
+                let mut mc = MatchConduct::default();
+                mc.max_l = 1;
+                mc.max_s = 2;
+
+                let none = MatchConduct::val(&mc);
+                assert_eq!(None, none);
+            }
+
+            #[test]
+            fn suffix_max_less_than_length_max() {
+                let mut mc = MatchConduct::default();
+                mc.max_l = 2;
+                mc.max_s = 1;
+
+                let none = MatchConduct::val(&mc);
+                assert_eq!(None, none);
+            }
+        }
+    }
+
+    mod with_match_conduct {
+        use crate::{MatchConduct, MatchConductWith};
+
+        #[test]
+        fn basic_test() {
+            let mut with = MatchConductWith::init();
+            _ = with
+                .with_max_n(10)
+                .with_min_s(11)
+                .with_max_s(12)
+                .with_ext_l(2)
+                .with_max_l(14)
+                .with_sub_e(true);
+
+            let test = with.with();
+
+            let proof = MatchConduct {
+                max_n: 10,
+                min_s: 11,
+                max_s: 12,
+                min_l: 13,
+                max_l: 14,
+                sub_e: true,
+            };
+
+            assert_eq!(Ok(proof), test);
+        }
+
+        #[test]
+        fn default() {
+            let with = MatchConductWith::init();
+
+            assert_eq!(MatchConduct::default(), with.0);
+        }
+
+        #[test]
+        fn validation() {
+            let mut with = MatchConductWith::init();
+            let err = with.with_max_n(0).with();
+
+            assert_eq!(true, err.is_err());
         }
     }
 
