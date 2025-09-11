@@ -1,12 +1,13 @@
 //! Poetrie, poetic trie, is trie designated for finding rhymes for your verses.
 //!
-//! For given input, and populated tree, it will find word with lengthiest shared suffix for you.
+//! For given input, and populated tree, it will find words with shared suffix for you.
 use std::{collections::hash_map::HashMap, ops::Deref};
 
 mod uc;
 use uc::UC;
 
 type Links = HashMap<char, Node>;
+type Find = Vec<String>;
 
 fn get_node<'a>(l: &'a Links, c: &char, #[cfg(test)] ecode: &mut usize) -> Option<&'a Node> {
     let g = l.get(c);
@@ -73,7 +74,7 @@ fn extract(l: &Links, buff: &mut Vec<char>, o: &mut Vec<String>) {
 
 struct Extender<'a> {
     b: &'a mut Vec<char>,
-    f: &'a mut Vec<String>,
+    f: &'a mut Find,
     n: usize,
     // max length
     xl: usize,
@@ -106,7 +107,7 @@ impl<'a> Extender<'a> {
     }
 }
 
-fn push_match(c: &[char], f: &mut Vec<String>, l: usize) -> bool {
+fn push_match(c: &[char], f: &mut Find, l: usize) -> bool {
     let e = c.iter().rev().collect();
     f.push(e);
 
@@ -306,7 +307,7 @@ impl MatchConduct {
 /// let mut chain = MatchConductWith::init();
 /// _ = chain.with_max_n(10).with_max_l(8);
 ///
-/// let mc = chain.with().unwrap();
+/// let mc: MatchConduct = chain.with().unwrap();
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchConductWith(MatchConduct);
 
@@ -385,7 +386,7 @@ pub struct Poetrie {
 
 const NULL: char = '\0';
 impl Poetrie {
-    /// Use for `Poetrie` construction.    
+    /// Use for `Poetrie` construction.
     pub const fn nw() -> Poetrie {
         Poetrie {
             root: Node::empty(),
@@ -426,10 +427,53 @@ impl Poetrie {
         TraRes::Ok == res
     }
 
-    /// Use to find entry with most shared suffix to key.
+    /// Use to find entries with shared suffix to key.
     ///
-    /// If there are more entries with equal suffix length,
-    /// only one in unguaranteed precedence is returned.
+    /// Generally, suffix match length is emphasized, entries are ordered
+    /// from that with longest suffix match to shortest suffix match.
+    /// With exception for sub-entries which are ordered very first, at list beginning.
+    ///
+    /// Sub-entries are entries which are suffix to picked key, e.g. for _commode_
+    /// _ode_ and _mode_ are its sub-entries.
+    ///
+    /// Other type of match is shared suffix that occurs when:
+    /// - Key shares partially its suffix with other word, like _parade_ with _charade_.
+    /// - Key itself is suffix to some entry, like _ant_ to _blatant_.
+    ///
+    /// By obvious means minimal suffix match length is 1 `char`.
+    ///
+    /// Use `mc` to express matching behavior adjustments. Check with [`MatchConduct::new()`]
+    /// or [`MatchConductWith`] for details.
+    ///
+    /// For instance, having _password_ as key, _word_ sounds weird as rhyme, so
+    /// subentries should be avoided. However, similar applies to other words, e.g.
+    /// _catchword_ rhymes evenly bad. For this maximal suffix match length can be used.
+    /// However, then word _sword_ cannot be matched and open riddle like this created
+    ///
+    /// _Secrets I do,_
+    /// _hide for you._
+    /// _Shattered, still whole,_
+    /// _robbed now your role._
+    /// _Buried down, laid,_
+    /// _a self-clown raid._
+    /// _What am I?_
+    /// _(Fair, blameless pass-sword.)_
+    ///
+    /// It could be not all words are enough long or on flip side some are excessively long.
+    /// Drive this by extra length added to minimal suffix match length and by maximal match
+    /// word length. Finally, hardly anybody would find words like _middle_ and _harmonize_
+    /// rhyming only because _e_ ending. Use minimal suffix match length to overcome unsound match.
+    ///
+    /// ```
+    /// use poetrie::{MatchConductWith, MatchConduct};
+    ///
+    /// let mut with = MatchConductWith::init();
+    /// with
+    ///    .with_min_s(3).with_max_s(5).with_ext_l(1)
+    ///    .with_max_l(10).with_sub_e(false).with_max_n(15);
+    ///
+    /// let mc: MatchConduct = with.with().unwrap();
+    /// ```
     ///
     /// This and only this method is case insensitive. Exactly, if char
     /// in question provides one-to-one mapping as described at
@@ -439,7 +483,7 @@ impl Poetrie {
     /// Case insesitivy is wild as it uses key casing for result as long
     /// as it is possible. Let check with example bellow.
     /// ```
-    /// use poetrie::{Poetrie, Entry};
+    /// use poetrie::{Poetrie, Entry, MatchConduct};
     ///
     /// let entry = Entry::new_from_str("ForenOOn").unwrap();
     ///
@@ -447,17 +491,22 @@ impl Poetrie {
     /// _ = poetrie.it(&entry);
     ///
     /// let key = Entry::new_from_str("NooN").unwrap();
-    /// let find = poetrie.sx(&key);
+    /// let mc = MatchConduct::default();
+    /// let find = poetrie.sx(&key, &mc);
     ///
     /// let proof = String::from("ForeNooN");
-    /// assert_eq!(Ok(proof), find);
+    /// assert_eq!(Ok(vec![proof]), find);
     /// ```
-    pub fn sx(&self, key: &Key) -> Result<String, FindErr> {
-        let res = self.find(
+    pub fn sx(&self, key: &Key, mc: &MatchConduct) -> Result<Vec<String>, FindErr> {
+        let res = match self.find(
             key,
+            mc,
             #[cfg(test)]
             &mut 0,
-        );
+        ) {
+            Ok(f) if f.len() == 0 => Err(FindErr::DisjunctConduct),
+            x => x,
+        };
 
         self.buf.get_mut().clear();
 

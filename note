@@ -1,5 +1,8 @@
+- easy
+    ▪ expose internal buffers (?: as ptr, raw, mut/ref)
+
 - poetrie
-    - customs equalizer (e.g. t =d, s =z, [x =eks (?)])
+    ▪ customs equalizer (e.g. t =d, s =z, [x =eks (?)])
 
 - opts
     - dyn+trie
