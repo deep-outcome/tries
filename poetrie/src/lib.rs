@@ -74,7 +74,11 @@ fn extract(l: &Links, buff: &mut Vec<char>, o: &mut Vec<String>) {
 struct Extender<'a> {
     b: &'a mut Vec<char>,
     f: &'a mut Vec<String>,
-    l: usize,
+    n: usize,
+    // max length
+    xl: usize,
+    // min length
+    nl: usize,
 }
 
 impl<'a> Extender<'a> {
@@ -83,7 +87,7 @@ impl<'a> Extender<'a> {
         b.push(c);
 
         if n.entry {
-            if push_match(b, self.f, self.l) {
+            if lim_match(self.nl, self.xl, b.len()) && push_match(b, self.f, self.n) {
                 return true;
             }
         }
@@ -107,6 +111,11 @@ fn push_match(c: &[char], f: &mut Vec<String>, l: usize) -> bool {
     f.push(e);
 
     f.len() == l
+}
+
+// limitative match
+const fn lim_match(min_l: usize, max_l: usize, buf_len: usize) -> bool {
+    min_l < buf_len && buf_len <= max_l
 }
 
 /// `Entry` alias for using in key role.
@@ -706,9 +715,9 @@ impl Poetrie {
         self.cnt
     }
 
-    /// Use clear entire tree.
+    /// Use to clear entire tree.
     ///
-    /// Return value is count of entries before clearing.    
+    /// Return value is count of entries before clearing.
     pub fn cr(&mut self) -> usize {
         self.root = Node::empty();
 
@@ -721,7 +730,7 @@ impl Poetrie {
     ///
     /// Extraction is alphabetically unordered. Leaves tree intact.
     ///
-    /// Return value is `None` for empty `Poetrie`.    
+    /// Return value is `None` for empty `Poetrie`.
     pub fn et(&mut self) -> Option<Vec<String>> {
         if self.cnt == 0 {
             return None;
@@ -1166,6 +1175,16 @@ mod tests_of_units {
             }
         }
 
+        fn basic_ext<'a>(b: &'a mut Vec<char>, f: &'a mut Vec<String>, n: usize) -> Extender<'a> {
+            Extender {
+                b,
+                f,
+                n,
+                nl: 0,
+                xl: usize::MAX,
+            }
+        }
+
         #[test]
         fn basic_test() {
             let mut f = Vec::new();
@@ -1174,11 +1193,7 @@ mod tests_of_units {
             let mut n = Node::empty();
             add_linked(&mut n, &["rse", "ment"]);
 
-            let mut extender = Extender {
-                b: &mut b,
-                f: &mut f,
-                l: usize::MAX,
-            };
+            let mut extender = basic_ext(&mut b, &mut f, usize::MAX);
             _ = extender.extend(&n, 'o');
 
             assert_eq!(2, f.len());
@@ -1198,11 +1213,7 @@ mod tests_of_units {
 
             _ = add_one(&mut n, "orse", true);
 
-            let mut extender = Extender {
-                b: &mut b,
-                f: &mut f,
-                l: 2,
-            };
+            let mut extender = basic_ext(&mut b, &mut f, 2);
 
             let lim = extender.extend(&n, 'd');
             assert_eq!(true, lim);
@@ -1228,11 +1239,7 @@ mod tests_of_units {
             n.entry = true;
 
             _ = add_one(&mut n, "orse", true);
-            let mut extender = Extender {
-                b: &mut b,
-                f: &mut f,
-                l: 3,
-            };
+            let mut extender = basic_ext(&mut b, &mut f, 3);
             let lim = extender.extend(&n, 'd');
             assert_eq!(false, lim);
 
@@ -1245,10 +1252,36 @@ mod tests_of_units {
         }
 
         #[test]
-        fn load_bearing() {
-            let mut f = Vec::new();
-            let mut b = "ser".chars().collect();
+        fn lengths() {
+            let outset = "do";
 
+            let mut f = Vec::new();
+            let mut b = outset.chars().collect();
+
+            let mut n = Node::empty();
+
+            let mut document = add_one(&mut n, "ument", true);
+            let mut documental = add_one(&mut document, "al", true);
+            _ = add_one(&mut documental, "ist", true);
+            _ = add_one(&mut document, "able", true);
+
+            let mut extender = Extender {
+                b: &mut b,
+                f: &mut f,
+                n: 4,
+                nl: "document".len(),
+                xl: "documentalist".len() - 1,
+            };
+
+            let res = extender.extend(&mut n, 'c');
+            assert_eq!(false, res);
+            let mut proof = vec![RevEntry::rev("documental"), RevEntry::rev("documentable")];
+            proof.sort();
+            f.sort();
+            assert_eq!(proof, f);
+        }
+
+        fn load_setup() -> (Node, HashSet<String>) {
             let mut n = Node::empty();
 
             _ = add_one(&mut n, "sity", true);
@@ -1262,14 +1295,7 @@ mod tests_of_units {
             let mut n_seroton = add_one(&mut n_serot, "on", false);
             add_rooted(&mut n_seroton, &["ergic", "in"]);
 
-            let mut extender = Extender {
-                b: &mut b,
-                f: &mut f,
-                l: usize::MAX,
-            };
-            _ = extender.extend(&n, 'o');
-
-            let p = [
+            let proof = [
                 "serosity",
                 "serotaxonomy",
                 "serotherapy",
@@ -1284,12 +1310,71 @@ mod tests_of_units {
             .into_iter()
             .collect::<HashSet<String>>();
 
+            (n, proof)
+        }
+
+        #[test]
+        fn load_bearing1() {
+            let mut f = Vec::new();
+            let mut b = "ser".chars().collect();
+
+            let (n, p) = load_setup();
+
+            let mut extender = basic_ext(&mut b, &mut f, usize::MAX);
+            _ = extender.extend(&n, 'o');
+
+            assert_eq!(p.len(), f.len());
+            for f in f {
+                assert_eq!(true, p.contains(&f), "{f}");
+            }
+        }
+
+        #[test]
+        fn load_bearing2() {
+            let mut f = Vec::new();
+            let mut b = "ser".chars().collect();
+
+            let (n, p) = load_setup();
+
+            let serotiny_len = "serotiny".len();
+            let serotonergic_len = "serotonergic".len();
+
+            let p = p
+                .iter()
+                .filter(|x| {
+                    let l = x.len();
+                    serotiny_len < l && l < serotonergic_len
+                })
+                .map(|x| x.clone())
+                .collect::<HashSet<String>>();
+
+            let mut extender = Extender {
+                b: &mut b,
+                f: &mut f,
+                n: usize::MAX,
+                nl: serotiny_len,
+                xl: serotonergic_len - 1,
+            };
+
+            _ = extender.extend(&n, 'o');
+
             assert_eq!(p.len(), f.len());
 
             for f in f {
                 assert_eq!(true, p.contains(&f), "{f}");
             }
         }
+    }
+
+    use crate::lim_match as lim_match_fn;
+
+    #[test]
+    fn lim_match() {
+        assert_eq!(true, lim_match_fn(2, 3, 3));
+        assert_eq!(true, lim_match_fn(2, 4, 3));
+
+        assert_eq!(false, lim_match_fn(3, 3, 3));
+        assert_eq!(false, lim_match_fn(2, 3, 2));
     }
 
     mod push_match {
