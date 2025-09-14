@@ -1,7 +1,7 @@
 //! Poetrie, poetic trie, is trie designated for finding rhymes for your verses.
 //!
 //! For given input, and populated tree, it will find words with shared suffix for you.
-use std::{collections::hash_map::HashMap, ops::Deref};
+use std::{cmp::min, collections::hash_map::HashMap, ops::Deref};
 
 mod uc;
 use uc::UC;
@@ -116,7 +116,7 @@ fn push_match(c: &[char], f: &mut Find, l: usize) -> bool {
 
 // limitative match
 const fn lim_match(min_l: usize, max_l: usize, buf_len: usize) -> bool {
-    min_l < buf_len && buf_len <= max_l
+    min_l <= buf_len && buf_len <= max_l
 }
 
 /// `Entry` alias for using in key role.
@@ -587,10 +587,17 @@ impl Poetrie {
         }
     }
 
-    // case-sensitive which is not senseful
-    fn find(&self, key: &Key, #[cfg(test)] b_code: &mut usize) -> Result<String, FindErr> {
+    fn find(
+        &self,
+        key: &Key,
+        mc: &MatchConduct,
+        #[cfg(test)] b_code: &mut usize,
+    ) -> Result<Find, FindErr> {
         let mut chars = key.chars();
         let mut c;
+
+        // finds
+        let mut find = Vec::with_capacity(100);
 
         // match
         let buff = self.buf.get_mut();
@@ -1318,7 +1325,7 @@ mod tests_of_units {
                 b: &mut b,
                 f: &mut f,
                 n: 4,
-                nl: "document".len(),
+                nl: "document".len() + 1,
                 xl: "documentalist".len() - 1,
             };
 
@@ -1401,7 +1408,7 @@ mod tests_of_units {
                 b: &mut b,
                 f: &mut f,
                 n: usize::MAX,
-                nl: serotiny_len,
+                nl: serotiny_len + 1,
                 xl: serotonergic_len - 1,
             };
 
@@ -1419,11 +1426,13 @@ mod tests_of_units {
 
     #[test]
     fn lim_match() {
-        assert_eq!(true, lim_match_fn(2, 3, 3));
-        assert_eq!(true, lim_match_fn(2, 4, 3));
+        assert_eq!(true, lim_match_fn(2, usize::MAX, 2));
+        assert_eq!(true, lim_match_fn(2, usize::MAX, 3));
+        assert_eq!(true, lim_match_fn(0, 3, 2));
+        assert_eq!(true, lim_match_fn(0, 3, 3));
 
-        assert_eq!(false, lim_match_fn(3, 3, 3));
-        assert_eq!(false, lim_match_fn(2, 3, 2));
+        assert_eq!(false, lim_match_fn(2, usize::MAX, 1));
+        assert_eq!(false, lim_match_fn(0, 3, 4));
     }
 
     mod push_match {
