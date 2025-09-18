@@ -87,16 +87,21 @@ impl<'a> Extender<'a> {
         let b = &mut self.b;
         b.push(c);
 
+        let b_len = b.len();
+        let xl = self.xl;
+
         if n.entry {
-            if lim_match(self.nl, self.xl, b.len()) && push_match(b, self.f, self.n) {
+            if lim_match(self.nl, xl, b_len) && push_match(b, self.f, self.n) {
                 return true;
             }
         }
 
-        if let Some(l) = n.links.as_ref() {
-            for (c, node) in l.iter() {
-                if self.extend(node, *c) {
-                    return true;
+        if b_len < xl {
+            if let Some(l) = n.links.as_ref() {
+                for (c, node) in l.iter() {
+                    if self.extend(node, *c) {
+                        return true;
+                    }
                 }
             }
         }
