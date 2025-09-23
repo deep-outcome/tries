@@ -120,8 +120,8 @@ fn push_match(c: &[char], f: &mut Find, l: usize) -> bool {
 }
 
 // limitative match
-const fn lim_match(min_l: usize, max_l: usize, buf_len: usize) -> bool {
-    min_l <= buf_len && buf_len <= max_l
+const fn lim_match(min_ml: usize, max_ml: usize, buf_len: usize) -> bool {
+    min_ml <= buf_len && buf_len <= max_ml
 }
 
 /// `Entry` alias for using in key role.
@@ -158,29 +158,29 @@ pub enum ReqErr {
     /// Matches can be limited to one at least.
     ZeroMaxMatches,
     /// Suffix match is posed by at least one `char` match.
-    ZeroMinSuffix,
-    /// Maximum suffix match length cannot be less than minimum suffix match length.
-    SufMaxLessThanMin,
-    /// Maximum match length cannot be less than its minimum length.
-    LenMaxLessThanMin,
+    ZeroMinSufLen,
+    /// Maximal suffix match length cannot be less than minimal.
+    SufLenMaxLessThanMin,
+    /// Maximal match length cannot be less than minimal.    
+    MatchLenMaxLessThanMin,
 
     #[cfg(test)]
-    LenMinLessThanSufMin,
+    MatchLenMinLessThanSufLenMin,
 }
 
 /// [`MatchConduct`] default values.
 pub mod mc_defaults {
     /// Matches limit default.
     pub const MAX_N: usize = 1;
-    /// Minimum suffix match default.
-    pub const MIN_S: usize = 1;
-    /// Maximum suffix match default.
-    pub const MAX_S: usize = usize::MAX;
+    /// Minimum suffix match length default.
+    pub const MIN_SL: usize = 1;
+    /// Maximum suffix match length default.
+    pub const MAX_SL: usize = usize::MAX;
     /// Match extra length requirement default.
-    pub const EXT_L: usize = 0;
+    pub const EXT_ML: usize = 0;
     /// Maximal match length default.
-    pub const MAX_L: usize = usize::MAX;
-    /// Sub-entries inclusion flag.
+    pub const MAX_ML: usize = usize::MAX;
+    /// Sub-entries inclusion flag default.
     pub const SUB_E: bool = false;
 }
 
@@ -190,13 +190,13 @@ pub struct MatchConduct {
     // max matches
     max_n: usize,
     // min suffix match length
-    min_s: usize,
+    min_sl: usize,
     // max suffix match length
-    max_s: usize,
+    max_sl: usize,
     // min match length
-    min_l: usize,
+    min_ml: usize,
     // max match length
-    max_l: usize,
+    max_ml: usize,
     // sub-entries inclusion
     sub_e: bool,
 }
@@ -206,38 +206,38 @@ impl MatchConduct {
     /// Parameterized constructor:
     ///
     /// - `max_n` – matches limit.
-    /// - `min_s` – minimal suffix match.
-    /// - `max_s` – maximal suffix match.
-    /// - `ext_l` – extra length requirement used for minimal match length computation using formula `min_l =min_s +ext_l`.
-    /// - `max_l` – maximal match length.
+    /// - `min_sl` – minimal suffix match length.
+    /// - `max_sl` – maximal suffix match length.
+    /// - `ext_ml` – extra length requirement used for minimal match length computation using formula `min_ml =min_sl +ext_ml`.
+    /// - `max_ml` – maximal match length.
     /// - `sub_e` – sub-entries inclusion flag.
     ///
     /// Every parameter provided with `None` will use default as expressed at [`MatchConduct::default`].
     ///
-    /// Inputs are validated for various conditions in non-exhaustive plan, first error encountered
-    /// is returned. See [`ReqErr`] for details.
+    /// Inputs are validated for various conditions in non-exhaustive plan, first
+    /// error encountered is returned. See [`ReqErr`] for details.
     pub fn new(
         max_n: Option<usize>,
-        min_s: Option<usize>,
-        max_s: Option<usize>,
-        ext_l: Option<usize>,
-        max_l: Option<usize>,
+        min_sl: Option<usize>,
+        max_sl: Option<usize>,
+        ext_ml: Option<usize>,
+        max_ml: Option<usize>,
         sub_e: Option<bool>,
     ) -> Result<MatchConduct, ReqErr> {
         let max_n = max_n.unwrap_or(MAX_N);
-        let min_s = min_s.unwrap_or(MIN_S);
-        let max_s = max_s.unwrap_or(MAX_S);
-        let ext_l = ext_l.unwrap_or(EXT_L);
-        let max_l = max_l.unwrap_or(MAX_L);
+        let min_sl = min_sl.unwrap_or(MIN_SL);
+        let max_sl = max_sl.unwrap_or(MAX_SL);
+        let ext_ml = ext_ml.unwrap_or(EXT_ML);
+        let max_ml = max_ml.unwrap_or(MAX_ML);
         let sub_e = sub_e.unwrap_or(SUB_E);
 
-        let min_l = min_s + ext_l;
+        let min_ml = min_sl + ext_ml;
         let new = Self {
             max_n,
-            min_s,
-            max_s,
-            min_l,
-            max_l,
+            min_sl,
+            max_sl,
+            min_ml,
+            max_ml,
             sub_e,
         };
 
@@ -252,20 +252,20 @@ impl MatchConduct {
     ///
     /// Defaults:
     /// - `max_n` = [`mc_defaults::MAX_N`].
-    /// - `min_s` = [`mc_defaults::MIN_S`].
-    /// - `max_s` = [`mc_defaults::MAX_S`].
-    /// - `ext_l` = [`mc_defaults::EXT_L`].
-    /// - `max_l` = [`mc_defaults::MAX_L`].
+    /// - `min_sl` = [`mc_defaults::MIN_SL`].
+    /// - `max_sl` = [`mc_defaults::MAX_SL`].
+    /// - `ext_ml` = [`mc_defaults::EXT_ML`].
+    /// - `max_ml` = [`mc_defaults::MAX_ML`].
     /// - `sub_e` = [`mc_defaults::SUB_E`].
     ///
     /// Check with [`MatchConduct::new`] for details.
     pub fn default() -> MatchConduct {
         let new = Self {
             max_n: MAX_N,
-            min_s: MIN_S,
-            max_s: MAX_S,
-            min_l: MIN_S + EXT_L,
-            max_l: MAX_L,
+            min_sl: MIN_SL,
+            max_sl: MAX_SL,
+            min_ml: MIN_SL + EXT_ML,
+            max_ml: MAX_ML,
             sub_e: SUB_E,
         };
 
@@ -277,25 +277,29 @@ impl MatchConduct {
 
     fn val(s: &Self) -> Option<ReqErr> {
         #[cfg(test)]
-        if s.min_l < s.min_s {
-            return Some(ReqErr::LenMinLessThanSufMin);
+        if s.min_ml < s.min_sl {
+            return Some(ReqErr::MatchLenMinLessThanSufLenMin);
         }
 
-        let min_s = s.min_s;
+        let min_sl = s.min_sl;
 
         let err = if s.max_n == 0 {
             ReqErr::ZeroMaxMatches
-        } else if min_s == 0 {
-            ReqErr::ZeroMinSuffix
-        } else if s.max_s < min_s {
-            ReqErr::SufMaxLessThanMin
-        } else if s.max_l < s.min_l {
-            ReqErr::LenMaxLessThanMin
+        } else if min_sl == 0 {
+            ReqErr::ZeroMinSufLen
+        } else if s.max_sl < min_sl {
+            ReqErr::SufLenMaxLessThanMin
+        } else if s.max_ml < s.min_ml {
+            ReqErr::MatchLenMaxLessThanMin
         } else {
             return None;
         };
 
         Some(err)
+    }
+
+    fn max_l(&self) -> usize {
+        min(self.max_ml, self.max_sl)
     }
 }
 
@@ -310,15 +314,16 @@ impl MatchConduct {
 /// use poetrie::{MatchConductWith, MatchConduct};
 ///
 /// let mut chain = MatchConductWith::init();
-/// _ = chain.with_max_n(10).with_max_l(8);
+/// _ = chain.with_max_n(10).with_max_ml(8);
 ///
 /// let mc: MatchConduct = chain.with().unwrap();
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchConductWith(MatchConduct);
 
 impl MatchConductWith {
-    /// Use to construct new `MatchConductWith` instance with
-    /// default `MatchConduct` ([`MatchConduct::default`]) as initial value.
+    /// Use to construct new `MatchConductWith` instance.
+    ///
+    /// Constructed with [`MatchConduct::default()`] as initial value.
     ///
     /// Check with [`MatchConductWith::with`] for more details.
     pub fn init() -> MatchConductWith {
@@ -331,28 +336,28 @@ impl MatchConductWith {
         self
     }
 
-    /// Use to adjust minimal suffix match.
-    pub fn with_min_s(&mut self, min_s: usize) -> &mut Self {
-        self.0.min_s = min_s;
+    /// Use to adjust minimal suffix match length.
+    pub fn with_min_sl(&mut self, min_sl: usize) -> &mut Self {
+        self.0.min_sl = min_sl;
         self
     }
 
-    /// Use to adjust maximal suffix match.
-    pub fn with_max_s(&mut self, max_s: usize) -> &mut Self {
-        self.0.max_s = max_s;
+    /// Use to adjust maximal suffix match length.
+    pub fn with_max_sl(&mut self, max_sl: usize) -> &mut Self {
+        self.0.max_sl = max_sl;
         self
     }
 
-    /// Use to adjust extra length requirement.
-    pub fn with_ext_l(&mut self, ext_l: usize) -> &mut Self {
+    /// Use to adjust extra match length requirement.
+    pub fn with_ext_ml(&mut self, ext_ml: usize) -> &mut Self {
         let mc = &mut self.0;
-        mc.min_l = mc.min_s + ext_l;
+        mc.min_ml = mc.min_sl + ext_ml;
         self
     }
 
     /// Use to adjust maximal match length.
-    pub fn with_max_l(&mut self, max_l: usize) -> &mut Self {
-        self.0.max_l = max_l;
+    pub fn with_max_ml(&mut self, max_ml: usize) -> &mut Self {
+        self.0.max_ml = max_ml;
         self
     }
 
@@ -474,8 +479,8 @@ impl Poetrie {
     ///
     /// let mut with = MatchConductWith::init();
     /// with
-    ///    .with_min_s(3).with_max_s(5).with_ext_l(1)
-    ///    .with_max_l(10).with_sub_e(false).with_max_n(15);
+    ///    .with_min_sl(3).with_max_sl(5).with_ext_ml(1)
+    ///    .with_max_ml(10).with_sub_e(false).with_max_n(15);
     ///
     /// let mc: MatchConduct = with.with().unwrap();
     /// ```
