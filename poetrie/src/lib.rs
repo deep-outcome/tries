@@ -1,6 +1,9 @@
 //! Poetrie, poetic trie, is trie designated for finding rhymes for your verses.
 //!
 //! For given input, and populated tree, it will find words with shared suffix for you.
+
+#![allow(for_loops_over_fallibles)]
+
 use std::{cmp::min, collections::hash_map::HashMap, ops::Deref};
 
 mod uc;
@@ -83,15 +86,18 @@ struct Extender<'a> {
 }
 
 impl<'a> Extender<'a> {
-    pub fn extend(&mut self, n: &Node, c: char) -> bool {
+    pub fn e(&mut self, n: &Node, c: char) -> bool {
         let b = &mut self.b;
         b.push(c);
 
         let b_len = b.len();
         let xl = self.xl;
 
+        #[cfg(test)]
+        assert!(b_len <= xl, "Caller disobeys precondition.");
+
         if n.entry {
-            if lim_match(self.nl, xl, b_len) && push_match(b, self.f, self.n) {
+            if self.nl <= b_len && push_match(b, self.f, self.n) {
                 return true;
             }
         }
@@ -99,7 +105,7 @@ impl<'a> Extender<'a> {
         if b_len < xl {
             if let Some(l) = n.links.as_ref() {
                 for (c, node) in l.iter() {
-                    if self.extend(node, *c) {
+                    if self.e(node, *c) {
                         return true;
                     }
                 }
@@ -117,11 +123,6 @@ fn push_match(c: &[char], f: &mut Find, l: usize) -> bool {
     f.push(e);
 
     f.len() == l
-}
-
-// limitative match
-const fn lim_match(min_ml: usize, max_ml: usize, buf_len: usize) -> bool {
-    min_ml <= buf_len && buf_len <= max_ml
 }
 
 /// `Entry` alias for using in key role.
@@ -603,61 +604,72 @@ impl Poetrie {
         mc: &MatchConduct,
         #[cfg(test)] b_code: &mut usize,
     ) -> Result<Find, FindErr> {
-        let mut chars = key.chars();
-        let mut c;
+        // operative node
+        let mut op_node = &self.root;
+        if op_node.links.is_none() {
+            return Err(FindErr::EmptyTree);
+        }
+
+        let max_n = mc.max_n;
+        let min_ml = mc.min_ml;
+        let max_ml = mc.max_ml;
+        let sub_entries = mc.sub_e;
+
+        // closest branch information
+        let mut branching = Vec::with_capacity(50);
+        let mut se_disjunct_hit = false;
 
         // finds
         let mut find = Vec::with_capacity(100);
 
         // match
         let buff = self.buf.get_mut();
+        let mut buf_l;
 
-        // operative node
-        let mut op_node = &self.root;
-        if let Some(l) = op_node.links.as_ref() {
-            c = unsafe { chars.next_back().unwrap_unchecked() };
-            if let Some(n) = get_node(
-                l,
-                &c,
-                #[cfg(test)]
-                &mut 0,
-            ) {
-                op_node = n;
-                buff.push(c)
-            } else {
-                return Err(FindErr::NoJointSuffix);
-            }
-        } else {
-            return Err(FindErr::EmptyTree);
-        }
+        let max_l = mc.max_l();
 
-        // closest branch information
-        let mut branching = None;
-        let mut bak_len = 0;
-
+        let mut chars = key.chars();
         // track key as much as possible first
         'track: loop {
-            if let Some(next_c) = chars.next_back() {
-                if op_node.entry {
-                    bak_len = buff.len();
-                }
+            // consider removal!
+            buf_l = buff.len();
 
-                c = next_c;
-            } else {
+            if buf_l > max_l {
+                break;
+            }
+
+            let next_c = chars.next_back();
+
+            if next_c.is_none() {
                 #[cfg(test)]
                 set_bcode(2, b_code);
                 break 'track;
-            };
+            }
+
+            let min_l = min_ml <= buf_l;
+            if op_node.entry {
+                if sub_entries && min_l {
+                    if push_match(buff, &mut find, max_n) {
+                        #[cfg(test)]
+                        set_bcode(64, b_code);
+                        return Ok(find);
+                    }
+                } else {
+                    se_disjunct_hit = true;
+                }
+            }
 
             if let Some(l) = op_node.links.as_ref() {
+                let c = unsafe { next_c.unwrap_unchecked() };
+
                 if let Some(n) = get_node(
                     l,
                     &c,
                     #[cfg(test)]
                     &mut 0,
                 ) {
-                    if l.len() > 1 {
-                        branching = Some((l, (buff.len(), c)));
+                    if min_l && l.len() > 1 && buf_l > 0 {
+                        branching.push((l, (buf_l, c)));
                     }
 
                     buff.push(c);
@@ -676,6 +688,19 @@ impl Poetrie {
             break 'track;
         }
 
+        if buf_l == 0 {
+            return Err(FindErr::NoJointSuffix);
+        }
+
+        if buf_l < mc.min_sl {
+            return Ok(find);
+        }
+
+        let links = op_node.links.as_ref();
+        let can_extend = links.is_some() && buf_l < max_ml;
+
+        let can_branch = branching.len() > 0;
+
         // CONTINUATION
         // A) Is possible (key covers partially some entry):
         // - (1) Key is suffix to some entry.
@@ -686,56 +711,69 @@ impl Poetrie {
         // - (2) Part of key suffix is other entry.
         //
         // Note: When A then A can intersect with B, when B then B only.
-        if !op_node.links.is_some() {
-            if let Some((blinks, (blen, skip_c))) = branching {
-                // just subentry with longer shared suffix
-                // must be prioritized over branch
-                if bak_len > blen {
-                    #[cfg(test)]
-                    set_bcode(256, b_code);
-                    return ok(&buff[..bak_len]);
-                }
 
+        if !(can_extend || can_branch) {
+            if find.len() == 0 {
                 #[cfg(test)]
-                set_bcode(512, b_code);
+                set_bcode(16, b_code);
 
-                buff.truncate(blen);
-
-                for (&test_c, n) in blinks.iter() {
-                    if test_c == skip_c {
-                        continue;
-                    }
-
-                    buff.push(test_c);
-                    op_node = n;
-                    break;
+                if !se_disjunct_hit {
+                    return Err(FindErr::OnlyKeyMatches);
                 }
-            } else {
-                return if bak_len == 0 {
+            }
+
+            #[cfg(test)]
+            set_bcode(32, b_code);
+            return Ok(find);
+        }
+
+        let mut extender = Extender {
+            b: buff,
+            f: &mut find,
+            n: max_n,
+            nl: min_ml,
+            xl: max_ml,
+        };
+
+        if can_extend {
+            let l = unsafe { links.unwrap_unchecked() };
+            for (c, node) in l {
+                if extender.e(node, *c) {
                     #[cfg(test)]
-                    set_bcode(16, b_code);
-                    Err(FindErr::OnlyKeyMatches)
-                } else {
-                    #[cfg(test)]
-                    set_bcode(32, b_code);
-                    ok(&buff[..bak_len])
-                };
+                    set_bcode(128, b_code);
+                    return Ok(find);
+                }
             }
         }
 
-        while let Some(l) = op_node.links.as_ref() {
-            let (c, n) = unsafe { l.iter().next().unwrap_unchecked() };
-            buff.push(*c);
-            op_node = n;
+        if can_branch {
+            let mut b = branching.iter();
+
+            for (blinks, (blen, skip_c)) in b.next_back() {
+                let blen = *blen;
+                if blen >= max_ml {
+                    continue;
+                }
+
+                extender.b.truncate(blen);
+
+                for (&c, node) in blinks.iter() {
+                    if c == *skip_c {
+                        continue;
+                    }
+
+                    if extender.e(node, c) {
+                        #[cfg(test)]
+                        set_bcode(256, b_code);
+                        return Ok(find);
+                    }
+                }
+            }
         }
 
         #[cfg(test)]
-        set_bcode(128, b_code);
-        return ok(&buff);
-
-        fn ok(cs: &[char]) -> Result<String, FindErr> {
-            return Ok(cs.iter().rev().collect());
-        }
+        set_bcode(512, b_code);
+        return Ok(find);
 
         #[cfg(test)]
         fn set_bcode(c: usize, b_code: &mut usize) {
@@ -833,6 +871,8 @@ pub enum FindErr {
     EmptyTree,
     /// No entry shares any sufix with key.
     NoJointSuffix,
+    /// Conduct configuration prevents match.
+    DisjunctConduct,
 }
 
 struct Node {
@@ -1121,7 +1161,7 @@ mod tests_of_units {
         use seg::*;
         use std::collections::HashSet;
 
-        use crate::{Extender, Node, tests_of_units::rev_entry::RevEntry};
+        use crate::{Extender, Find, Node, tests_of_units::rev_entry::RevEntry};
 
         // segment
         mod seg {
@@ -1241,7 +1281,7 @@ mod tests_of_units {
             }
         }
 
-        fn basic_ext<'a>(b: &'a mut Vec<char>, f: &'a mut Vec<String>, n: usize) -> Extender<'a> {
+        fn basic_ext<'a>(b: &'a mut Vec<char>, f: &'a mut Find, n: usize) -> Extender<'a> {
             Extender {
                 b,
                 f,
@@ -1260,7 +1300,7 @@ mod tests_of_units {
             add_linked(&mut n, &["rse", "ment"]);
 
             let mut extender = basic_ext(&mut b, &mut f, usize::MAX);
-            _ = extender.extend(&n, 'o');
+            _ = extender.e(&n, 'o');
 
             assert_eq!(2, f.len());
 
@@ -1281,7 +1321,7 @@ mod tests_of_units {
 
             let mut extender = basic_ext(&mut b, &mut f, 2);
 
-            let lim = extender.extend(&n, 'd');
+            let lim = extender.e(&n, 'd');
             assert_eq!(true, lim);
 
             assert_eq!(2, f.len());
@@ -1306,7 +1346,7 @@ mod tests_of_units {
 
             _ = add_one(&mut n, "orse", true);
             let mut extender = basic_ext(&mut b, &mut f, 3);
-            let lim = extender.extend(&n, 'd');
+            let lim = extender.e(&n, 'd');
             assert_eq!(false, lim);
 
             assert_eq!(2, f.len());
@@ -1339,7 +1379,7 @@ mod tests_of_units {
                 xl: "documentalist".len() - 1,
             };
 
-            let res = extender.extend(&mut n, 'c');
+            let res = extender.e(&mut n, 'c');
             assert_eq!(false, res);
             let mut proof = vec![RevEntry::rev("documental"), RevEntry::rev("documentable")];
             proof.sort();
@@ -1387,7 +1427,7 @@ mod tests_of_units {
             let (n, p) = load_setup();
 
             let mut extender = basic_ext(&mut b, &mut f, usize::MAX);
-            _ = extender.extend(&n, 'o');
+            _ = extender.e(&n, 'o');
 
             assert_eq!(p.len(), f.len());
             for f in f {
@@ -1422,27 +1462,14 @@ mod tests_of_units {
                 xl: serotonergic_len - 1,
             };
 
-            _ = extender.extend(&n, 'o');
+            _ = extender.e(&n, 'o');
 
-            assert_eq!(p.len(), f.len());
+            assert_eq!(p.len(), f.len(), "{:?}, {:?}", f, p);
 
             for f in f {
                 assert_eq!(true, p.contains(&f), "{f}");
             }
         }
-    }
-
-    use crate::lim_match as lim_match_fn;
-
-    #[test]
-    fn lim_match() {
-        assert_eq!(true, lim_match_fn(2, usize::MAX, 2));
-        assert_eq!(true, lim_match_fn(2, usize::MAX, 3));
-        assert_eq!(true, lim_match_fn(0, 3, 2));
-        assert_eq!(true, lim_match_fn(0, 3, 3));
-
-        assert_eq!(false, lim_match_fn(2, usize::MAX, 1));
-        assert_eq!(false, lim_match_fn(0, 3, 4));
     }
 
     mod push_match {
@@ -1508,10 +1535,10 @@ mod tests_of_units {
         #[test]
         fn constants() {
             assert_eq!(mc_defaults::MAX_N, 1);
-            assert_eq!(mc_defaults::MIN_S, 1);
-            assert_eq!(mc_defaults::MAX_S, usize::MAX);
-            assert_eq!(mc_defaults::EXT_L, 0);
-            assert_eq!(mc_defaults::MAX_L, usize::MAX);
+            assert_eq!(mc_defaults::MIN_SL, 1);
+            assert_eq!(mc_defaults::MAX_SL, usize::MAX);
+            assert_eq!(mc_defaults::EXT_ML, 0);
+            assert_eq!(mc_defaults::MAX_ML, usize::MAX);
             assert_eq!(mc_defaults::SUB_E, false);
         }
     }
@@ -1528,10 +1555,10 @@ mod tests_of_units {
                     MatchConduct::new(Some(10), Some(11), Some(12), Some(2), Some(14), Some(true))
                         .unwrap();
                 assert_eq!(10, mc.max_n);
-                assert_eq!(11, mc.min_s);
-                assert_eq!(12, mc.max_s);
-                assert_eq!(13, mc.min_l);
-                assert_eq!(14, mc.max_l);
+                assert_eq!(11, mc.min_sl);
+                assert_eq!(12, mc.max_sl);
+                assert_eq!(13, mc.min_ml);
+                assert_eq!(14, mc.max_ml);
                 assert_eq!(true, mc.sub_e);
                 assert_ne!(mc_defaults::SUB_E, mc.sub_e);
             }
@@ -1554,10 +1581,10 @@ mod tests_of_units {
             let mc = MatchConduct::default();
 
             assert_eq!(mc_defaults::MAX_N, mc.max_n);
-            assert_eq!(mc_defaults::MIN_S, mc.min_s);
-            assert_eq!(mc_defaults::MAX_S, mc.max_s);
-            assert_eq!(mc_defaults::MIN_S + mc_defaults::EXT_L, mc.min_l);
-            assert_eq!(mc_defaults::MAX_L, mc.max_l);
+            assert_eq!(mc_defaults::MIN_SL, mc.min_sl);
+            assert_eq!(mc_defaults::MAX_SL, mc.max_sl);
+            assert_eq!(mc_defaults::MIN_SL + mc_defaults::EXT_ML, mc.min_ml);
+            assert_eq!(mc_defaults::MAX_ML, mc.max_ml);
             assert_eq!(mc_defaults::SUB_E, mc.sub_e);
         }
 
@@ -1576,27 +1603,27 @@ mod tests_of_units {
             #[test]
             fn zero_suffix_requirement() {
                 let mut mc = MatchConduct::default();
-                mc.min_s = 0;
+                mc.min_sl = 0;
 
                 let err = MatchConduct::val(&mc);
-                assert_eq!(Some(ReqErr::ZeroMinSuffix), err);
+                assert_eq!(Some(ReqErr::ZeroMinSufLen), err);
             }
 
             #[test]
             fn suffix_min_greater_its_max() {
                 let mut mc = MatchConduct::default();
-                mc.min_s = 1;
-                mc.max_s = 0;
+                mc.min_sl = 1;
+                mc.max_sl = 0;
 
                 let err = MatchConduct::val(&mc);
-                assert_eq!(Some(ReqErr::SufMaxLessThanMin), err);
+                assert_eq!(Some(ReqErr::SufLenMaxLessThanMin), err);
             }
 
             #[test]
             fn suffix_min_equal_max() {
                 let mut mc = MatchConduct::default();
-                mc.min_s = 1;
-                mc.max_s = 1;
+                mc.min_sl = 1;
+                mc.max_sl = 1;
 
                 let none = MatchConduct::val(&mc);
                 assert_eq!(None, none);
@@ -1605,18 +1632,18 @@ mod tests_of_units {
             #[test]
             fn length_min_greater_its_max() {
                 let mut mc = MatchConduct::default();
-                mc.min_l = 1;
-                mc.max_l = 0;
+                mc.min_ml = 1;
+                mc.max_ml = 0;
 
                 let err = MatchConduct::val(&mc);
-                assert_eq!(Some(ReqErr::LenMaxLessThanMin), err);
+                assert_eq!(Some(ReqErr::MatchLenMaxLessThanMin), err);
             }
 
             #[test]
             fn length_min_equal_max() {
                 let mut mc = MatchConduct::default();
-                mc.min_l = 1;
-                mc.max_l = 1;
+                mc.min_ml = 1;
+                mc.max_ml = 1;
 
                 let none = MatchConduct::val(&mc);
                 assert_eq!(None, none);
@@ -1625,11 +1652,11 @@ mod tests_of_units {
             #[test]
             fn length_min_less_than_suffix_min() {
                 let mut mc = MatchConduct::default();
-                mc.min_l = 1;
-                mc.min_s = 2;
+                mc.min_ml = 1;
+                mc.min_sl = 2;
 
                 let err = MatchConduct::val(&mc);
-                assert_eq!(Some(ReqErr::LenMinLessThanSufMin), err);
+                assert_eq!(Some(ReqErr::MatchLenMinLessThanSufLenMin), err);
             }
 
             #[test]
@@ -1639,8 +1666,8 @@ mod tests_of_units {
                 // suffix, usize::MAX, still can be understood
                 // as miscofiguration, kept loose
                 let mut mc = MatchConduct::default();
-                mc.max_l = 1;
-                mc.max_s = 2;
+                mc.max_ml = 1;
+                mc.max_sl = 2;
 
                 let none = MatchConduct::val(&mc);
                 assert_eq!(None, none);
@@ -1649,11 +1676,23 @@ mod tests_of_units {
             #[test]
             fn suffix_max_less_than_length_max() {
                 let mut mc = MatchConduct::default();
-                mc.max_l = 2;
-                mc.max_s = 1;
+                mc.max_ml = 2;
+                mc.max_sl = 1;
 
                 let none = MatchConduct::val(&mc);
                 assert_eq!(None, none);
+            }
+        }
+
+        #[test]
+        fn max_l() {
+            let vals = [(100, 101), (101, 100)];
+            for v in vals {
+                let mut mc = MatchConduct::default();
+                mc.max_sl = v.0;
+                mc.max_ml = v.1;
+
+                assert_eq!(100, mc.max_l());
             }
         }
     }
@@ -1666,20 +1705,20 @@ mod tests_of_units {
             let mut with = MatchConductWith::init();
             _ = with
                 .with_max_n(10)
-                .with_min_s(11)
-                .with_max_s(12)
-                .with_ext_l(2)
-                .with_max_l(14)
+                .with_min_sl(11)
+                .with_max_sl(12)
+                .with_ext_ml(2)
+                .with_max_ml(14)
                 .with_sub_e(true);
 
             let test = with.with();
 
             let proof = MatchConduct {
                 max_n: 10,
-                min_s: 11,
-                max_s: 12,
-                min_l: 13,
-                max_l: 14,
+                min_sl: 11,
+                max_sl: 12,
+                min_ml: 13,
+                max_ml: 14,
                 sub_e: true,
             };
 
@@ -1858,7 +1897,7 @@ mod tests_of_units {
         }
 
         mod sx {
-            use crate::{Entry, FindErr, Poetrie};
+            use crate::{Entry, FindErr, MatchConduct, Poetrie};
 
             #[test]
             fn basic_test() {
@@ -1869,8 +1908,10 @@ mod tests_of_units {
                 _ = poetrie.it(&entry);
 
                 let key = Entry("semiliteral");
-                let res = poetrie.sx(&key);
-                assert_eq!(Ok(proof), res);
+                let mc = MatchConduct::default();
+                let find = poetrie.sx(&key, &mc);
+
+                assert_eq!(Ok(vec![proof]), find);
             }
 
             #[test]
@@ -1878,7 +1919,8 @@ mod tests_of_units {
                 let poetrie = Poetrie::nw();
 
                 let key = Entry("semiliteral");
-                let res = poetrie.sx(&key);
+                let mc = MatchConduct::default();
+                let res = poetrie.sx(&key, &mc);
                 assert_eq!(Err(FindErr::EmptyTree), res);
             }
 
@@ -1889,7 +1931,8 @@ mod tests_of_units {
                 let key_entry = Entry("quadriliteral");
                 _ = poetrie.it(&key_entry);
 
-                let res = poetrie.sx(&key_entry);
+                let mc = MatchConduct::default();
+                let res = poetrie.sx(&key_entry, &mc);
                 assert_eq!(Err(FindErr::OnlyKeyMatches), res);
                 assert_eq!(0, poetrie.buf.len());
                 assert_eq!(true, poetrie.buf.capacity() > 0);
@@ -2075,21 +2118,29 @@ mod tests_of_units {
         }
 
         mod find {
-            use crate::{Entry, FindErr, Poetrie, tests_of_units::rev_entry::RevEntry};
+            use crate::{
+                Entry, FindErr, MatchConduct, Poetrie, mc_defaults,
+                tests_of_units::rev_entry::RevEntry,
+            };
 
             #[test]
             fn basic_test() {
-                let proof = String::from("halieutics");
-                let entry = &Entry(proof.as_str());
+                let p = ["halieutics", "codecs"].map(|x| String::from(x));
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
-                _ = poetrie.it(&Entry("codecs"));
+                for p in p.iter() {
+                    let entry = Entry(p.as_str());
+                    _ = poetrie.it(&entry);
+                }
 
-                let key = &Entry("lyrics");
-                let find = poetrie.find(key, &mut 0);
+                let k = &Entry("lyrics");
+                let mc = MatchConduct::new(Some(usize::MAX), None, None, None, None, None).unwrap();
+                let f = poetrie.find(k, &mc, &mut 0).ok().unwrap();
 
-                assert_eq!(Ok(proof), find);
+                assert_eq!(2, f.len());
+                for p in p {
+                    assert_eq!(true, p == f[0] || p == f[1]);
+                }
             }
 
             #[test]
@@ -2100,11 +2151,20 @@ mod tests_of_units {
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let mut mc = MatchConduct::default();
+                mc.sub_e = true;
 
-                assert_eq!(40, b_code);
-                assert_eq!(Ok(String::from("s")), find);
+                for max_ml in [1, mc_defaults::MAX_ML] {
+                    mc.max_ml = max_ml;
+
+                    let mut b_code = 0;
+                    let find = poetrie.find(key, &mc, &mut b_code);
+
+                    poetrie.buf.get_mut().clear();
+
+                    assert_eq!(64, b_code);
+                    assert_eq!(Ok(vec![String::from("s")]), find, "{max_ml}");
+                }
             }
 
             #[test]
@@ -2116,11 +2176,20 @@ mod tests_of_units {
                 _ = poetrie.it(entry);
                 _ = poetrie.it(key);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let mut mc = MatchConduct::default();
+                mc.sub_e = true;
 
-                assert_eq!(34, b_code);
-                assert_eq!(Ok(String::from("s")), find);
+                for max_ml in [1, mc_defaults::MAX_ML] {
+                    mc.max_ml = max_ml;
+
+                    let mut b_code = 0;
+                    let find = poetrie.find(key, &mc, &mut b_code);
+
+                    poetrie.buf.get_mut().clear();
+
+                    assert_eq!(Ok(vec![String::from("s")]), find);
+                    assert_eq!(64, b_code);
+                }
             }
 
             #[test]
@@ -2132,9 +2201,12 @@ mod tests_of_units {
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let mc = MatchConduct::default();
 
+                let mut b_code = 0;
+                let find = poetrie.find(key, &mc, &mut b_code);
+
+                let proof = vec![proof.clone()];
                 assert_eq!(130, b_code);
                 assert_eq!(Ok(proof), find);
             }
@@ -2144,27 +2216,29 @@ mod tests_of_units {
                 let proof = String::from("lyrics");
                 let entry = &Entry(proof.as_str());
                 let key = &Entry("s");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
                 _ = poetrie.it(key);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
+                assert_eq!(Ok(vec![proof]), find);
                 assert_eq!(130, b_code);
-                assert_eq!(Ok(proof), find);
             }
 
             #[test]
             fn exactly_last_match_3() {
                 let key_entry = &Entry("s");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(key_entry);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key_entry, &mut b_code);
+                let find = poetrie.find(key_entry, &mc, &mut b_code);
 
                 assert_eq!(18, b_code);
                 assert_eq!(Err(FindErr::OnlyKeyMatches), find);
@@ -2174,12 +2248,13 @@ mod tests_of_units {
             fn exactly_last_match_4() {
                 let entry = &Entry("s");
                 let key = &Entry("S");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
                 assert_eq!(18, b_code);
                 assert_eq!(Err(FindErr::OnlyKeyMatches), find);
@@ -2188,9 +2263,10 @@ mod tests_of_units {
             #[test]
             fn no_data() {
                 let key = &Entry("lyrics");
+                let mc = MatchConduct::default();
 
                 let poetrie = Poetrie::nw();
-                let find = poetrie.find(key, &mut 0);
+                let find = poetrie.find(key, &mc, &mut 0);
 
                 assert_eq!(Err(FindErr::EmptyTree), find);
             }
@@ -2199,56 +2275,97 @@ mod tests_of_units {
             fn no_suffix_match() {
                 let entry = &Entry("epicalyx");
                 let key = &Entry("lyrics");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
 
-                let find = poetrie.find(key, &mut 0);
+                let find = poetrie.find(key, &mc, &mut 0);
 
                 assert_eq!(Err(FindErr::NoJointSuffix), find);
             }
 
             #[test]
-            fn key_matches_itself_only() {
+            fn key_matches_itself_only1() {
                 let itself = &Entry("lyrics");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(itself);
 
                 let mut b_code = 0;
-                let find = poetrie.find(itself, &mut b_code);
+                let find = poetrie.find(itself, &mc, &mut b_code);
 
                 assert_eq!(18, b_code);
                 assert_eq!(Err(FindErr::OnlyKeyMatches), find);
             }
 
             #[test]
+            fn key_matches_itself_only2() {
+                let entry = &Entry("lyRics");
+                let key = &Entry("lyrics");
+                let mc = MatchConduct::default();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
+
+                let mut b_code = 0;
+                let find = poetrie.find(key, &mc, &mut b_code);
+
+                assert_eq!(18, b_code);
+                assert_eq!(Err(FindErr::OnlyKeyMatches), find);
+            }
+
+            #[test]
+            // different casing is eventually considered to be different word
+            fn key_matches_itself_only3() {
+                let proof = String::from("lyRics");
+                let entry = &Entry(proof.as_str());
+                let key = &Entry("lyrics");
+                let mc = MatchConduct::default();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(entry);
+                _ = poetrie.it(key);
+
+                let mut b_code = 0;
+                let find = poetrie.find(key, &mc, &mut b_code);
+
+                assert_eq!(Ok(vec![proof]), find);
+                assert_eq!(258, b_code);
+            }
+
+            #[test]
             fn key_is_suffix_to_entry_1() {
                 let subentry = RevEntry::new("document");
                 let entry = RevEntry::new("documentalist");
-                let proof = entry.0.clone();
 
                 let key = RevEntry::new("documental");
+                let mut mc = MatchConduct::default();
+                mc.max_n = 2;
+                mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&subentry.entry());
                 _ = poetrie.it(&entry.entry());
 
                 let mut b_code = 0;
-                let find = poetrie.find(&key.entry(), &mut b_code);
+                let find = poetrie.find(&key.entry(), &mc, &mut b_code);
 
+                assert_eq!(Ok(vec![subentry.0, entry.0]), find);
                 assert_eq!(130, b_code);
-                assert_eq!(Ok(proof), find);
             }
 
             #[test]
             fn key_is_suffix_to_entry_2() {
                 let subentry = RevEntry::new("document");
                 let entry = RevEntry::new("documentalist");
-                let proof = entry.0.clone();
 
                 let key = RevEntry::new("documental");
                 let key = &key.entry();
+                let mut mc = MatchConduct::default();
+                mc.max_n = 2;
+                mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&subentry.entry());
@@ -2256,20 +2373,22 @@ mod tests_of_units {
                 _ = poetrie.it(key);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
+                assert_eq!(Ok(vec![subentry.0, entry.0]), find, "bc: {}", b_code);
                 assert_eq!(130, b_code);
-                assert_eq!(Ok(proof), find);
             }
 
             #[test]
             fn only_subentry_is_possible1() {
                 let subentry = RevEntry::new("document");
                 let entry = RevEntry::new("documental");
-                let proof = entry.0.clone();
 
                 let key = RevEntry::new("documentalist");
                 let key = &key.entry();
+                let mut mc = MatchConduct::default();
+                mc.max_n = 2;
+                mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&subentry.entry());
@@ -2277,10 +2396,11 @@ mod tests_of_units {
                 _ = poetrie.it(key);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
-                assert_eq!(34, b_code);
-                assert_eq!(Ok(proof), find);
+                assert_eq!(Ok(vec![subentry.0, entry.0]), find, "bc: {}", b_code);
+
+                assert_eq!(64, b_code);
             }
 
             #[test]
@@ -2289,16 +2409,18 @@ mod tests_of_units {
                 let subentry = Entry(proof.as_str());
 
                 let key = &Entry("anagram");
+                let mut mc = MatchConduct::default();
+                mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&subentry);
                 _ = poetrie.it(key);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
-                assert_eq!(34, b_code);
-                assert_eq!(Ok(proof), find);
+                assert_eq!(Ok(vec![proof]), find);
+                assert_eq!(64, b_code);
             }
 
             #[test]
@@ -2307,36 +2429,40 @@ mod tests_of_units {
                 let entry = Entry(proof.as_str());
 
                 let key = &Entry("YXconundrum");
+                let mut mc = MatchConduct::default();
+                mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&entry);
                 _ = poetrie.it(&key);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
-                assert_eq!(34, b_code);
-                assert_eq!(Ok(proof), find);
+                assert_eq!(Ok(vec![proof]), find);
+                assert_eq!(64, b_code);
             }
 
             #[test]
             fn only_subsuffix_is_possible1() {
                 let subentry = RevEntry::new("document");
                 let entry = RevEntry::new("documental");
-                let proof = entry.0.clone();
 
                 let key = RevEntry::new("documentalist");
                 let key = &key.entry();
+                let mut mc = MatchConduct::default();
+                mc.max_n = 2;
+                mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&subentry.entry());
                 _ = poetrie.it(&entry.entry());
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
-                assert_eq!(40, b_code);
-                assert_eq!(Ok(proof), find);
+                assert_eq!(Ok(vec![subentry.0, entry.0]), find, "bc: {}", b_code);
+                assert_eq!(64, b_code);
             }
 
             #[test]
@@ -2345,15 +2471,17 @@ mod tests_of_units {
                 let entry = Entry(proof.as_str());
 
                 let key = &Entry("conundrum");
+                let mut mc = MatchConduct::default();
+                mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&entry);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
-                assert_eq!(40, b_code);
-                assert_eq!(Ok(proof), find);
+                assert_eq!(Ok(vec![proof]), find);
+                assert_eq!(64, b_code);
             }
 
             #[test]
@@ -2362,24 +2490,27 @@ mod tests_of_units {
                 let entry = Entry(proof.as_str());
 
                 let key = &Entry("YXconundrum");
+                let mut mc = MatchConduct::default();
+                mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&entry);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
-                assert_eq!(40, b_code);
-                assert_eq!(Ok(proof), find);
+                assert_eq!(Ok(vec![proof]), find);
+                assert_eq!(64, b_code);
             }
 
             #[test]
-            fn must_not_recourse_to_root_branching1() {
+            fn must_not_recourse_to_root_branching_1a() {
                 let proof = String::from("hilum");
                 let subentry = Entry(proof.as_str());
                 let entry = Entry("claybank");
 
                 let key = &Entry("haulm");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&subentry);
@@ -2387,29 +2518,67 @@ mod tests_of_units {
                 _ = poetrie.it(key);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
-                assert_eq!(642, b_code);
-                assert_eq!(Ok(proof), find);
+                assert_eq!(Ok(vec![proof]), find);
+                assert_eq!(258, b_code);
             }
 
             #[test]
-            fn must_not_recourse_to_root_branching2() {
+            fn must_not_recourse_to_root_branching_1b() {
                 let proof = String::from("hilum");
                 let subentry = Entry(proof.as_str());
                 let entry = Entry("claybank");
 
                 let key = &Entry("haulm");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&subentry);
                 _ = poetrie.it(&entry);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
+                assert_eq!(Ok(vec![proof]), find);
                 assert_eq!(132, b_code);
-                assert_eq!(Ok(proof), find);
+            }
+
+            #[test]
+            fn must_not_recourse_to_root_branching_2a() {
+                let itself = &Entry("lyrics");
+                let other = &Entry("disarrangement");
+                let mc = MatchConduct::default();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(itself);
+                _ = poetrie.it(other);
+
+                let mut b_code = 0;
+                let find = poetrie.find(itself, &mc, &mut b_code);
+
+                assert_eq!(Err(FindErr::OnlyKeyMatches), find);
+                assert_eq!(18, b_code);
+            }
+
+            #[test]
+            fn must_not_recourse_to_root_branching_2b() {
+                let some = &Entry("lyrics");
+                let key = &Entry("disarrangement");
+                let sub_entry = &Entry("arrangement");
+                let mut mc = MatchConduct::default();
+                mc.sub_e = true;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(some);
+                _ = poetrie.it(sub_entry);
+
+                let mut b_code = 0;
+                let find = poetrie.find(key, &mc, &mut b_code);
+
+                let proof = sub_entry.0.to_string();
+                assert_eq!(64, b_code);
+                assert_eq!(Ok(vec![proof]), find);
             }
 
             #[test]
@@ -2418,15 +2587,16 @@ mod tests_of_units {
                 let entry = &Entry(proof.as_str());
 
                 let key = &Entry("athletics");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
+                assert_eq!(Ok(vec![proof]), find);
                 assert_eq!(132, b_code);
-                assert_eq!(Ok(proof), find);
             }
 
             #[test]
@@ -2435,15 +2605,16 @@ mod tests_of_units {
                 let entry = &Entry(proof.as_str());
 
                 let key = &Entry("carboniferous");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
+                assert_eq!(Ok(vec![proof]), find);
                 assert_eq!(132, b_code);
-                assert_eq!(Ok(proof), find);
             }
 
             #[test]
@@ -2452,16 +2623,17 @@ mod tests_of_units {
                 let entry = &Entry(proof.as_str());
 
                 let key = &Entry("athletics");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
                 _ = poetrie.it(key);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
-                assert_eq!(642, b_code);
-                assert_eq!(Ok(proof), find);
+                assert_eq!(Ok(vec![proof]), find);
+                assert_eq!(258, b_code);
             }
 
             #[test]
@@ -2470,16 +2642,17 @@ mod tests_of_units {
                 let entry = &Entry(proof.as_str());
 
                 let key = &Entry("carboniferous");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
                 _ = poetrie.it(key);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
-                assert_eq!(642, b_code);
-                assert_eq!(Ok(proof), find);
+                assert_eq!(Ok(vec![proof]), find);
+                assert_eq!(258, b_code);
             }
 
             #[test]
@@ -2488,16 +2661,17 @@ mod tests_of_units {
                 let entry = &Entry(proof.as_str());
 
                 let key = &Entry("A-lyrics");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
                 _ = poetrie.it(key);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
-                assert_eq!(642, b_code);
-                assert_eq!(Ok(proof), find);
+                assert_eq!(Ok(vec![proof]), find);
+                assert_eq!(258, b_code);
             }
 
             #[test]
@@ -2506,15 +2680,16 @@ mod tests_of_units {
                 let entry = &Entry(proof.as_str());
 
                 let key = &Entry("A-lyrics");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
+                assert_eq!(Ok(vec![proof]), find);
                 assert_eq!(132, b_code);
-                assert_eq!(Ok(proof), find);
             }
 
             #[test]
@@ -2526,6 +2701,7 @@ mod tests_of_units {
                 let entry_2 = &Entry(proof_2.as_str());
 
                 let key = &Entry("athletics");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry_1);
@@ -2534,11 +2710,17 @@ mod tests_of_units {
                 _ = poetrie.it(key);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
-                assert_eq!(642, b_code);
+                assert_eq!(true, find.is_ok());
+                let res = find.unwrap();
 
-                let equal = Ok(proof_1) == find || Ok(proof_2) == find;
+                assert_eq!(1, res.len());
+                let find = &res[0];
+
+                assert_eq!(258, b_code);
+
+                let equal = &proof_1 == find || &proof_2 == find;
 
                 assert_eq!(true, equal);
             }
@@ -2552,6 +2734,7 @@ mod tests_of_units {
                 let entry_2 = &Entry(proof_2.as_str());
 
                 let key = &Entry("carboniferous");
+                let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry_1);
@@ -2560,122 +2743,55 @@ mod tests_of_units {
                 _ = poetrie.it(key);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
+                let find = poetrie.find(key, &mc, &mut b_code);
 
-                assert_eq!(642, b_code);
+                assert_eq!(true, find.is_ok());
+                let res = find.unwrap();
 
-                let equal = Ok(proof_1) == find || Ok(proof_2) == find;
+                assert_eq!(1, res.len());
+                let find = &res[0];
+
+                assert_eq!(258, b_code);
+
+                let equal = &proof_1 == find || &proof_2 == find;
 
                 assert_eq!(true, equal);
             }
 
             #[test]
-            fn prefer_suffix_entry_when_longer_share_1() {
-                // branching entry
-                let bra_ent = RevEntry::new("documentarian");
-                let suf_ent = RevEntry::new("documental");
-                let proof = suf_ent.0.clone();
-
-                let key = RevEntry::new("documentalist");
-                let key = &key.entry();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&suf_ent.entry());
-                _ = poetrie.it(&bra_ent.entry());
-
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
-
-                assert_eq!(264, b_code);
-                assert_eq!(Ok(proof), find);
-            }
-
-            #[test]
-            fn prefer_suffix_entry_when_longer_share_2() {
-                // branching entry
-                let bra_ent = RevEntry::new("documentarian");
-                let suf_ent = RevEntry::new("documental");
-                let proof = suf_ent.0.clone();
-
-                let key = RevEntry::new("documentalist");
-                let key = &key.entry();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&suf_ent.entry());
-                _ = poetrie.it(&bra_ent.entry());
-                _ = poetrie.it(key);
-
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
-
-                assert_eq!(258, b_code);
-                assert_eq!(Ok(proof), find);
-            }
-
-            #[test]
-            fn prefer_branching_entry_when_at_least_same_share_1() {
-                let bra_ent = RevEntry::new("documented");
-                let proof = bra_ent.0.clone();
-
-                // suffix entry
-                let suf_ent = RevEntry::new("document");
-
-                let key = RevEntry::new("documentalist");
-                let key = &key.entry();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&suf_ent.entry());
-                _ = poetrie.it(&bra_ent.entry());
-
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
-
-                assert_eq!(132, b_code);
-                assert_eq!(Ok(proof), find);
-            }
-
-            #[test]
-            fn prefer_branching_entry_when_at_least_same_share_2() {
-                let bra_ent = RevEntry::new("documented");
-                let proof = bra_ent.0.clone();
-
-                // suffix entry
-                let suf_ent = RevEntry::new("document");
-
-                let key = RevEntry::new("documentalist");
-                let key = &key.entry();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&suf_ent.entry());
-                _ = poetrie.it(&bra_ent.entry());
-                _ = poetrie.it(key);
-
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mut b_code);
-
-                assert_eq!(642, b_code);
-                assert_eq!(Ok(proof), find);
-            }
-
-            #[test]
             fn case_ignoring() {
-                let subentry = RevEntry::new("DoCuMeNt");
-                let entry = RevEntry::new("DoCuMeNtAlIsT");
-                let proof = "dOcUmEnTaLIsT".chars().rev().collect();
+                let subentry = "DoCuMeNt";
+                let entry = "DoCuMeNtAlIsT";
 
-                let key = RevEntry::new("dOcUmEnTaL");
+                let key = "dOcUmEnTaL";
+
+                let proof1 = key[..subentry.len()].to_string();
+                let proof2 = format!("{}{}", key, &entry[key.len()..]);
+
+                let subentry = RevEntry::new(subentry);
+                let entry = RevEntry::new(entry);
+
+                let key = RevEntry::new(key);
+                let mut mc = MatchConduct::default();
+                mc.max_n = 2;
+                mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&subentry.entry());
                 _ = poetrie.it(&entry.entry());
 
                 let mut b_code = 0;
-                let find = poetrie.find(&key.entry(), &mut b_code);
+                let find = poetrie.find(&key.entry(), &mc, &mut b_code);
+
+                let proof1 = RevEntry::new(proof1.as_str());
+                let proof2 = RevEntry::new(proof2.as_str());
+
+                assert_eq!(Ok(vec![proof1.0, proof2.0]), find);
 
                 assert_eq!(130, b_code);
-                assert_eq!(Ok(proof), find);
             }
 
+            use crate::Find;
             #[test]
             fn load() {
                 let mut poetrie = Poetrie::nw();
@@ -2699,45 +2815,57 @@ mod tests_of_units {
 
                 let key = Entry("musics");
                 let proof = String::from("physics");
-                assert(Ok(proof), 132, key, &poetrie);
+                assert(Ok(vec![proof]), 132, key, &poetrie, 1);
 
                 let key = Entry("athletics");
                 let proof = String::from("aesthetics");
-                assert(Ok(proof), 642, key, &poetrie);
+                assert(Ok(vec![proof]), 258, key, &poetrie, 1);
 
                 let key = Entry("aesthetics");
                 let proof = String::from("athletics");
-                assert(Ok(proof), 642, key, &poetrie);
+                assert(Ok(vec![proof]), 258, key, &poetrie, 1);
 
                 let key = Entry("epicalyx");
-                assert(Err(FindErr::NoJointSuffix), 0, key, &poetrie);
+                assert(Err(FindErr::NoJointSuffix), 4, key, &poetrie, 1);
 
                 let key = RevEntry::new("documental");
-                let proof = RevEntry::new("documentalist").0;
-                assert(Ok(proof), 130, key.entry(), &poetrie);
+                let proof1 = RevEntry::new("document").0;
+                let proof2 = RevEntry::new("documentalist").0;
+                assert(Ok(vec![proof1, proof2]), 130, key.entry(), &poetrie, 2);
 
                 let key = RevEntry::new("documentalist");
                 let proof = RevEntry::new("document").0;
-                assert(Ok(proof), 34, key.entry(), &poetrie);
+                assert(Ok(vec![proof]), 34, key.entry(), &poetrie, 2);
 
                 let key = RevEntry::new("quadriceps");
                 let proof = String::from("q");
-                assert(Ok(proof), 40, key.entry(), &poetrie);
+                assert(Ok(vec![proof]), 64, key.entry(), &poetrie, 1);
 
                 let key = Entry("q");
-                assert(Err(FindErr::OnlyKeyMatches), 18, key, &poetrie);
+                assert(Err(FindErr::OnlyKeyMatches), 18, key, &poetrie, 1);
 
                 let key = Entry("epically");
-                assert(Err(FindErr::OnlyKeyMatches), 18, key, &poetrie);
+                assert(Err(FindErr::OnlyKeyMatches), 18, key, &poetrie, 1);
 
                 fn assert(
-                    res: Result<String, FindErr>,
+                    res: Result<Find, FindErr>,
                     code: usize,
                     key: crate::Key,
                     poetrie: &Poetrie,
+                    n: usize,
                 ) {
+                    let mut mc = MatchConduct::default();
+                    mc.max_n = n;
+                    mc.sub_e = true;
+
                     let mut b_code = 0;
-                    assert_eq!(res, poetrie.find(&key, &mut b_code));
+                    assert_eq!(
+                        res,
+                        poetrie.find(&key, &mc, &mut b_code),
+                        "c: {}, bc: {}",
+                        code,
+                        b_code
+                    );
                     assert_eq!(code, b_code);
 
                     poetrie.buf.get_mut().clear();
@@ -2946,7 +3074,7 @@ mod tests_of_units {
     }
 
     mod readme {
-        use crate::{Entry, FindErr, Poetrie};
+        use crate::{Entry, FindErr, MatchConduct, Poetrie};
 
         #[test]
         fn sample1() {
@@ -2957,12 +3085,15 @@ mod tests_of_units {
                 poetrie.it(&w);
             }
 
+            let mc = MatchConduct::default();
+
             let probe = Entry::new_from_str("lyrics").unwrap();
-            let matchee = poetrie.sx(&probe);
-            assert_eq!(Ok(String::from("metrics")), matchee);
+
+            let matchee = poetrie.sx(&probe, &mc);
+            assert_eq!(Ok(vec![String::from("metrics")]), matchee);
 
             let probe = Entry::new_from_str("solemn").unwrap();
-            assert_eq!(Err(FindErr::NoJointSuffix), poetrie.sx(&probe));
+            assert_eq!(Err(FindErr::NoJointSuffix), poetrie.sx(&probe, &mc));
         }
 
         #[test]
@@ -2974,8 +3105,10 @@ mod tests_of_units {
             }
 
             let probe = Entry::new_from_str("ynx").unwrap();
-            let matchee = poetrie.sx(&probe);
-            assert_eq!(Ok(String::from("lynx")), matchee);
+            let mc = MatchConduct::default();
+            let matchee = poetrie.sx(&probe, &mc);
+
+            assert_eq!(Ok(vec![String::from("lynx")]), matchee);
         }
     }
 }
