@@ -1639,7 +1639,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn suffix_min_greater_its_max() {
+            fn suffix_min_greater_max() {
                 let mut mc = MatchConduct::default();
                 mc.min_sl = 1;
                 mc.max_sl = 0;
@@ -1659,7 +1659,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn length_min_greater_its_max() {
+            fn length_min_greater_max() {
                 let mut mc = MatchConduct::default();
                 mc.min_ml = 1;
                 mc.max_ml = 0;
@@ -1716,8 +1716,9 @@ mod tests_of_units {
         #[test]
         fn max_l() {
             let vals = [(100, 101), (101, 100)];
+
+            let mut mc = MatchConduct::default();
             for v in vals {
-                let mut mc = MatchConduct::default();
                 mc.max_sl = v.0;
                 mc.max_ml = v.1;
 
@@ -1727,7 +1728,7 @@ mod tests_of_units {
     }
 
     mod with_match_conduct {
-        use crate::{MatchConduct, MatchConductWith};
+        use crate::{MatchConduct, MatchConductWith, mc_defaults};
 
         #[test]
         fn basic_test() {
@@ -1751,6 +1752,7 @@ mod tests_of_units {
                 sub_e: true,
             };
 
+            assert_ne!(mc_defaults::SUB_E, proof.sub_e);
             assert_eq!(Ok(proof), test);
         }
 
