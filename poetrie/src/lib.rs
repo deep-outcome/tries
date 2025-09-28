@@ -631,10 +631,11 @@ impl Poetrie {
         let mut chars = key.chars();
         // track key as much as possible first
         'track: loop {
-            // consider removal!
             buf_l = buff.len();
 
             if buf_l > max_l {
+                #[cfg(test)]
+                set_bcode(1024, b_code);
                 break;
             }
 
@@ -925,21 +926,21 @@ mod tests_of_units {
     mod rev_entry {
         use crate::Entry;
 
+        pub fn rev(s: &str) -> String {
+            s.chars().rev().collect()
+        }
+
         #[derive(PartialEq, Debug)]
         pub struct RevEntry(pub String);
 
         impl RevEntry {
             pub fn new(e: &str) -> Self {
-                let rev = Self::rev(e);
+                let rev = rev(e);
                 RevEntry(rev)
             }
 
             pub fn entry(&self) -> Entry {
                 Entry(self.0.as_str())
-            }
-
-            pub fn rev(s: &str) -> String {
-                s.chars().rev().collect()
             }
         }
 
@@ -952,7 +953,7 @@ mod tests_of_units {
         }
 
         mod tests_of_units {
-            use super::RevEntry;
+            use super::{RevEntry, rev};
             use crate::Entry;
 
             #[test]
@@ -970,16 +971,16 @@ mod tests_of_units {
             }
 
             #[test]
-            fn rev() {
+            fn _rev() {
                 let proof = String::from("abcd");
-                let test = RevEntry::rev("dcba");
+                let test = rev("dcba");
                 assert_eq!(proof, test);
             }
 
             #[test]
             fn deref() {
                 let proof = String::from("abcd");
-                let test = RevEntry::rev("dcba");
+                let test = rev("dcba");
                 assert_eq!(proof, *test);
             }
         }
@@ -1158,10 +1159,6 @@ mod tests_of_units {
     }
 
     mod extender {
-        use seg::*;
-        use std::collections::HashSet;
-
-        use crate::{Extender, Find, Node, tests_of_units::rev_entry::RevEntry};
 
         // segment
         mod seg {
@@ -1281,6 +1278,11 @@ mod tests_of_units {
             }
         }
 
+        use seg::*;
+        use std::collections::HashSet;
+
+        use crate::{Extender, Find, Node, tests_of_units::rev_entry::rev};
+
         fn basic_ext<'a>(b: &'a mut Vec<char>, f: &'a mut Find, n: usize) -> Extender<'a> {
             Extender {
                 b,
@@ -1304,13 +1306,42 @@ mod tests_of_units {
 
             assert_eq!(2, f.len());
 
-            let p = ["endorse", "endorsement"].map(|x| RevEntry::rev(x));
+            let p = ["endorse", "endorsement"].map(|x| rev(x));
             assert_eq!(p[0], f[0]);
             assert_eq!(p[1], f[1]);
         }
 
         #[test]
-        fn limit1() {
+        fn immediate_saturation() {
+            let mut f = Vec::new();
+            let mut b = Vec::new();
+
+            let mut n = Node::empty();
+            n.entry = true;
+
+            let mut extender = basic_ext(&mut b, &mut f, 1);
+
+            _ = extender.e(&n, 'o');
+
+            assert_eq!(1, f.len());
+            assert_eq!(String::from('o'), f[0]);
+            assert_eq!(vec!['o'], b);
+        }
+
+        #[test]
+        #[should_panic(expected = "Caller disobeys precondition.")]
+        fn invalid_buffer_length() {
+            let mut f = Vec::new();
+            let mut b = Vec::new();
+
+            let mut extender = basic_ext(&mut b, &mut f, usize::MAX);
+            extender.xl = 0;
+
+            _ = extender.e(&Node::empty(), 'o');
+        }
+
+        #[test]
+        fn match_limit_1() {
             let mut f = Vec::new();
             let mut b = "en".chars().collect();
 
@@ -1327,7 +1358,7 @@ mod tests_of_units {
             assert_eq!(2, f.len());
 
             let pb = "endorse";
-            let p = ["end", pb].map(|x| RevEntry::rev(x));
+            let p = ["end", pb].map(|x| rev(x));
             assert_eq!(p[0], f[0]);
             assert_eq!(p[1], f[1]);
 
@@ -1335,7 +1366,7 @@ mod tests_of_units {
         }
 
         #[test]
-        fn limit2() {
+        fn match_limit_2() {
             let outset = "en";
 
             let mut f = Vec::new();
@@ -1350,7 +1381,7 @@ mod tests_of_units {
             assert_eq!(false, lim);
 
             assert_eq!(2, f.len());
-            let p = ["end", "endorse"].map(|x| RevEntry::rev(x));
+            let p = ["end", "endorse"].map(|x| rev(x));
             assert_eq!(p[0], f[0]);
             assert_eq!(p[1], f[1]);
 
@@ -1358,7 +1389,7 @@ mod tests_of_units {
         }
 
         #[test]
-        fn lengths() {
+        fn length_limits() {
             let outset = "do";
 
             let mut f = Vec::new();
@@ -1381,7 +1412,7 @@ mod tests_of_units {
 
             let res = extender.e(&mut n, 'c');
             assert_eq!(false, res);
-            let mut proof = vec![RevEntry::rev("documental"), RevEntry::rev("documentable")];
+            let mut proof = vec![rev("documental"), rev("documentable")];
             proof.sort();
             f.sort();
             assert_eq!(proof, f);
@@ -1412,7 +1443,7 @@ mod tests_of_units {
                 "serotonergic",
                 "serotonin",
             ]
-            .map(|x| RevEntry::rev(x))
+            .map(|x| rev(x))
             .into_iter()
             .collect::<HashSet<String>>();
 
@@ -1420,7 +1451,7 @@ mod tests_of_units {
         }
 
         #[test]
-        fn load_bearing1() {
+        fn load_bearing_1() {
             let mut f = Vec::new();
             let mut b = "ser".chars().collect();
 
@@ -1436,7 +1467,7 @@ mod tests_of_units {
         }
 
         #[test]
-        fn load_bearing2() {
+        fn load_bearing_2() {
             let mut f = Vec::new();
             let mut b = "ser".chars().collect();
 
@@ -1446,12 +1477,11 @@ mod tests_of_units {
             let serotonergic_len = "serotonergic".len();
 
             let p = p
-                .iter()
+                .into_iter()
                 .filter(|x| {
                     let l = x.len();
                     serotiny_len < l && l < serotonergic_len
                 })
-                .map(|x| x.clone())
                 .collect::<HashSet<String>>();
 
             let mut extender = Extender {
@@ -1473,13 +1503,12 @@ mod tests_of_units {
     }
 
     mod push_match {
-        use super::rev_entry::RevEntry;
         use crate::push_match;
 
         #[test]
-        fn limit_hit1() {
+        fn limit_hit_1() {
             let proof = "poetship";
-            let cs = RevEntry::rev(proof).chars().collect::<Vec<char>>();
+            let cs = proof.chars().rev().collect::<Vec<char>>();
             let mut f = Vec::new();
 
             let lim = push_match(&cs, &mut f, 2);
@@ -1489,9 +1518,9 @@ mod tests_of_units {
         }
 
         #[test]
-        fn limit_hit2() {
+        fn limit_hit_2() {
             let proof = "poet-cruiser";
-            let cs = RevEntry::rev(proof).chars().collect::<Vec<char>>();
+            let cs = proof.chars().rev().collect::<Vec<char>>();
             let mut f = Vec::new();
             f.push(String::with_capacity(0));
 
@@ -2286,7 +2315,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn key_matches_itself_only1() {
+            fn key_matches_itself_only_1() {
                 let itself = &Entry("lyrics");
                 let mc = MatchConduct::default();
 
@@ -2301,7 +2330,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn key_matches_itself_only2() {
+            fn key_matches_itself_only_2() {
                 let entry = &Entry("lyRics");
                 let key = &Entry("lyrics");
                 let mc = MatchConduct::default();
@@ -2318,7 +2347,7 @@ mod tests_of_units {
 
             #[test]
             // different casing is eventually considered to be different word
-            fn key_matches_itself_only3() {
+            fn key_matches_itself_only_3() {
                 let proof = String::from("lyRics");
                 let entry = &Entry(proof.as_str());
                 let key = &Entry("lyrics");
@@ -2380,7 +2409,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn only_subentry_is_possible1() {
+            fn only_subentry_is_possible_1() {
                 let subentry = RevEntry::new("document");
                 let entry = RevEntry::new("documental");
 
@@ -2404,7 +2433,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn only_subentry_is_possible2() {
+            fn only_subentry_is_possible_2() {
                 let proof = String::from("m");
                 let subentry = Entry(proof.as_str());
 
@@ -2424,7 +2453,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn only_subentry_is_possible3() {
+            fn only_subentry_is_possible_3() {
                 let proof = String::from("Xconundrum");
                 let entry = Entry(proof.as_str());
 
@@ -2444,7 +2473,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn only_subsuffix_is_possible1() {
+            fn only_subsuffix_is_possible_1() {
                 let subentry = RevEntry::new("document");
                 let entry = RevEntry::new("documental");
 
@@ -2466,7 +2495,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn only_subsuffix_is_possible2() {
+            fn only_subsuffix_is_possible_2() {
                 let proof = String::from("m");
                 let entry = Entry(proof.as_str());
 
@@ -2485,7 +2514,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn only_subsuffix_is_possible3() {
+            fn only_subsuffix_is_possible_3() {
                 let proof = String::from("Xconundrum");
                 let entry = Entry(proof.as_str());
 
@@ -2934,7 +2963,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn unknown_not_path2() {
+            fn unknown_not_path_2() {
                 let entry = RevEntry::new("wordbookz");
                 let bad_entry = RevEntry::new("wordbooks");
 
@@ -3077,7 +3106,7 @@ mod tests_of_units {
         use crate::{Entry, FindErr, MatchConduct, Poetrie};
 
         #[test]
-        fn sample1() {
+        fn sample_1() {
             let mut poetrie = Poetrie::nw();
             let words = ["analytics", "metrics", "ethics", "Acoustics"]
                 .map(|x| Entry::new_from_str(x).unwrap());
@@ -3097,7 +3126,7 @@ mod tests_of_units {
         }
 
         #[test]
-        fn sample2() {
+        fn sample_2() {
             let mut poetrie = Poetrie::nw();
             let words = ["lynx", "index"].map(|x| Entry::new_from_str(x).unwrap());
             for w in words {
