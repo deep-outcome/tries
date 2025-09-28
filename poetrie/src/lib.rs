@@ -441,7 +441,7 @@ impl Poetrie {
     /// Use to find entries with shared suffix to key.
     ///
     /// Generally, suffix match length is emphasized, entries are ordered
-    /// from that with longest suffix match to shortest suffix match.
+    /// from that with longest suffix match to those with shortest suffix match.
     /// With exception for sub-entries which are ordered very first, at list beginning.
     ///
     /// Sub-entries are entries which are suffix to picked key, e.g. for _commode_
@@ -1963,10 +1963,22 @@ mod tests_of_units {
                 _ = poetrie.it(&key_entry);
 
                 let mc = MatchConduct::default();
-                let res = poetrie.sx(&key_entry, &mc);
-                assert_eq!(Err(FindErr::OnlyKeyMatches), res);
+                _ = poetrie.sx(&key_entry, &mc);
                 assert_eq!(0, poetrie.buf.len());
-                assert_eq!(true, poetrie.buf.capacity() > 0);
+            }
+
+            #[test]
+            fn disjunct_conduct() {
+                let mut poetrie = Poetrie::nw();
+                let entry = Entry("quadriliteral");
+                _ = poetrie.it(&entry);
+
+                let mut mc = MatchConduct::default();
+                mc.min_ml = usize::MAX;
+
+                let key = Entry("semiliteral");
+                let res = poetrie.sx(&key, &mc);
+                assert_eq!(Err(FindErr::DisjunctConduct), res);
             }
         }
 
