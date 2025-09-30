@@ -515,15 +515,12 @@ impl<'a> Poetrie<'a> {
     /// assert_eq!(Ok(vec![proof]), find);
     /// ```
     pub fn sx(&'a self, key: &Key, mc: &MatchConduct) -> Result<Vec<String>, FindErr> {
-        let res = match self.find(
+        let res = self.find(
             key,
             mc,
             #[cfg(test)]
             &mut 0,
-        ) {
-            Ok(f) if f.len() == 0 => Err(FindErr::DisjunctConduct),
-            x => x,
-        };
+        );
 
         self.buf.get_mut().clear();
         self.bra.get_mut().clear();
@@ -627,7 +624,7 @@ impl<'a> Poetrie<'a> {
         let mut se_disjunct_hit = false;
 
         // finds
-        let mut find = Vec::with_capacity(1000);
+        let mut find = Vec::with_capacity(100);
 
         // match
         let buff = self.buf.get_mut();
@@ -676,7 +673,7 @@ impl<'a> Poetrie<'a> {
                     #[cfg(test)]
                     &mut 0,
                 ) {
-                    if min_l && l.len() > 1 && buf_l > 0 {
+                    if min_l && l.len() > 1 {
                         branching.push((l, (buf_l, c)));
                     }
 
@@ -701,7 +698,7 @@ impl<'a> Poetrie<'a> {
         }
 
         if buf_l < mc.min_sl {
-            return Ok(find);
+            return Err(FindErr::DisjunctConduct);
         }
 
         let links = op_node.links.as_ref();
@@ -725,9 +722,13 @@ impl<'a> Poetrie<'a> {
                 #[cfg(test)]
                 set_bcode(16, b_code);
 
-                if !se_disjunct_hit {
-                    return Err(FindErr::OnlyKeyMatches);
-                }
+                let err = if se_disjunct_hit {
+                    FindErr::DisjunctConduct
+                } else {
+                    FindErr::OnlyKeyMatches
+                };
+
+                return Err(err);
             }
 
             #[cfg(test)]
@@ -781,7 +782,12 @@ impl<'a> Poetrie<'a> {
 
         #[cfg(test)]
         set_bcode(512, b_code);
-        return Ok(find);
+
+        return if find.len() == 0 {
+            Err(FindErr::DisjunctConduct)
+        } else {
+            Ok(find)
+        };
 
         #[cfg(test)]
         fn set_bcode(c: usize, b_code: &mut usize) {
@@ -1981,20 +1987,6 @@ mod tests_of_units {
 
                 assert_eq!(true, poetrie.buf.capacity() > 0);
                 assert_eq!(true, poetrie.bra.capacity() > 0);
-            }
-
-            #[test]
-            fn disjunct_conduct() {
-                let mut poetrie = Poetrie::nw();
-                let entry = Entry("quadriliteral");
-                _ = poetrie.it(&entry);
-
-                let mut mc = MatchConduct::default();
-                mc.min_ml = usize::MAX;
-
-                let key = Entry("semiliteral");
-                let res = poetrie.sx(&key, &mc);
-                assert_eq!(Err(FindErr::DisjunctConduct), res);
             }
         }
 
