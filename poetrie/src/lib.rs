@@ -11,6 +11,9 @@ use uc::UC;
 
 type Links = HashMap<char, Node>;
 type Find = Vec<String>;
+type WordBuf = Vec<char>;
+// branching information
+type BraInf<'a> = Vec<(&'a HashMap<char, Node>, (usize, char))>;
 
 fn get_node<'a>(l: &'a Links, c: &char, #[cfg(test)] ecode: &mut usize) -> Option<&'a Node> {
     let g = l.get(c);
@@ -58,7 +61,7 @@ fn get_node<'a>(l: &'a Links, c: &char, #[cfg(test)] ecode: &mut usize) -> Optio
     }
 }
 
-fn extract(l: &Links, buff: &mut Vec<char>, o: &mut Vec<String>) {
+fn extract(l: &Links, buff: &mut WordBuf, o: &mut Vec<String>) {
     for (k, n) in l.iter() {
         buff.push(*k);
 
@@ -76,7 +79,7 @@ fn extract(l: &Links, buff: &mut Vec<char>, o: &mut Vec<String>) {
 }
 
 struct Extender<'a> {
-    b: &'a mut Vec<char>,
+    b: &'a mut WordBuf,
     f: &'a mut Find,
     n: usize,
     // max length
@@ -385,24 +388,27 @@ impl MatchConductWith {
 ///
 /// Inputs are validated only for 0 length thus is up to consumer code
 /// to allow population with sensible values only.
-pub struct Poetrie {
+pub struct Poetrie<'a> {
     root: Node,
     // backtrace buff
     btr: UC<Vec<(char, *mut Node)>>,
     // sufix-word buffer
-    buf: UC<Vec<char>>,
+    buf: UC<WordBuf>,
+    // branching information
+    bra: UC<BraInf<'a>>,
     // entries count
     cnt: usize,
 }
 
 const NULL: char = '\0';
-impl Poetrie {
+impl<'a> Poetrie<'a> {
     /// Use for `Poetrie` construction.
-    pub const fn nw() -> Poetrie {
+    pub const fn nw() -> Poetrie<'a> {
         Poetrie {
             root: Node::empty(),
             btr: UC::new(Vec::new()),
             buf: UC::new(Vec::new()),
+            bra: UC::new(Vec::new()),
             cnt: 0,
         }
     }
@@ -508,7 +514,7 @@ impl Poetrie {
     /// let proof = String::from("ForeNooN");
     /// assert_eq!(Ok(vec![proof]), find);
     /// ```
-    pub fn sx(&self, key: &Key, mc: &MatchConduct) -> Result<Vec<String>, FindErr> {
+    pub fn sx(&'a self, key: &Key, mc: &MatchConduct) -> Result<Vec<String>, FindErr> {
         let res = match self.find(
             key,
             mc,
@@ -520,6 +526,7 @@ impl Poetrie {
         };
 
         self.buf.get_mut().clear();
+        self.bra.get_mut().clear();
 
         return res;
     }
@@ -599,7 +606,7 @@ impl Poetrie {
     }
 
     fn find(
-        &self,
+        &'a self,
         key: &Key,
         mc: &MatchConduct,
         #[cfg(test)] b_code: &mut usize,
@@ -616,11 +623,11 @@ impl Poetrie {
         let sub_entries = mc.sub_e;
 
         // closest branch information
-        let mut branching = Vec::with_capacity(50);
+        let branching = self.bra.get_mut();
         let mut se_disjunct_hit = false;
 
         // finds
-        let mut find = Vec::with_capacity(100);
+        let mut find = Vec::with_capacity(1000);
 
         // match
         let buff = self.buf.get_mut();
@@ -1281,9 +1288,9 @@ mod tests_of_units {
         use seg::*;
         use std::collections::HashSet;
 
-        use crate::{Extender, Find, Node, tests_of_units::rev_entry::rev};
+        use crate::{Extender, Find, Node, WordBuf, tests_of_units::rev_entry::rev};
 
-        fn basic_ext<'a>(b: &'a mut Vec<char>, f: &'a mut Find, n: usize) -> Extender<'a> {
+        fn basic_ext<'a>(b: &'a mut WordBuf, f: &'a mut Find, n: usize) -> Extender<'a> {
             Extender {
                 b,
                 f,
@@ -1296,7 +1303,7 @@ mod tests_of_units {
         #[test]
         fn basic_test() {
             let mut f = Vec::new();
-            let mut b: Vec<char> = "end".chars().collect();
+            let mut b: WordBuf = "end".chars().collect();
 
             let mut n = Node::empty();
             add_linked(&mut n, &["rse", "ment"]);
@@ -1503,12 +1510,12 @@ mod tests_of_units {
     }
 
     mod push_match {
-        use crate::push_match;
+        use crate::{WordBuf, push_match};
 
         #[test]
         fn limit_hit_1() {
             let proof = "poetship";
-            let cs = proof.chars().rev().collect::<Vec<char>>();
+            let cs = proof.chars().rev().collect::<WordBuf>();
             let mut f = Vec::new();
 
             let lim = push_match(&cs, &mut f, 2);
@@ -1520,7 +1527,7 @@ mod tests_of_units {
         #[test]
         fn limit_hit_2() {
             let proof = "poet-cruiser";
-            let cs = proof.chars().rev().collect::<Vec<char>>();
+            let cs = proof.chars().rev().collect::<WordBuf>();
             let mut f = Vec::new();
             f.push(String::with_capacity(0));
 
@@ -1956,15 +1963,24 @@ mod tests_of_units {
             }
 
             #[test]
-            fn buf_clearing() {
+            fn stores_clearing() {
                 let mut poetrie = Poetrie::nw();
 
+                let entry = Entry("semiliteral");
                 let key_entry = Entry("quadriliteral");
+                _ = poetrie.it(&entry);
                 _ = poetrie.it(&key_entry);
+
+                assert_eq!(0, poetrie.buf.capacity());
+                assert_eq!(0, poetrie.bra.capacity());
 
                 let mc = MatchConduct::default();
                 _ = poetrie.sx(&key_entry, &mc);
                 assert_eq!(0, poetrie.buf.len());
+                assert_eq!(0, poetrie.bra.len());
+
+                assert_eq!(true, poetrie.buf.capacity() > 0);
+                assert_eq!(true, poetrie.bra.capacity() > 0);
             }
 
             #[test]
@@ -2890,11 +2906,11 @@ mod tests_of_units {
                 let key = Entry("epically");
                 assert(Err(FindErr::OnlyKeyMatches), 18, key, &poetrie, 1);
 
-                fn assert(
+                fn assert<'a>(
                     res: Result<Find, FindErr>,
                     code: usize,
                     key: crate::Key,
-                    poetrie: &Poetrie,
+                    poetrie: &'a Poetrie<'a>,
                     n: usize,
                 ) {
                     let mut mc = MatchConduct::default();
@@ -2912,6 +2928,7 @@ mod tests_of_units {
                     assert_eq!(code, b_code);
 
                     poetrie.buf.get_mut().clear();
+                    poetrie.bra.get_mut().clear();
                 }
             }
         }
