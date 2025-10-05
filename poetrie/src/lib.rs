@@ -4,7 +4,7 @@
 
 #![allow(for_loops_over_fallibles)]
 
-use std::{cmp::min, collections::hash_map::HashMap, ops::Deref};
+use std::{cmp::min, collections::hash_map::HashMap, ops::Deref, ptr};
 
 mod uc;
 use uc::UC;
@@ -13,7 +13,7 @@ type Links = HashMap<char, Node>;
 type Find = Vec<String>;
 type WordBuf = Vec<char>;
 // branching information
-type BraInf<'a> = Vec<(&'a HashMap<char, Node>, (usize, char))>;
+type BraInf<'a> = Vec<(&'a HashMap<char, Node>, usize)>;
 
 fn get_node<'a>(l: &'a Links, c: &char, #[cfg(test)] ecode: &mut usize) -> Option<&'a Node> {
     let g = l.get(c);
@@ -615,12 +615,14 @@ impl<'a> Poetrie<'a> {
         }
 
         let max_n = mc.max_n;
+        let min_sl = mc.min_sl;
         let min_ml = mc.min_ml;
         let max_ml = mc.max_ml;
         let sub_entries = mc.sub_e;
 
         // closest branch information
         let branching = self.bra.get_mut();
+        let mut skip_n = ptr::null();
         let mut se_disjunct_hit = false;
 
         // finds
@@ -651,9 +653,8 @@ impl<'a> Poetrie<'a> {
                 break 'track;
             }
 
-            let min_l = min_ml <= buf_l;
             if op_node.entry {
-                if sub_entries && min_l {
+                if sub_entries && min_ml <= buf_l {
                     if push_match(buff, &mut find, max_n) {
                         #[cfg(test)]
                         set_bcode(64, b_code);
@@ -673,8 +674,9 @@ impl<'a> Poetrie<'a> {
                     #[cfg(test)]
                     &mut 0,
                 ) {
-                    if min_l && l.len() > 1 {
-                        branching.push((l, (buf_l, c)));
+                    if l.len() > 1  && min_sl <= buf_l {
+                        skip_n = n;
+                        branching.push((l, buf_l));
                     }
 
                     buff.push(c);
@@ -697,7 +699,7 @@ impl<'a> Poetrie<'a> {
             return Err(FindErr::NoJointSuffix);
         }
 
-        if buf_l < mc.min_sl {
+        if buf_l < min_sl {
             return Err(FindErr::DisjunctConduct);
         }
 
@@ -758,16 +760,17 @@ impl<'a> Poetrie<'a> {
         if can_branch {
             let mut b = branching.iter();
 
-            for (blinks, (blen, skip_c)) in b.next_back() {
+            for (blinks, blen) in b.next_back() {
                 let blen = *blen;
-                if blen >= max_ml {
+                if blen > max_ml {
                     continue;
                 }
 
                 extender.b.truncate(blen);
 
                 for (&c, node) in blinks.iter() {
-                    if c == *skip_c {
+                    if skip_n == node as *const Node {
+                        // happens only at topmost branching node
                         continue;
                     }
 
