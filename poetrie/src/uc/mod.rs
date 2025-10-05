@@ -1,4 +1,7 @@
-use std::{cell::UnsafeCell, ops::Deref};
+use std::{
+    cell::UnsafeCell,
+    ops::{Deref, DerefMut},
+};
 
 #[cfg(test)]
 impl<T> PartialEq for UC<T>
@@ -15,8 +18,7 @@ pub struct UC<T>(UnsafeCell<T>);
 
 impl<T> UC<T> {
     pub const fn get_ref(&self) -> &T {
-        let t = self.0.get();
-        unsafe { t.as_mut().unwrap_unchecked() }
+        self.get_mut()
     }
 
     pub const fn get_mut(&self) -> &mut T {
@@ -37,9 +39,15 @@ impl<T> Deref for UC<T> {
     }
 }
 
+impl<T> DerefMut for UC<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        self.0.get_mut()
+    }
+}
+
 #[cfg(test)]
 mod tests_of_units {
-    use std::ops::Deref;
+    use std::ops::{Deref, DerefMut};
 
     use crate::UC;
 
@@ -90,6 +98,14 @@ mod tests_of_units {
     fn deref() {
         let uc = UC::new(11);
         assert_eq!(uc.get_ref(), uc.deref());
+    }
+
+    #[test]
+    fn deref_mut() {
+        let mut uc = UC::new(11);
+
+        let proof = uc.get_ref() as *const i32;
+        assert_eq!(proof, uc.deref_mut() as *const i32);
     }
 }
 

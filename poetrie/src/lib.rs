@@ -13,7 +13,7 @@ type Links = HashMap<char, Node>;
 type Find = Vec<String>;
 type WordBuf = Vec<char>;
 // branching information
-type BraInf<'a> = Vec<(&'a HashMap<char, Node>, usize)>;
+type BraInf = Vec<(*const HashMap<char, Node>, usize)>;
 
 fn get_node<'a>(l: &'a Links, c: &char, #[cfg(test)] ecode: &mut usize) -> Option<&'a Node> {
     let g = l.get(c);
@@ -388,22 +388,22 @@ impl MatchConductWith {
 ///
 /// Inputs are validated only for 0 length thus is up to consumer code
 /// to allow population with sensible values only.
-pub struct Poetrie<'a> {
+pub struct Poetrie {
     root: Node,
     // backtrace buff
     btr: UC<Vec<(char, *mut Node)>>,
     // sufix-word buffer
     buf: UC<WordBuf>,
     // branching information
-    bra: UC<BraInf<'a>>,
+    bra: UC<BraInf>,
     // entries count
     cnt: usize,
 }
 
 const NULL: char = '\0';
-impl<'a> Poetrie<'a> {
+impl Poetrie {
     /// Use for `Poetrie` construction.
-    pub const fn nw() -> Poetrie<'a> {
+    pub const fn nw() -> Poetrie {
         Poetrie {
             root: Node::empty(),
             btr: UC::new(Vec::new()),
@@ -514,7 +514,7 @@ impl<'a> Poetrie<'a> {
     /// let proof = String::from("ForeNooN");
     /// assert_eq!(Ok(vec![proof]), find);
     /// ```
-    pub fn sx(&'a self, key: &Key, mc: &MatchConduct) -> Result<Vec<String>, FindErr> {
+    pub fn sx(&self, key: &Key, mc: &MatchConduct) -> Result<Vec<String>, FindErr> {
         let res = self.find(
             key,
             mc,
@@ -522,10 +522,14 @@ impl<'a> Poetrie<'a> {
             &mut 0,
         );
 
-        self.buf.get_mut().clear();
-        self.bra.get_mut().clear();
+        self.clr_f_buffs();
 
         return res;
+    }
+
+    fn clr_f_buffs(&self) {
+        self.bra.get_mut().clear();
+        self.buf.get_mut().clear();
     }
 
     /// Use to remove entry from tree.
@@ -603,7 +607,7 @@ impl<'a> Poetrie<'a> {
     }
 
     fn find(
-        &'a self,
+        &self,
         key: &Key,
         mc: &MatchConduct,
         #[cfg(test)] b_code: &mut usize,
@@ -674,7 +678,7 @@ impl<'a> Poetrie<'a> {
                     #[cfg(test)]
                     &mut 0,
                 ) {
-                    if l.len() > 1  && min_sl <= buf_l {
+                    if l.len() > 1 && min_sl <= buf_l {
                         skip_n = n;
                         branching.push((l, buf_l));
                     }
@@ -767,6 +771,8 @@ impl<'a> Poetrie<'a> {
                 }
 
                 extender.b.truncate(blen);
+
+                let blinks = unsafe { blinks.as_ref().unwrap_unchecked() };
 
                 for (&c, node) in blinks.iter() {
                     if skip_n == node as *const Node {
@@ -892,6 +898,7 @@ pub enum FindErr {
     DisjunctConduct,
 }
 
+#[cfg_attr(test, derive(PartialEq))]
 struct Node {
     links: Option<Links>,
     entry: bool,
@@ -911,13 +918,6 @@ impl Node {
 
     const fn to_mut_ptr(&self) -> *mut Self {
         (self as *const Self).cast_mut()
-    }
-}
-
-#[cfg(test)]
-impl PartialEq for Node {
-    fn eq(&self, other: &Self) -> bool {
-        self as *const Self == other as *const Self
     }
 }
 
@@ -1789,24 +1789,23 @@ mod tests_of_units {
     }
 
     mod poetrie {
-        use crate::Poetrie;
+        use crate::{Node, Poetrie};
 
         #[test]
         fn nw() {
             let poetrie = Poetrie::nw();
 
-            let root = poetrie.root;
-            assert_eq!(false, root.entry);
-            assert_eq!(None, root.links);
+            assert_eq!(Node::empty(), poetrie.root);
             assert_eq!(0, poetrie.cnt);
 
-            let btr = poetrie.btr;
-            assert_eq!(0, btr.len());
-            assert_eq!(0, btr.capacity());
+            test(&poetrie.btr);
+            test(&poetrie.buf);
+            test(&poetrie.bra);
 
-            let buf = poetrie.buf;
-            assert_eq!(0, buf.len());
-            assert_eq!(0, buf.capacity());
+            fn test<T>(buf: &Vec<T>) {
+                assert_eq!(0, buf.len());
+                assert_eq!(0, buf.capacity());
+            }
         }
 
         mod it {
@@ -1993,6 +1992,27 @@ mod tests_of_units {
             }
         }
 
+        use core::ptr;
+
+        #[test]
+        fn clr_f_buffers() {
+            let poetrie = Poetrie::nw();
+
+            let bra = poetrie.bra.get_mut();
+            let buf = poetrie.buf.get_mut();
+
+            bra.push((ptr::null(), 0));
+            buf.push('\0');
+
+            poetrie.clr_f_buffs();
+
+            assert_eq!(0, bra.len());
+            assert_eq!(0, buf.len());
+
+            assert_eq!(true, 0 < bra.capacity());
+            assert_eq!(true, 0 < buf.capacity());
+        }
+
         mod re {
             use crate::{Entry, Poetrie};
 
@@ -2173,7 +2193,7 @@ mod tests_of_units {
 
         mod find {
             use crate::{
-                Entry, FindErr, MatchConduct, Poetrie, mc_defaults,
+                Entry, FindErr, MatchConduct, Poetrie, mc_defaults::MAX_ML,
                 tests_of_units::rev_entry::RevEntry,
             };
 
@@ -2188,10 +2208,12 @@ mod tests_of_units {
                 }
 
                 let k = &Entry("lyrics");
-                let mc = MatchConduct::new(Some(usize::MAX), None, None, None, None, None).unwrap();
+                let mut mc = MatchConduct::default();
+                mc.max_n = usize::MAX;
+
                 let f = poetrie.find(k, &mc, &mut 0).ok().unwrap();
 
-                assert_eq!(2, f.len());
+                assert_eq!(p.len(), f.len());
                 for p in p {
                     assert_eq!(true, p == f[0] || p == f[1]);
                 }
