@@ -2443,47 +2443,60 @@ mod tests_of_units {
             }
 
             #[test]
-            fn key_is_suffix_to_entry_1() {
-                let subentry = RevEntry::new("document");
-                let entry = RevEntry::new("documentalist");
+            fn key_with_subentry_is_suffix_to_entry_1() {
+                let se = RevEntry::new("document");
+                let e = RevEntry::new("documentalist");
+                let k = RevEntry::new("documental");
 
-                let key = RevEntry::new("documental");
                 let mut mc = MatchConduct::default();
-                mc.max_n = 2;
                 mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&subentry.entry());
-                _ = poetrie.it(&entry.entry());
+                _ = poetrie.it(&se.entry());
+                _ = poetrie.it(&e.entry());
 
-                let mut b_code = 0;
-                let find = poetrie.find(&key.entry(), &mc, &mut b_code);
+                let p = Ok(vec![se.0, e.0]);
+                for duo in [(2, 130), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
 
-                assert_eq!(Ok(vec![subentry.0, entry.0]), find);
-                assert_eq!(130, b_code);
+                    let mut b_code = 0;
+                    let f = poetrie.find(&k.entry(), &mc, &mut b_code);
+
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
-            fn key_is_suffix_to_entry_2() {
-                let subentry = RevEntry::new("document");
-                let entry = RevEntry::new("documentalist");
+            fn key_with_subentry_is_suffix_to_entry_2() {
+                let se = RevEntry::new("document");
+                let e = RevEntry::new("documentalist");
 
-                let key = RevEntry::new("documental");
-                let key = &key.entry();
+                let k = RevEntry::new("documental");
+                let k = &k.entry();
+
                 let mut mc = MatchConduct::default();
-                mc.max_n = 2;
                 mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&subentry.entry());
-                _ = poetrie.it(&entry.entry());
-                _ = poetrie.it(key);
+                _ = poetrie.it(&se.entry());
+                _ = poetrie.it(&e.entry());
+                _ = poetrie.it(k);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let p = Ok(vec![se.0, e.0]);
+                for duo in [(2, 130), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
 
-                assert_eq!(Ok(vec![subentry.0, entry.0]), find, "bc: {}", b_code);
-                assert_eq!(130, b_code);
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
