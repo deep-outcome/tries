@@ -2335,8 +2335,8 @@ mod tests_of_units {
 
                     poetrie.clr_f_buffs();
 
-                    assert_eq!(18, b_code);
                     assert_eq!(Err(FindErr::OnlyKeyMatches), f);
+                    assert_eq!(18, b_code);
                 }
             }
 
@@ -2357,34 +2357,39 @@ mod tests_of_units {
 
                     poetrie.clr_f_buffs();
 
-                    assert_eq!(18, b_code);
                     assert_eq!(Err(FindErr::OnlyKeyMatches), f);
+                    assert_eq!(18, b_code);
                 }
             }
 
             #[test]
             fn no_data() {
-                let key = &Entry("lyrics");
+                let k = &Entry("lyrics");
                 let mc = MatchConduct::default();
 
                 let poetrie = Poetrie::nw();
-                let find = poetrie.find(key, &mc, &mut 0);
 
-                assert_eq!(Err(FindErr::EmptyTree), find);
+                let mut b_code = 0;
+                let f = poetrie.find(k, &mc, &mut b_code);
+
+                assert_eq!(Err(FindErr::EmptyTree), f);
+                assert_eq!(0, b_code);
             }
 
             #[test]
             fn no_suffix_match() {
-                let entry = &Entry("epicalyx");
-                let key = &Entry("lyrics");
+                let e = &Entry("epicalyx");
+                let k = &Entry("lyrics");
                 let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
+                _ = poetrie.it(e);
 
-                let find = poetrie.find(key, &mc, &mut 0);
+                let mut b_code = 0;
+                let f = poetrie.find(k, &mc, &mut b_code);
 
-                assert_eq!(Err(FindErr::NoJointSuffix), find);
+                assert_eq!(Err(FindErr::NoJointSuffix), f);
+                assert_eq!(4, b_code);
             }
 
             #[test]
@@ -2396,44 +2401,44 @@ mod tests_of_units {
                 _ = poetrie.it(itself);
 
                 let mut b_code = 0;
-                let find = poetrie.find(itself, &mc, &mut b_code);
+                let f = poetrie.find(itself, &mc, &mut b_code);
 
+                assert_eq!(Err(FindErr::OnlyKeyMatches), f);
                 assert_eq!(18, b_code);
-                assert_eq!(Err(FindErr::OnlyKeyMatches), find);
             }
 
             #[test]
             fn key_matches_itself_only_2() {
-                let entry = &Entry("lyRics");
-                let key = &Entry("lyrics");
+                let e = &Entry("lyRics");
+                let k = &Entry("lyrics");
                 let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
+                _ = poetrie.it(e);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let f = poetrie.find(k, &mc, &mut b_code);
 
+                assert_eq!(Err(FindErr::OnlyKeyMatches), f);
                 assert_eq!(18, b_code);
-                assert_eq!(Err(FindErr::OnlyKeyMatches), find);
             }
 
             #[test]
             // different casing is eventually considered to be different word
             fn key_matches_itself_only_3() {
-                let proof = String::from("lyRics");
-                let entry = &Entry(proof.as_str());
-                let key = &Entry("lyrics");
+                let p = String::from("lyRics");
+                let e = &Entry(p.as_str());
+                let k = &Entry("lyrics");
                 let mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
-                _ = poetrie.it(key);
+                _ = poetrie.it(e);
+                _ = poetrie.it(k);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let f = poetrie.find(k, &mc, &mut b_code);
 
-                assert_eq!(Ok(vec![proof]), find);
+                assert_eq!(Ok(vec![p]), f);
                 assert_eq!(258, b_code);
             }
 
