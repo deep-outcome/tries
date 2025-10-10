@@ -2500,67 +2500,84 @@ mod tests_of_units {
             }
 
             #[test]
-            fn only_subentry_is_possible_1() {
-                let subentry = RevEntry::new("document");
-                let entry = RevEntry::new("documental");
+            fn matches_subentries_1() {
+                let se_a = RevEntry::new("document");
+                let se_b = RevEntry::new("documental");
 
-                let key = RevEntry::new("documentalist");
-                let key = &key.entry();
-                let mut mc = MatchConduct::default();
-                mc.max_n = 2;
-                mc.sub_e = true;
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&subentry.entry());
-                _ = poetrie.it(&entry.entry());
-                _ = poetrie.it(key);
+                _ = poetrie.it(&se_a.entry());
+                _ = poetrie.it(&se_b.entry());
+                _ = poetrie.it(k);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let mut mc = MatchConduct::default();
+                mc.sub_e = true;
 
-                assert_eq!(Ok(vec![subentry.0, entry.0]), find, "bc: {}", b_code);
+                let p = Ok(vec![se_a.0, se_b.0]);
+                for duo in [(2, 64), (usize::MAX, 34)] {
+                    mc.max_n = duo.0;
 
-                assert_eq!(64, b_code);
+                    let mut b_code = 0;
+                    let find = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, find);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
-            fn only_subentry_is_possible_2() {
-                let proof = String::from("m");
-                let subentry = Entry(proof.as_str());
+            fn matches_subentries_2() {
+                let p = String::from("m");
+                let se = Entry(p.as_str());
 
-                let key = &Entry("anagram");
+                let k = &Entry("anagram");
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se);
+                _ = poetrie.it(k);
+
                 let mut mc = MatchConduct::default();
                 mc.sub_e = true;
 
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&subentry);
-                _ = poetrie.it(key);
+                let p = Ok(vec![p]);
+                for duo in [(1, 64), (usize::MAX, 34)] {
+                    mc.max_n = duo.0;
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
 
-                assert_eq!(Ok(vec![proof]), find);
-                assert_eq!(64, b_code);
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
-            fn only_subentry_is_possible_3() {
-                let proof = String::from("Xconundrum");
-                let entry = Entry(proof.as_str());
+            fn matches_subentries_3() {
+                let p = String::from("-ode");
+                let e = Entry(p.as_str());
 
-                let key = &Entry("YXconundrum");
+                let k = &Entry("X-ode");
                 let mut mc = MatchConduct::default();
                 mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&entry);
-                _ = poetrie.it(&key);
+                _ = poetrie.it(&e);
+                _ = poetrie.it(&k);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let p = Ok(vec![p]);
+                for duo in [(1, 64), (usize::MAX, 34)] {
+                    mc.max_n = duo.0;
 
-                assert_eq!(Ok(vec![proof]), find);
-                assert_eq!(64, b_code);
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
