@@ -2610,14 +2610,14 @@ mod tests_of_units {
             #[test]
             fn matches_subentries_c_1() {
                 let p = String::from("-ode");
-                let e = Entry(p.as_str());
+                let se = Entry(p.as_str());
 
                 let k = &Entry("X-ode");
                 let mut mc = MatchConduct::default();
                 mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&e);
+                _ = poetrie.it(&se);
                 _ = poetrie.it(&k);
 
                 let p = Ok(vec![p]);
@@ -2636,14 +2636,14 @@ mod tests_of_units {
             #[test]
             fn matches_subentries_c_2() {
                 let p = String::from("-ode");
-                let e = Entry(p.as_str());
+                let se = Entry(p.as_str());
 
                 let k = &Entry("X-ode");
                 let mut mc = MatchConduct::default();
                 mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&e);
+                _ = poetrie.it(&se);
 
                 let p = Ok(vec![p]);
                 for duo in [(1, 64), (usize::MAX, 40)] {
@@ -2659,81 +2659,73 @@ mod tests_of_units {
             }
 
             #[test]
-            fn must_not_recourse_to_root_branching_1a() {
-                let proof = String::from("hilum");
-                let subentry = Entry(proof.as_str());
-                let entry = Entry("claybank");
+            fn must_not_recourse_to_root_branching_a_1() {
+                let p = String::from("hilum");
+                let e_a = Entry(p.as_str());
+                let e_b = Entry("claybank");
 
-                let key = &Entry("haulm");
-                let mc = MatchConduct::default();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&subentry);
-                _ = poetrie.it(&entry);
-                _ = poetrie.it(key);
-
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
-
-                assert_eq!(Ok(vec![proof]), find);
-                assert_eq!(258, b_code);
-            }
-
-            #[test]
-            fn must_not_recourse_to_root_branching_1b() {
-                let proof = String::from("hilum");
-                let subentry = Entry(proof.as_str());
-                let entry = Entry("claybank");
-
-                let key = &Entry("haulm");
-                let mc = MatchConduct::default();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&subentry);
-                _ = poetrie.it(&entry);
-
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
-
-                assert_eq!(Ok(vec![proof]), find);
-                assert_eq!(132, b_code);
-            }
-
-            #[test]
-            fn must_not_recourse_to_root_branching_2a() {
-                let itself = &Entry("lyrics");
-                let other = &Entry("disarrangement");
-                let mc = MatchConduct::default();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(itself);
-                _ = poetrie.it(other);
-
-                let mut b_code = 0;
-                let find = poetrie.find(itself, &mc, &mut b_code);
-
-                assert_eq!(Err(FindErr::OnlyKeyMatches), find);
-                assert_eq!(18, b_code);
-            }
-
-            #[test]
-            fn must_not_recourse_to_root_branching_2b() {
-                let some = &Entry("lyrics");
-                let key = &Entry("disarrangement");
-                let sub_entry = &Entry("arrangement");
+                let k = &Entry("haulm");
                 let mut mc = MatchConduct::default();
-                mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(some);
-                _ = poetrie.it(sub_entry);
+                _ = poetrie.it(&e_a);
+                _ = poetrie.it(&e_b);
+                _ = poetrie.it(k);
+
+                let p = Ok(vec![p]);
+                for duo in [(1, 258), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
+
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, b_code);
+                }
+            }
+
+            #[test]
+            fn must_not_recourse_to_root_branching_a_2() {
+                let p = String::from("hilum");
+                let e_a = Entry(p.as_str());
+                let e_b = Entry("claybank");
+
+                let k = &Entry("haulm");
+                let mut mc = MatchConduct::default();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e_a);
+                _ = poetrie.it(&e_b);
+
+                let p = Ok(vec![p]);
+                for duo in [(1, 132), (usize::MAX, 516)] {
+                    mc.max_n = duo.0;
+
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, b_code);
+                }
+            }
+
+            #[test]
+            fn must_not_recourse_to_root_branching_b() {
+                let k = &Entry("lyrics");
+                let e = &Entry("disarrangement");
+                let mc = MatchConduct::default();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(k);
+                _ = poetrie.it(e);
 
                 let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let f = poetrie.find(k, &mc, &mut b_code);
 
-                let proof = sub_entry.0.to_string();
-                assert_eq!(64, b_code);
-                assert_eq!(Ok(vec![proof]), find);
+                assert_eq!(Err(FindErr::OnlyKeyMatches), f);
+                assert_eq!(18, b_code);
             }
 
             #[test]
