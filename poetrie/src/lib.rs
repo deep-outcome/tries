@@ -643,12 +643,6 @@ impl Poetrie {
         'track: loop {
             buf_l = buff.len();
 
-            if buf_l > max_l {
-                #[cfg(test)]
-                set_bcode(1024, b_code);
-                break;
-            }
-
             let next_c = chars.next_back();
 
             if next_c.is_none() {
@@ -667,6 +661,12 @@ impl Poetrie {
                 } else {
                     se_disjunct_hit = true;
                 }
+            }
+
+            if buf_l == max_l {
+                #[cfg(test)]
+                set_bcode(1024, b_code);
+                break;
             }
 
             if let Some(l) = op_node.links.as_ref() {
@@ -2221,119 +2221,145 @@ mod tests_of_units {
 
             #[test]
             fn exactly_last_match_1a() {
-                let entry = &Entry("s");
-                let key = &Entry("lyrics");
+                let e = &Entry("s");
+                let k = &Entry("lyrics");
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
+                _ = poetrie.it(e);
 
                 let mut mc = MatchConduct::default();
                 mc.sub_e = true;
+                mc.max_n = 2;
 
-                for max_ml in [1, mc_defaults::MAX_ML] {
-                    mc.max_ml = max_ml;
+                for duo in [(1, 1056), (MAX_ML, 40)] {
+                    mc.max_ml = duo.0;
 
                     let mut b_code = 0;
-                    let find = poetrie.find(key, &mc, &mut b_code);
+                    let f = poetrie.find(k, &mc, &mut b_code);
 
-                    poetrie.buf.get_mut().clear();
+                    poetrie.clr_f_buffs();
 
-                    assert_eq!(64, b_code);
-                    assert_eq!(Ok(vec![String::from("s")]), find, "{max_ml}");
+                    assert_eq!(Ok(vec![String::from("s")]), f, "{duo:?}");
+                    assert_eq!(duo.1, b_code);
                 }
             }
 
             #[test]
             fn exactly_last_match_1b() {
-                let entry = &Entry("s");
-                let key = &Entry("lyrics");
+                let e = &Entry("s");
+                let k = &Entry("lyrics");
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
-                _ = poetrie.it(key);
+                _ = poetrie.it(e);
+                _ = poetrie.it(k);
 
                 let mut mc = MatchConduct::default();
                 mc.sub_e = true;
+                mc.max_n = 2;
 
-                for max_ml in [1, mc_defaults::MAX_ML] {
-                    mc.max_ml = max_ml;
+                for duo in [(1, 1056), (MAX_ML, 34)] {
+                    mc.max_ml = duo.0;
 
                     let mut b_code = 0;
-                    let find = poetrie.find(key, &mc, &mut b_code);
+                    let f = poetrie.find(k, &mc, &mut b_code);
 
-                    poetrie.buf.get_mut().clear();
+                    poetrie.clr_f_buffs();
 
-                    assert_eq!(Ok(vec![String::from("s")]), find);
-                    assert_eq!(64, b_code);
+                    assert_eq!(Ok(vec![String::from("s")]), f);
+                    assert_eq!(duo.1, b_code);
                 }
             }
 
             #[test]
             fn exactly_last_match_2a() {
-                let proof = String::from("lyrics");
-                let entry = &Entry(proof.as_str());
-                let key = &Entry("s");
+                let p = "lyrics";
+                let k = &Entry("s");
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
+                _ = poetrie.it(&Entry(p));
 
-                let mc = MatchConduct::default();
+                let mut mc = MatchConduct::default();
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                for duo in [(1, 130), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
 
-                let proof = vec![proof.clone()];
-                assert_eq!(130, b_code);
-                assert_eq!(Ok(proof), find);
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+
+                    poetrie.clr_f_buffs();
+
+                    let proof = vec![String::from(p)];
+                    assert_eq!(Ok(proof), f);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
             fn exactly_last_match_2b() {
-                let proof = String::from("lyrics");
-                let entry = &Entry(proof.as_str());
-                let key = &Entry("s");
-                let mc = MatchConduct::default();
+                let p = "lyrics";
+
+                let k = &Entry("s");
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
-                _ = poetrie.it(key);
+                _ = poetrie.it(&Entry(p));
+                _ = poetrie.it(k);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let mut mc = MatchConduct::default();
+                for duo in [(1, 130), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
 
-                assert_eq!(Ok(vec![proof]), find);
-                assert_eq!(130, b_code);
+                    let mut b_code = 0;
+
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    let proof = vec![String::from(p)];
+                    assert_eq!(Ok(proof), f);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
             fn exactly_last_match_3() {
-                let key_entry = &Entry("s");
-                let mc = MatchConduct::default();
+                let k = &Entry("s");
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(key_entry);
+                _ = poetrie.it(k);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key_entry, &mc, &mut b_code);
+                let mut mc = MatchConduct::default();
+                for max_ml in [1, MAX_ML] {
+                    mc.max_ml = max_ml;
 
-                assert_eq!(18, b_code);
-                assert_eq!(Err(FindErr::OnlyKeyMatches), find);
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(18, b_code);
+                    assert_eq!(Err(FindErr::OnlyKeyMatches), f);
+                }
             }
 
             #[test]
             fn exactly_last_match_4() {
-                let entry = &Entry("s");
-                let key = &Entry("S");
-                let mc = MatchConduct::default();
+                let e = &Entry("s");
+                let k = &Entry("S");
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
+                _ = poetrie.it(e);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let mut mc = MatchConduct::default();
+                for max_ml in [1, MAX_ML] {
+                    mc.max_ml = max_ml;
 
-                assert_eq!(18, b_code);
-                assert_eq!(Err(FindErr::OnlyKeyMatches), find);
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(18, b_code);
+                    assert_eq!(Err(FindErr::OnlyKeyMatches), f);
+                }
             }
 
             #[test]
@@ -2927,7 +2953,7 @@ mod tests_of_units {
                     res: Result<Find, FindErr>,
                     code: usize,
                     key: crate::Key,
-                    poetrie: &'a Poetrie<'a>,
+                    poetrie: &Poetrie,
                     n: usize,
                 ) {
                     let mut mc = MatchConduct::default();
