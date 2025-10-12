@@ -624,22 +624,18 @@ impl Poetrie {
         let max_ml = mc.max_ml;
         let sub_entries = mc.sub_e;
 
-        // closest branch information
         let branching = self.bra.get_mut();
         let mut skip_n = ptr::null();
         let mut se_disjunct_hit = false;
 
-        // finds
         let mut find = Vec::with_capacity(100);
 
-        // match
         let buff = self.buf.get_mut();
         let mut buf_l;
 
         let max_l = mc.max_l();
 
         let mut chars = key.chars();
-        // track key as much as possible first
         'track: loop {
             buf_l = buff.len();
 
@@ -2192,6 +2188,8 @@ mod tests_of_units {
         }
 
         mod find {
+            use std::collections::HashSet;
+
             use crate::{
                 Entry, FindErr, MatchConduct, Poetrie, mc_defaults::MAX_ML,
                 tests_of_units::rev_entry::RevEntry,
@@ -2729,180 +2727,372 @@ mod tests_of_units {
             }
 
             #[test]
-            fn key_partially_shared_suffix_1a() {
-                let proof = String::from("lyrics");
-                let entry = &Entry(proof.as_str());
+            fn partially_share_suffix_a_1() {
+                let p = String::from("lyrics");
+                let e = &Entry(p.as_str());
 
-                let key = &Entry("athletics");
-                let mc = MatchConduct::default();
+                let k = &Entry("athletics");
+                let mut mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
+                _ = poetrie.it(e);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let p = Ok(vec![p]);
+                for duo in [(1, 132), (usize::MAX, 516)] {
+                    mc.max_n = duo.0;
 
-                assert_eq!(Ok(vec![proof]), find);
-                assert_eq!(132, b_code);
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
-            fn key_partially_shared_suffix_1b() {
-                let proof = String::from("lyrics");
-                let entry = &Entry(proof.as_str());
+            fn partially_share_suffix_a_2() {
+                let p = String::from("lyrics");
+                let e = &Entry(p.as_str());
 
-                let key = &Entry("carboniferous");
-                let mc = MatchConduct::default();
+                let k = &Entry("athletics");
+                let mut mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
+                _ = poetrie.it(e);
+                _ = poetrie.it(k);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let p = Ok(vec![p]);
+                for duo in [(1, 258), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
 
-                assert_eq!(Ok(vec![proof]), find);
-                assert_eq!(132, b_code);
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
-            fn key_partially_shared_suffix_2a() {
-                let proof = String::from("lyrics");
-                let entry = &Entry(proof.as_str());
+            fn partially_share_suffix_b_1() {
+                let p = String::from("lyrics");
+                let e = &Entry(p.as_str());
 
-                let key = &Entry("athletics");
-                let mc = MatchConduct::default();
+                let k = &Entry("carboniferous");
+                let mut mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
-                _ = poetrie.it(key);
+                _ = poetrie.it(e);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let p = Ok(vec![p]);
+                for duo in [(1, 132), (usize::MAX, 516)] {
+                    mc.max_n = duo.0;
 
-                assert_eq!(Ok(vec![proof]), find);
-                assert_eq!(258, b_code);
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
-            fn key_partially_shared_suffix_2b() {
-                let proof = String::from("lyrics");
-                let entry = &Entry(proof.as_str());
+            fn partially_share_suffix_b_2() {
+                let p = String::from("lyrics");
+                let e = &Entry(p.as_str());
 
-                let key = &Entry("carboniferous");
-                let mc = MatchConduct::default();
+                let k = &Entry("carboniferous");
+                let mut mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
-                _ = poetrie.it(key);
+                _ = poetrie.it(e);
+                _ = poetrie.it(k);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let p = Ok(vec![p]);
+                for duo in [(1, 258), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
 
-                assert_eq!(Ok(vec![proof]), find);
-                assert_eq!(258, b_code);
+                    let mut b_code = 0;
+                    let find = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, find);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
-            fn key_partially_shared_suffix_3a() {
-                let proof = String::from("X-lyrics");
-                let entry = &Entry(proof.as_str());
+            fn partially_share_suffix_c_1() {
+                let p = String::from("B-lyrics");
+                let e = &Entry(p.as_str());
 
-                let key = &Entry("A-lyrics");
-                let mc = MatchConduct::default();
+                let k = &Entry("A-lyrics");
+                let mut mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
-                _ = poetrie.it(key);
+                _ = poetrie.it(e);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let p = Ok(vec![p]);
+                for duo in [(1, 132), (usize::MAX, 516)] {
+                    mc.max_n = duo.0;
 
-                assert_eq!(Ok(vec![proof]), find);
-                assert_eq!(258, b_code);
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
-            fn key_partially_shared_suffix_3b() {
-                let proof = String::from("X-lyrics");
-                let entry = &Entry(proof.as_str());
+            fn partially_share_suffix_c_2() {
+                let p = String::from("B-lyrics");
+                let e = &Entry(p.as_str());
 
-                let key = &Entry("A-lyrics");
-                let mc = MatchConduct::default();
+                let k = &Entry("A-lyrics");
+                let mut mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry);
+                _ = poetrie.it(e);
+                _ = poetrie.it(k);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let p = Ok(vec![p]);
+                for duo in [(1, 258), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
 
-                assert_eq!(Ok(vec![proof]), find);
-                assert_eq!(132, b_code);
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
-            fn key_partially_shared_suffix_4a() {
-                let proof_1 = String::from("lyrics");
-                let entry_1 = &Entry(proof_1.as_str());
+            fn partially_share_suffix_d_1() {
+                let p_a = String::from("lyrics");
+                let e_a = &Entry(p_a.as_str());
 
-                let proof_2 = String::from("ethics");
-                let entry_2 = &Entry(proof_2.as_str());
+                let p_b = String::from("ethics");
+                let e_b = &Entry(p_b.as_str());
 
-                let key = &Entry("athletics");
-                let mc = MatchConduct::default();
+                let k = &Entry("athletics");
+                let mut mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry_1);
-                _ = poetrie.it(entry_2);
+                _ = poetrie.it(e_a);
+                _ = poetrie.it(e_b);
 
-                _ = poetrie.it(key);
+                let p = HashSet::from([p_a, p_b]);
+                for duo in [(2, 132), (usize::MAX, 516)] {
+                    mc.max_n = duo.0;
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
 
-                assert_eq!(true, find.is_ok());
-                let res = find.unwrap();
+                    assert_eq!(true, f.is_ok());
+                    let f = f.unwrap();
 
-                assert_eq!(1, res.len());
-                let find = &res[0];
+                    assert_eq!(p.len(), f.len());
 
-                assert_eq!(258, b_code);
+                    for f in f {
+                        assert_eq!(true, p.contains(&f), "{f}");
+                    }
 
-                let equal = &proof_1 == find || &proof_2 == find;
-
-                assert_eq!(true, equal);
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
-            fn key_partially_shared_suffix_4b() {
-                let proof_1 = String::from("lyrics");
-                let entry_1 = &Entry(proof_1.as_str());
+            fn partially_share_suffix_d_2() {
+                let p_a = String::from("lyrics");
+                let e_a = &Entry(p_a.as_str());
 
-                let proof_2 = String::from("emphasis");
-                let entry_2 = &Entry(proof_2.as_str());
+                let p_b = String::from("ethics");
+                let e_b = &Entry(p_b.as_str());
 
-                let key = &Entry("carboniferous");
-                let mc = MatchConduct::default();
+                let k = &Entry("athletics");
+                let mut mc = MatchConduct::default();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(entry_1);
-                _ = poetrie.it(entry_2);
+                _ = poetrie.it(e_a);
+                _ = poetrie.it(e_b);
 
-                _ = poetrie.it(key);
+                _ = poetrie.it(k);
 
-                let mut b_code = 0;
-                let find = poetrie.find(key, &mc, &mut b_code);
+                let p = HashSet::from([p_a, p_b]);
+                for duo in [(2, 258), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
 
-                assert_eq!(true, find.is_ok());
-                let res = find.unwrap();
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
 
-                assert_eq!(1, res.len());
-                let find = &res[0];
+                    assert_eq!(true, f.is_ok());
+                    let f = f.unwrap();
 
-                assert_eq!(258, b_code);
+                    assert_eq!(p.len(), f.len());
 
-                let equal = &proof_1 == find || &proof_2 == find;
+                    for f in f {
+                        assert_eq!(true, p.contains(&f), "{f}");
+                    }
 
-                assert_eq!(true, equal);
+                    assert_eq!(duo.1, b_code);
+                }
+            }
+
+            #[test]
+            fn partially_share_suffix_e_1() {
+                let p_a = String::from("lyrics");
+                let e_a = &Entry(p_a.as_str());
+
+                let p_b = String::from("lodgings");
+                let e_b = &Entry(p_b.as_str());
+
+                let k = &Entry("carboniferous");
+                let mut mc = MatchConduct::default();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(e_a);
+                _ = poetrie.it(e_b);
+
+                let p = HashSet::from([p_a, p_b]);
+                for duo in [(2, 132), (usize::MAX, 516)] {
+                    mc.max_n = duo.0;
+
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(true, f.is_ok());
+                    let f = f.unwrap();
+
+                    assert_eq!(p.len(), f.len());
+
+                    for f in f {
+                        assert_eq!(true, p.contains(&f), "{f}");
+                    }
+
+                    assert_eq!(duo.1, b_code);
+                }
+            }
+
+            #[test]
+            fn partially_share_suffix_e_2() {
+                let p_a = String::from("lyrics");
+                let e_a = &Entry(p_a.as_str());
+
+                let p_b = String::from("lodgings");
+                let e_b = &Entry(p_b.as_str());
+
+                let k = &Entry("carboniferous");
+                let mut mc = MatchConduct::default();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(e_a);
+                _ = poetrie.it(e_b);
+
+                _ = poetrie.it(k);
+
+                let p = HashSet::from([p_a, p_b]);
+                for duo in [(2, 258), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
+
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(true, f.is_ok());
+                    let f = f.unwrap();
+
+                    assert_eq!(p.len(), f.len());
+
+                    for f in f {
+                        assert_eq!(true, p.contains(&f), "{f}");
+                    }
+
+                    assert_eq!(duo.1, b_code);
+                }
+            }
+
+            #[test]
+            fn partially_share_suffix_f_1() {
+                let p_a = String::from("T-lyrics");
+                let e_a = &Entry(p_a.as_str());
+
+                let p_b = String::from("U-lyrics");
+                let e_b = &Entry(p_b.as_str());
+
+                let k = &Entry("X-lyrics");
+                let mut mc = MatchConduct::default();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(e_a);
+                _ = poetrie.it(e_b);
+
+                let p = HashSet::from([p_a, p_b]);
+                for duo in [(2, 132), (usize::MAX, 516)] {
+                    mc.max_n = duo.0;
+
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(true, f.is_ok());
+                    let f = f.unwrap();
+
+                    assert_eq!(p.len(), f.len());
+
+                    for f in f {
+                        assert_eq!(true, p.contains(&f), "{f}");
+                    }
+
+                    assert_eq!(duo.1, b_code);
+                }
+            }
+
+            #[test]
+            fn partially_share_suffix_f_2() {
+                let p_a = String::from("T-lyrics");
+                let e_a = &Entry(p_a.as_str());
+
+                let p_b = String::from("U-lyrics");
+                let e_b = &Entry(p_b.as_str());
+
+                let k = &Entry("X-lyrics");
+                let mut mc = MatchConduct::default();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(e_a);
+                _ = poetrie.it(e_b);
+
+                _ = poetrie.it(k);
+
+                let p = HashSet::from([p_a, p_b]);
+                for duo in [(2, 258), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
+
+                    let mut b_code = 0;
+                    let f = poetrie.find(k, &mc, &mut b_code);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(true, f.is_ok());
+                    let f = f.unwrap();
+
+                    assert_eq!(p.len(), f.len());
+
+                    for f in f {
+                        assert_eq!(true, p.contains(&f), "{f}");
+                    }
+
+                    assert_eq!(duo.1, b_code);
+                }
             }
 
             #[test]
