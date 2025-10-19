@@ -354,6 +354,9 @@ pub struct Poetrie {
     cnt: usize,
 }
 
+#[cfg(test)]
+use crate::tests_of_units::poetrie::find::grade;
+
 const NULL: char = '\0';
 impl Poetrie {
     /// Use for `Poetrie` construction.
@@ -541,7 +544,7 @@ impl Poetrie {
         &self,
         key: &Key,
         mc: &MatchConduct,
-        #[cfg(test)] b_code: &mut usize,
+        #[cfg(test)] grade: &mut usize,
     ) -> Result<Find, FindErr> {
         // operative node
         let mut op_node = &self.root;
@@ -574,7 +577,7 @@ impl Poetrie {
 
             if next_c.is_none() {
                 #[cfg(test)]
-                set_bcode(2, b_code);
+                set_grade(grade::KEY_EXH, grade);
                 break 'track;
             }
 
@@ -582,7 +585,7 @@ impl Poetrie {
                 if sub_entries && min_ml <= buf_l {
                     if push_match(buff, &mut find, max_n) {
                         #[cfg(test)]
-                        set_bcode(64, b_code);
+                        set_grade(grade::SAT_ON_SE, grade);
                         return Ok(find);
                     }
                 } else {
@@ -592,7 +595,7 @@ impl Poetrie {
 
             if buf_l == max_l {
                 #[cfg(test)]
-                set_bcode(1024, b_code);
+                set_grade(grade::MAX_L_REA_ON_SUF, grade);
                 break;
             }
 
@@ -612,12 +615,12 @@ impl Poetrie {
                 }
 
                 #[cfg(test)]
-                set_bcode(4, b_code);
+                set_grade(grade::NO_PATH_N, grade);
                 break 'track;
             }
 
             #[cfg(test)]
-            set_bcode(8, b_code);
+            set_grade(grade::NO_PATH_L, grade);
             break 'track;
         }
 
@@ -626,6 +629,8 @@ impl Poetrie {
         }
 
         if buf_l < min_sl {
+            #[cfg(test)]
+            set_grade(grade::MIN_SL_NOT_REA, grade);
             return Err(FindErr::DisjunctConduct);
         }
 
@@ -648,7 +653,7 @@ impl Poetrie {
         if !(can_extend || can_branch) {
             if find.len() == 0 {
                 #[cfg(test)]
-                set_bcode(16, b_code);
+                set_grade(grade::G_ZERO_M, grade);
 
                 let err = if se_disjunct_hit {
                     FindErr::DisjunctConduct
@@ -660,7 +665,7 @@ impl Poetrie {
             }
 
             #[cfg(test)]
-            set_bcode(32, b_code);
+            set_grade(grade::SUB_E_ONLY, grade);
             return Ok(find);
         }
 
@@ -677,7 +682,7 @@ impl Poetrie {
             for (c, node) in l {
                 if extender.e(node, *c) {
                     #[cfg(test)]
-                    set_bcode(128, b_code);
+                    set_grade(grade::SAT_ON_EXT, grade);
                     return Ok(find);
                 }
             }
@@ -704,7 +709,7 @@ impl Poetrie {
 
                     if extender.e(node, c) {
                         #[cfg(test)]
-                        set_bcode(256, b_code);
+                        set_grade(grade::SAT_ON_BRA, grade);
                         return Ok(find);
                     }
                 }
@@ -712,7 +717,7 @@ impl Poetrie {
         }
 
         #[cfg(test)]
-        set_bcode(512, b_code);
+        set_grade(grade::FIN, grade);
 
         return if find.len() == 0 {
             Err(FindErr::DisjunctConduct)
@@ -721,9 +726,9 @@ impl Poetrie {
         };
 
         #[cfg(test)]
-        fn set_bcode(c: usize, b_code: &mut usize) {
-            let code = *b_code;
-            *b_code = code | c;
+        fn set_grade(g: usize, grade_ref: &mut usize) {
+            let grade = *grade_ref;
+            *grade_ref = grade | g;
         }
     }
 
@@ -1632,7 +1637,7 @@ mod tests_of_units {
         }
     }
 
-    mod poetrie {
+    pub mod poetrie {
         use crate::{Node, Poetrie};
 
         #[test]
@@ -2035,13 +2040,38 @@ mod tests_of_units {
             }
         }
 
-        mod find {
+        pub mod find {
             use std::collections::HashSet;
 
             use crate::{
                 Entry, FindErr, MatchConduct, Poetrie, mc_defaults::MAX_ML,
                 tests_of_units::rev_entry::RevEntry,
             };
+
+            pub mod grade {
+                /// key exhausted
+                pub const KEY_EXH: usize = 2;
+                /// no path available on node
+                pub const NO_PATH_N: usize = 4;
+                /// no path available on link
+                pub const NO_PATH_L: usize = 8;
+                /// guaranteed zero matches
+                pub const G_ZERO_M: usize = 16;
+                /// only sub-entries available
+                pub const SUB_E_ONLY: usize = 32;
+                /// matches requirement satisfied on sub-entry
+                pub const SAT_ON_SE: usize = 64;
+                /// matches requirement satisfied on extension
+                pub const SAT_ON_EXT: usize = 128;
+                /// matches requirement satisfied on branching
+                pub const SAT_ON_BRA: usize = 256;
+                /// final execution reached
+                pub const FIN: usize = 512;
+                /// match requirement reached with suffix
+                pub const MAX_L_REA_ON_SUF: usize = 1024;
+                /// min suffix requirement not reached
+                pub const MIN_SL_NOT_REA: usize = 2048;
+            }
 
             #[test]
             fn basic_test() {
