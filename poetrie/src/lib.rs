@@ -487,7 +487,7 @@ impl Poetrie {
         res
     }
 
-    fn re_actual(&mut self, #[cfg(test)] esc_code: &mut usize) {
+    fn re_actual(&mut self, #[cfg(test)] grade: &mut usize) {
         let mut trace = self.btr.iter();
         let en_duo = unsafe { trace.next_back().unwrap_unchecked() };
         let mut node = unsafe { en_duo.1.as_mut().unwrap_unchecked() };
@@ -495,7 +495,7 @@ impl Poetrie {
         node.entry = false;
         if node.links() {
             #[cfg(test)]
-            set_code(1, esc_code);
+            set_grade(1, grade);
 
             return;
         }
@@ -508,18 +508,18 @@ impl Poetrie {
             _ = links.remove(sn_entry);
 
             #[cfg(test)]
-            set_code(2, esc_code);
+            set_grade(2, grade);
 
             if links.len() > 0 {
                 #[cfg(test)]
-                set_code(4, esc_code);
+                set_grade(4, grade);
 
                 return;
             }
 
             if node.entry {
                 #[cfg(test)]
-                set_code(8, esc_code);
+                set_grade(8, grade);
 
                 break;
             }
@@ -529,14 +529,14 @@ impl Poetrie {
 
         node.links = None;
         #[cfg(test)]
-        if *esc_code != (2 | 8) {
-            set_code(16, esc_code);
+        if *grade != (2 | 8) {
+            set_grade(16, grade);
         }
 
         #[cfg(test)]
-        fn set_code(c: usize, esc_code: &mut usize) {
-            let code = *esc_code;
-            *esc_code = code | c;
+        fn set_grade(g: usize, grade_ref: &mut usize) {
+            let grade = *grade_ref;
+            *grade_ref = grade | g;
         }
     }
 
@@ -1914,10 +1914,10 @@ mod tests_of_units {
                 _ = poetrie.it(entry);
                 _ = poetrie.track(entry, true);
 
-                let mut esc_code = 0;
-                poetrie.re_actual(&mut esc_code);
+                let mut grade = 0;
+                poetrie.re_actual(&mut grade);
                 assert_eq!(false, poetrie.ey(entry));
-                assert_eq!(18, esc_code);
+                assert_eq!(18, grade);
             }
 
             #[test]
@@ -1930,11 +1930,11 @@ mod tests_of_units {
                 _ = poetrie.it(entry2);
                 _ = poetrie.track(entry1, true);
 
-                let mut esc_code = 0;
-                poetrie.re_actual(&mut esc_code);
+                let mut grade = 0;
+                poetrie.re_actual(&mut grade);
                 assert_eq!(false, poetrie.ey(entry1));
                 assert_eq!(true, poetrie.ey(entry2));
-                assert_eq!(6, esc_code);
+                assert_eq!(6, grade);
             }
 
             #[test]
@@ -1948,11 +1948,11 @@ mod tests_of_units {
                 _ = poetrie.it(entry2);
                 _ = poetrie.track(entry1, true);
 
-                let mut esc_code = 0;
-                poetrie.re_actual(&mut esc_code);
+                let mut grade = 0;
+                poetrie.re_actual(&mut grade);
                 assert_eq!(false, poetrie.ey(entry1));
                 assert_eq!(true, poetrie.ey(entry2));
-                assert_eq!(1, esc_code);
+                assert_eq!(1, grade);
             }
 
             #[test]
@@ -1967,11 +1967,11 @@ mod tests_of_units {
                 let inner = &inner.entry();
                 _ = poetrie.it(inner);
 
-                let mut esc_code = 0;
+                let mut grade = 0;
                 _ = poetrie.track(inner, true);
 
-                poetrie.re_actual(&mut esc_code);
-                assert_eq!(1, esc_code);
+                poetrie.re_actual(&mut grade);
+                assert_eq!(1, grade);
 
                 assert_eq!(false, poetrie.ey(inner));
                 assert_eq!(true, poetrie.ey(outer));
@@ -1984,10 +1984,10 @@ mod tests_of_units {
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
 
-                let mut esc_code = 0;
+                let mut grade = 0;
                 _ = poetrie.track(entry, true);
-                poetrie.re_actual(&mut esc_code);
-                assert_eq!(18, esc_code);
+                poetrie.re_actual(&mut grade);
+                assert_eq!(18, grade);
 
                 assert_eq!(false, poetrie.ey(entry));
                 assert_eq!(None, poetrie.root.links);
@@ -2004,10 +2004,10 @@ mod tests_of_units {
                 _ = poetrie.it(dissimilar);
                 _ = poetrie.it(keyword);
 
-                let mut esc_code = 0;
+                let mut grade = 0;
                 _ = poetrie.track(keyword, true);
-                poetrie.re_actual(&mut esc_code);
-                assert_eq!(6, esc_code);
+                poetrie.re_actual(&mut grade);
+                assert_eq!(6, grade);
 
                 assert_eq!(false, poetrie.ey(keyword));
                 assert_eq!(true, poetrie.ey(dissimilar));
@@ -2023,10 +2023,10 @@ mod tests_of_units {
                 _ = poetrie.it(above);
                 _ = poetrie.it(under);
 
-                let mut esc_code = 0;
+                let mut grade = 0;
                 _ = poetrie.track(under, true);
-                poetrie.re_actual(&mut esc_code);
-                assert_eq!(10, esc_code);
+                poetrie.re_actual(&mut grade);
+                assert_eq!(10, grade);
 
                 assert_eq!(false, poetrie.ey(under));
                 assert_eq!(true, poetrie.ey(above));
@@ -2110,13 +2110,13 @@ mod tests_of_units {
                 for duo in [(1, 1056), (MAX_ML, 40)] {
                     mc.max_ml = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
 
                     poetrie.clr_f_buffs();
 
                     assert_eq!(Ok(vec![String::from("s")]), f, "{duo:?}");
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2136,13 +2136,13 @@ mod tests_of_units {
                 for duo in [(1, 1056), (MAX_ML, 34)] {
                     mc.max_ml = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
 
                     poetrie.clr_f_buffs();
 
                     assert_eq!(Ok(vec![String::from("s")]), f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2159,14 +2159,14 @@ mod tests_of_units {
                 for duo in [(1, 130), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
 
                     poetrie.clr_f_buffs();
 
                     let proof = vec![String::from(p)];
                     assert_eq!(Ok(proof), f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2184,14 +2184,14 @@ mod tests_of_units {
                 for duo in [(1, 130), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
+                    let mut grade = 0;
 
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     let proof = vec![String::from(p)];
                     assert_eq!(Ok(proof), f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2206,13 +2206,13 @@ mod tests_of_units {
                 for max_ml in [1, MAX_ML] {
                     mc.max_ml = max_ml;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
 
                     poetrie.clr_f_buffs();
 
                     assert_eq!(Err(FindErr::OnlyKeyMatches), f);
-                    assert_eq!(18, b_code);
+                    assert_eq!(18, grade);
                 }
             }
 
@@ -2223,11 +2223,11 @@ mod tests_of_units {
 
                 let poetrie = Poetrie::nw();
 
-                let mut b_code = 0;
-                let f = poetrie.find(k, &mc, &mut b_code);
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::EmptyTree), f);
-                assert_eq!(0, b_code);
+                assert_eq!(0, grade);
             }
 
             #[test]
@@ -2239,11 +2239,11 @@ mod tests_of_units {
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e);
 
-                let mut b_code = 0;
-                let f = poetrie.find(k, &mc, &mut b_code);
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::NoJointSuffix), f);
-                assert_eq!(4, b_code);
+                assert_eq!(4, grade);
             }
 
             #[test]
@@ -2254,11 +2254,11 @@ mod tests_of_units {
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(itself);
 
-                let mut b_code = 0;
-                let f = poetrie.find(itself, &mc, &mut b_code);
+                let mut grade = 0;
+                let f = poetrie.find(itself, &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::OnlyKeyMatches), f);
-                assert_eq!(18, b_code);
+                assert_eq!(18, grade);
             }
 
             #[test]
@@ -2272,11 +2272,11 @@ mod tests_of_units {
                 _ = poetrie.it(e);
                 _ = poetrie.it(k);
 
-                let mut b_code = 0;
-                let f = poetrie.find(k, &mc, &mut b_code);
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
 
                 assert_eq!(Ok(vec![p]), f);
-                assert_eq!(258, b_code);
+                assert_eq!(258, grade);
             }
 
             #[test]
@@ -2296,13 +2296,13 @@ mod tests_of_units {
                 for duo in [(2, 130), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(&k.entry(), &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
 
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2326,13 +2326,13 @@ mod tests_of_units {
                 for duo in [(2, 130), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
 
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2356,12 +2356,12 @@ mod tests_of_units {
                 for duo in [(2, 64), (usize::MAX, 34)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let find = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let find = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, find);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2384,12 +2384,12 @@ mod tests_of_units {
                 for duo in [(2, 64), (usize::MAX, 40)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let find = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let find = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, find);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2410,12 +2410,12 @@ mod tests_of_units {
                 for duo in [(1, 64), (usize::MAX, 34)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2435,12 +2435,12 @@ mod tests_of_units {
                 for duo in [(1, 64), (usize::MAX, 40)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2461,12 +2461,12 @@ mod tests_of_units {
                 for duo in [(1, 64), (usize::MAX, 34)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2486,12 +2486,12 @@ mod tests_of_units {
                 for duo in [(1, 64), (usize::MAX, 40)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2513,12 +2513,12 @@ mod tests_of_units {
                 for duo in [(1, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2539,12 +2539,12 @@ mod tests_of_units {
                 for duo in [(1, 132), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2558,11 +2558,11 @@ mod tests_of_units {
                 _ = poetrie.it(k);
                 _ = poetrie.it(e);
 
-                let mut b_code = 0;
-                let f = poetrie.find(k, &mc, &mut b_code);
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::OnlyKeyMatches), f);
-                assert_eq!(18, b_code);
+                assert_eq!(18, grade);
             }
 
             #[test]
@@ -2580,12 +2580,12 @@ mod tests_of_units {
                 for duo in [(1, 132), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2605,12 +2605,12 @@ mod tests_of_units {
                 for duo in [(1, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2629,12 +2629,12 @@ mod tests_of_units {
                 for duo in [(1, 132), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2654,12 +2654,12 @@ mod tests_of_units {
                 for duo in [(1, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let find = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let find = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, find);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2678,12 +2678,12 @@ mod tests_of_units {
                 for duo in [(1, 132), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2703,12 +2703,12 @@ mod tests_of_units {
                 for duo in [(1, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2731,8 +2731,8 @@ mod tests_of_units {
                 for duo in [(2, 132), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(true, f.is_ok());
@@ -2744,7 +2744,7 @@ mod tests_of_units {
                         assert_eq!(true, p.contains(&f), "{f}");
                     }
 
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2769,8 +2769,8 @@ mod tests_of_units {
                 for duo in [(2, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(true, f.is_ok());
@@ -2782,7 +2782,7 @@ mod tests_of_units {
                         assert_eq!(true, p.contains(&f), "{f}");
                     }
 
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2805,8 +2805,8 @@ mod tests_of_units {
                 for duo in [(2, 132), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(true, f.is_ok());
@@ -2818,7 +2818,7 @@ mod tests_of_units {
                         assert_eq!(true, p.contains(&f), "{f}");
                     }
 
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2843,8 +2843,8 @@ mod tests_of_units {
                 for duo in [(2, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(true, f.is_ok());
@@ -2856,7 +2856,7 @@ mod tests_of_units {
                         assert_eq!(true, p.contains(&f), "{f}");
                     }
 
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2879,8 +2879,8 @@ mod tests_of_units {
                 for duo in [(2, 132), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(true, f.is_ok());
@@ -2892,7 +2892,7 @@ mod tests_of_units {
                         assert_eq!(true, p.contains(&f), "{f}");
                     }
 
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -2917,8 +2917,8 @@ mod tests_of_units {
                 for duo in [(2, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(true, f.is_ok());
@@ -2930,7 +2930,7 @@ mod tests_of_units {
                         assert_eq!(true, p.contains(&f), "{f}");
                     }
 
-                    assert_eq!(duo.1, b_code);
+                    assert_eq!(duo.1, grade);
                 }
             }
 
@@ -3002,15 +3002,15 @@ mod tests_of_units {
                     mc.max_n = n;
                     mc.sub_e = true;
 
-                    let mut b_code = 0;
+                    let mut grade = 0;
                     assert_eq!(
                         res,
-                        poetrie.find(&key, &mc, &mut b_code),
+                        poetrie.find(&key, &mc, &mut grade),
                         "c: {}, bc: {}",
                         code,
-                        b_code
+                        grade
                     );
-                    assert_eq!(code, b_code);
+                    assert_eq!(code, grade);
 
                     poetrie.buf.get_mut().clear();
                     poetrie.bra.get_mut().clear();
