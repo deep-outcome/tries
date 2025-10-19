@@ -15,52 +15,6 @@ type WordBuf = Vec<char>;
 // branching information
 type BraInf = Vec<(*const HashMap<char, Node>, usize)>;
 
-fn get_node<'a>(l: &'a Links, c: &char, #[cfg(test)] ecode: &mut usize) -> Option<&'a Node> {
-    let g = l.get(c);
-    if g.is_some() {
-        #[cfg(test)]
-        set_ecode(1, ecode);
-
-        return g;
-    }
-
-    let iter: &mut dyn ExactSizeIterator<Item = char> = if c.is_lowercase() {
-        #[cfg(test)]
-        set_ecode(2, ecode);
-
-        &mut c.to_uppercase()
-    } else if c.is_uppercase() {
-        #[cfg(test)]
-        set_ecode(4, ecode);
-
-        &mut c.to_lowercase()
-    } else {
-        #[cfg(test)]
-        set_ecode(8, ecode);
-
-        return None;
-    };
-
-    return if iter.len() == 1 {
-        #[cfg(test)]
-        set_ecode(32, ecode);
-
-        let c = unsafe { iter.next().unwrap_unchecked() };
-        l.get(&c)
-    } else {
-        #[cfg(test)]
-        set_ecode(16, ecode);
-
-        None
-    };
-
-    #[cfg(test)]
-    fn set_ecode(c: usize, ecode: &mut usize) {
-        let code = *ecode;
-        *ecode = code | c;
-    }
-}
-
 fn extract(l: &Links, buff: &mut WordBuf, o: &mut Vec<String>) {
     for (k, n) in l.iter() {
         buff.push(*k);
@@ -491,29 +445,6 @@ impl Poetrie {
     ///
     /// let mc: MatchConduct = with.with().unwrap();
     /// ```
-    ///
-    /// This and only this method is case insensitive. Exactly, if char
-    /// in question provides one-to-one mapping as described at
-    /// [`char::to_lowercase`] and [`char::to_uppercase`], attempt to find
-    /// other casing on miss is made.
-    ///
-    /// Case insesitivy is wild as it uses key casing for result as long
-    /// as it is possible. Let check with example bellow.
-    /// ```
-    /// use poetrie::{Poetrie, Entry, MatchConduct};
-    ///
-    /// let entry = Entry::new_from_str("ForenOOn").unwrap();
-    ///
-    /// let mut poetrie = Poetrie::nw();
-    /// _ = poetrie.it(&entry);
-    ///
-    /// let key = Entry::new_from_str("NooN").unwrap();
-    /// let mc = MatchConduct::default();
-    /// let find = poetrie.sx(&key, &mc);
-    ///
-    /// let proof = String::from("ForeNooN");
-    /// assert_eq!(Ok(vec![proof]), find);
-    /// ```
     pub fn sx(&self, key: &Key, mc: &MatchConduct) -> Result<Vec<String>, FindErr> {
         let res = self.find(
             key,
@@ -668,12 +599,7 @@ impl Poetrie {
             if let Some(l) = op_node.links.as_ref() {
                 let c = unsafe { next_c.unwrap_unchecked() };
 
-                if let Some(n) = get_node(
-                    l,
-                    &c,
-                    #[cfg(test)]
-                    &mut 0,
-                ) {
+                if let Some(n) = l.get(&c) {
                     if l.len() > 1 && min_sl <= buf_l {
                         skip_n = n;
                         branching.push((l, buf_l));
@@ -995,84 +921,6 @@ mod tests_of_units {
                 let test = rev("dcba");
                 assert_eq!(proof, *test);
             }
-        }
-    }
-
-    mod get_node {
-        use crate::{Links, Node, get_node};
-
-        #[test]
-        fn direct_return() {
-            let mut l = Links::new();
-            let c = 'a';
-            let mut ecode = 0;
-
-            _ = l.insert(c.clone(), Node::empty());
-
-            let res = get_node(&l, &c, &mut ecode);
-            assert_eq!(true, res.is_some());
-            assert_eq!(1, ecode);
-        }
-
-        #[test]
-        fn uppercasing() {
-            let mut l = Links::new();
-            let mut ecode = 0;
-
-            _ = l.insert('A', Node::empty());
-
-            let res = get_node(&l, &'a', &mut ecode);
-            assert_eq!(true, res.is_some());
-            assert_eq!(34, ecode);
-        }
-
-        #[test]
-        fn lowercasing() {
-            let mut l = Links::new();
-            let mut ecode = 0;
-
-            _ = l.insert('a', Node::empty());
-
-            let res = get_node(&l, &'A', &mut ecode);
-            assert_eq!(true, res.is_some());
-            assert_eq!(36, ecode);
-        }
-
-        #[test]
-        fn uncaseable() {
-            let mut l = Links::new();
-            let mut ecode = 0;
-
-            _ = l.insert('-', Node::empty());
-
-            let res = get_node(&l, &'_', &mut ecode);
-            assert_eq!(true, res.is_none());
-            assert_eq!(8, ecode);
-        }
-
-        #[test]
-        fn not_one_to_one() {
-            let mut l = Links::new();
-            let c = 'ß';
-            let mut ecode = 0;
-
-            _ = l.insert('S', Node::empty());
-
-            let res = get_node(&l, &c, &mut ecode);
-            assert_eq!(true, res.is_none());
-            assert_eq!(18, ecode);
-        }
-
-        #[test]
-        fn not_match() {
-            let mut l = Links::new();
-            let mut ecode = 0;
-
-            _ = l.insert('a', Node::empty());
-
-            let res = get_node(&l, &'B', &mut ecode);
-            assert_eq!(true, res.is_none());
-            assert_eq!(36, ecode);
         }
     }
 
@@ -2339,28 +2187,6 @@ mod tests_of_units {
             }
 
             #[test]
-            fn exactly_last_match_4() {
-                let e = &Entry("s");
-                let k = &Entry("S");
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(e);
-
-                let mut mc = MatchConduct::default();
-                for max_ml in [1, MAX_ML] {
-                    mc.max_ml = max_ml;
-
-                    let mut b_code = 0;
-                    let f = poetrie.find(k, &mc, &mut b_code);
-
-                    poetrie.clr_f_buffs();
-
-                    assert_eq!(Err(FindErr::OnlyKeyMatches), f);
-                    assert_eq!(18, b_code);
-                }
-            }
-
-            #[test]
             fn no_data() {
                 let k = &Entry("lyrics");
                 let mc = MatchConduct::default();
@@ -2407,23 +2233,6 @@ mod tests_of_units {
 
             #[test]
             fn key_matches_itself_only_2() {
-                let e = &Entry("lyRics");
-                let k = &Entry("lyrics");
-                let mc = MatchConduct::default();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(e);
-
-                let mut b_code = 0;
-                let f = poetrie.find(k, &mc, &mut b_code);
-
-                assert_eq!(Err(FindErr::OnlyKeyMatches), f);
-                assert_eq!(18, b_code);
-            }
-
-            #[test]
-            // different casing is eventually considered to be different word
-            fn key_matches_itself_only_3() {
                 let p = String::from("lyRics");
                 let e = &Entry(p.as_str());
                 let k = &Entry("lyrics");
@@ -3095,40 +2904,8 @@ mod tests_of_units {
                 }
             }
 
-            #[test]
-            fn case_ignoring() {
-                let subentry = "DoCuMeNt";
-                let entry = "DoCuMeNtAlIsT";
-
-                let key = "dOcUmEnTaL";
-
-                let proof1 = key[..subentry.len()].to_string();
-                let proof2 = format!("{}{}", key, &entry[key.len()..]);
-
-                let subentry = RevEntry::new(subentry);
-                let entry = RevEntry::new(entry);
-
-                let key = RevEntry::new(key);
-                let mut mc = MatchConduct::default();
-                mc.max_n = 2;
-                mc.sub_e = true;
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&subentry.entry());
-                _ = poetrie.it(&entry.entry());
-
-                let mut b_code = 0;
-                let find = poetrie.find(&key.entry(), &mc, &mut b_code);
-
-                let proof1 = RevEntry::new(proof1.as_str());
-                let proof2 = RevEntry::new(proof2.as_str());
-
-                assert_eq!(Ok(vec![proof1.0, proof2.0]), find);
-
-                assert_eq!(130, b_code);
-            }
-
             use crate::Find;
+
             #[test]
             fn load() {
                 let mut poetrie = Poetrie::nw();
