@@ -121,9 +121,6 @@ pub enum ReqErr {
     SufLenMaxLessThanMin,
     /// Maximal match length cannot be less than minimal.    
     MatchLenMaxLessThanMin,
-
-    #[cfg(test)]
-    MatchLenMinLessThanSufLenMin,
 }
 
 /// [`MatchConduct`] default values.
@@ -151,8 +148,8 @@ pub struct MatchConduct {
     min_sl: usize,
     // max suffix match length
     max_sl: usize,
-    // min match length
-    min_ml: usize,
+    // extra match length requirement
+    ext_ml: usize,
     // max match length
     max_ml: usize,
     // sub-entries inclusion
@@ -189,12 +186,11 @@ impl MatchConduct {
         let max_ml = max_ml.unwrap_or(MAX_ML);
         let sub_e = sub_e.unwrap_or(SUB_E);
 
-        let min_ml = min_sl + ext_ml;
         let new = Self {
             max_n,
             min_sl,
             max_sl,
-            min_ml,
+            ext_ml,
             max_ml,
             sub_e,
         };
@@ -222,7 +218,7 @@ impl MatchConduct {
             max_n: MAX_N,
             min_sl: MIN_SL,
             max_sl: MAX_SL,
-            min_ml: MIN_SL + EXT_ML,
+            ext_ml: EXT_ML,
             max_ml: MAX_ML,
             sub_e: SUB_E,
         };
@@ -234,11 +230,6 @@ impl MatchConduct {
     }
 
     fn val(s: &Self) -> Option<ReqErr> {
-        #[cfg(test)]
-        if s.min_ml < s.min_sl {
-            return Some(ReqErr::MatchLenMinLessThanSufLenMin);
-        }
-
         let min_sl = s.min_sl;
 
         let err = if s.max_n == 0 {
@@ -247,7 +238,7 @@ impl MatchConduct {
             ReqErr::ZeroMinSufLen
         } else if s.max_sl < min_sl {
             ReqErr::SufLenMaxLessThanMin
-        } else if s.max_ml < s.min_ml {
+        } else if s.max_ml < s.min_ml() {
             ReqErr::MatchLenMaxLessThanMin
         } else {
             return None;
@@ -258,6 +249,10 @@ impl MatchConduct {
 
     fn max_l(&self) -> usize {
         min(self.max_ml, self.max_sl)
+    }
+
+    const fn min_ml(&self) -> usize {
+        self.min_sl + self.ext_ml
     }
 }
 
@@ -308,8 +303,7 @@ impl MatchConductWith {
 
     /// Use to adjust extra match length requirement.
     pub fn with_ext_ml(&mut self, ext_ml: usize) -> &mut Self {
-        let mc = &mut self.0;
-        mc.min_ml = mc.min_sl + ext_ml;
+        self.0.ext_ml = ext_ml;
         self
     }
 
@@ -546,6 +540,9 @@ impl Poetrie {
         mc: &MatchConduct,
         #[cfg(test)] grade: &mut usize,
     ) -> Result<Find, FindErr> {
+        #[cfg(test)]
+        assert_eq!(true, MatchConduct::val(mc).is_none());
+
         // operative node
         let mut op_node = &self.root;
         if op_node.links.is_none() {
@@ -553,21 +550,22 @@ impl Poetrie {
         }
 
         let max_n = mc.max_n;
+        let max_l = mc.max_l();
+
         let min_sl = mc.min_sl;
-        let min_ml = mc.min_ml;
+        let min_ml = mc.min_ml();
         let max_ml = mc.max_ml;
-        let sub_entries = mc.sub_e;
+
+        let sub_e = mc.sub_e;
 
         let branching = self.bra.get_mut();
-        let mut skip_n = ptr::null();
+        let mut bra_skip_n = ptr::null();
         let mut se_disjunct_hit = false;
 
         let mut find = Vec::with_capacity(100);
 
         let buff = self.buf.get_mut();
         let mut buf_l;
-
-        let max_l = mc.max_l();
 
         let mut chars = key.chars();
         'track: loop {
@@ -582,7 +580,7 @@ impl Poetrie {
             }
 
             if op_node.entry {
-                if sub_entries && min_ml <= buf_l {
+                if sub_e && min_ml <= buf_l {
                     if push_match(buff, &mut find, max_n) {
                         #[cfg(test)]
                         set_grade(grade::SAT_ON_SE, grade);
@@ -604,7 +602,7 @@ impl Poetrie {
 
                 if let Some(n) = l.get(&c) {
                     if l.len() > 1 && min_sl <= buf_l {
-                        skip_n = n;
+                        bra_skip_n = n;
                         branching.push((l, buf_l));
                     }
 
@@ -702,7 +700,7 @@ impl Poetrie {
                 let blinks = unsafe { blinks.as_ref().unwrap_unchecked() };
 
                 for (&c, node) in blinks.iter() {
-                    if skip_n == node as *const Node {
+                    if bra_skip_n == node as *const Node {
                         // happens only at topmost branching node
                         continue;
                     }
@@ -926,6 +924,24 @@ mod tests_of_units {
                 let test = rev("dcba");
                 assert_eq!(proof, *test);
             }
+        }
+    }
+
+    use crate::MatchConduct;
+    impl MatchConduct {
+        fn test() -> Self {
+            let new = Self {
+                max_n: 1,
+                min_sl: 1,
+                max_sl: usize::MAX,
+                ext_ml: 0,
+                max_ml: usize::MAX,
+                sub_e: false,
+            };
+
+            Self::val(&new);
+
+            new
         }
     }
 
@@ -1206,7 +1222,7 @@ mod tests_of_units {
         }
 
         #[test]
-        fn match_limit_1() {
+        fn match_limit_a() {
             let mut f = Vec::new();
             let mut b = "en".chars().collect();
 
@@ -1231,7 +1247,7 @@ mod tests_of_units {
         }
 
         #[test]
-        fn match_limit_2() {
+        fn match_limit_b() {
             let outset = "en";
 
             let mut f = Vec::new();
@@ -1316,7 +1332,7 @@ mod tests_of_units {
         }
 
         #[test]
-        fn load_bearing_1() {
+        fn load_bearing_a() {
             let mut f = Vec::new();
             let mut b = "ser".chars().collect();
 
@@ -1332,7 +1348,7 @@ mod tests_of_units {
         }
 
         #[test]
-        fn load_bearing_2() {
+        fn load_bearing_b() {
             let mut f = Vec::new();
             let mut b = "ser".chars().collect();
 
@@ -1371,7 +1387,7 @@ mod tests_of_units {
         use crate::{WordBuf, push_match};
 
         #[test]
-        fn limit_hit_1() {
+        fn limit_hit_a() {
             let proof = "poetship";
             let cs = proof.chars().rev().collect::<WordBuf>();
             let mut f = Vec::new();
@@ -1383,7 +1399,7 @@ mod tests_of_units {
         }
 
         #[test]
-        fn limit_hit_2() {
+        fn limit_hit_b() {
             let proof = "poet-cruiser";
             let cs = proof.chars().rev().collect::<WordBuf>();
             let mut f = Vec::new();
@@ -1451,7 +1467,7 @@ mod tests_of_units {
                 assert_eq!(10, mc.max_n);
                 assert_eq!(11, mc.min_sl);
                 assert_eq!(12, mc.max_sl);
-                assert_eq!(13, mc.min_ml);
+                assert_eq!(13, mc.min_ml());
                 assert_eq!(14, mc.max_ml);
                 assert_eq!(true, mc.sub_e);
                 assert_ne!(mc_defaults::SUB_E, mc.sub_e);
@@ -1477,7 +1493,7 @@ mod tests_of_units {
             assert_eq!(mc_defaults::MAX_N, mc.max_n);
             assert_eq!(mc_defaults::MIN_SL, mc.min_sl);
             assert_eq!(mc_defaults::MAX_SL, mc.max_sl);
-            assert_eq!(mc_defaults::MIN_SL + mc_defaults::EXT_ML, mc.min_ml);
+            assert_eq!(mc_defaults::EXT_ML, mc.ext_ml);
             assert_eq!(mc_defaults::MAX_ML, mc.max_ml);
             assert_eq!(mc_defaults::SUB_E, mc.sub_e);
         }
@@ -1487,7 +1503,7 @@ mod tests_of_units {
 
             #[test]
             fn zero_n() {
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.max_n = 0;
 
                 let err = MatchConduct::val(&mc);
@@ -1496,7 +1512,7 @@ mod tests_of_units {
 
             #[test]
             fn zero_suffix_requirement() {
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.min_sl = 0;
 
                 let err = MatchConduct::val(&mc);
@@ -1505,7 +1521,7 @@ mod tests_of_units {
 
             #[test]
             fn suffix_min_greater_max() {
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.min_sl = 1;
                 mc.max_sl = 0;
 
@@ -1515,51 +1531,61 @@ mod tests_of_units {
 
             #[test]
             fn suffix_min_equal_max() {
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.min_sl = 1;
                 mc.max_sl = 1;
 
-                let none = MatchConduct::val(&mc);
-                assert_eq!(None, none);
+                let res = MatchConduct::val(&mc);
+                assert_eq!(None, res);
             }
 
             #[test]
-            fn length_min_greater_max() {
-                let mut mc = MatchConduct::default();
-                mc.min_ml = 1;
-                mc.max_ml = 0;
+            fn length_min_greater_max_a() {
+                let mut mc = MatchConduct::test();
+                mc.ext_ml = 1;
+                mc.max_ml = 1;
 
                 let err = MatchConduct::val(&mc);
                 assert_eq!(Some(ReqErr::MatchLenMaxLessThanMin), err);
             }
 
             #[test]
-            fn length_min_equal_max() {
-                let mut mc = MatchConduct::default();
-                mc.min_ml = 1;
+            fn length_min_greater_max_b() {
+                let mut mc = MatchConduct::test();
+                mc.min_sl = 2;
                 mc.max_ml = 1;
 
-                let none = MatchConduct::val(&mc);
-                assert_eq!(None, none);
+                let err = MatchConduct::val(&mc);
+                assert_eq!(Some(ReqErr::MatchLenMaxLessThanMin), err);
             }
 
             #[test]
-            fn length_min_less_than_suffix_min() {
-                let mut mc = MatchConduct::default();
-                mc.min_ml = 1;
-                mc.min_sl = 2;
+            fn length_min_equal_max_a() {
+                let mut mc = MatchConduct::test();
+                mc.ext_ml = 1;
+                mc.max_ml = 2;
 
-                let err = MatchConduct::val(&mc);
-                assert_eq!(Some(ReqErr::MatchLenMinLessThanSufLenMin), err);
+                let res = MatchConduct::val(&mc);
+                assert_eq!(None, res);
+            }
+
+            #[test]
+            fn length_min_equal_max_b() {
+                let mut mc = MatchConduct::test();
+                mc.min_sl = 2;
+                mc.max_ml = 2;
+
+                let res = MatchConduct::val(&mc);
+                assert_eq!(None, res);
             }
 
             #[test]
             fn length_max_less_than_suffix_max() {
-                // alogrithmically not problem
+                // logically not problem
                 // even connotes with concept of unbound
                 // suffix, usize::MAX, still can be understood
                 // as miscofiguration, kept loose
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.max_ml = 1;
                 mc.max_sl = 2;
 
@@ -1569,26 +1595,36 @@ mod tests_of_units {
 
             #[test]
             fn suffix_max_less_than_length_max() {
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.max_ml = 2;
                 mc.max_sl = 1;
 
-                let none = MatchConduct::val(&mc);
-                assert_eq!(None, none);
+                let res = MatchConduct::val(&mc);
+                assert_eq!(None, res);
             }
         }
 
         #[test]
         fn max_l() {
-            let vals = [(100, 101), (101, 100)];
+            let three_3 = 333;
+            let three_7 = 777;
 
-            let mut mc = MatchConduct::default();
-            for v in vals {
-                mc.max_sl = v.0;
-                mc.max_ml = v.1;
+            let mut mc = MatchConduct::test();
+            for duo in [(three_3, three_7), (three_7, three_3)] {
+                mc.max_sl = duo.0;
+                mc.max_ml = duo.1;
 
-                assert_eq!(100, mc.max_l());
+                assert_eq!(three_3, mc.max_l());
             }
+        }
+
+        #[test]
+        fn min_ml() {
+            let mut mc = MatchConduct::test();
+            mc.min_sl = 556;
+            mc.ext_ml = 444;
+
+            assert_eq!(1000, mc.min_ml());
         }
     }
 
@@ -1598,22 +1634,21 @@ mod tests_of_units {
         #[test]
         fn basic_test() {
             let mut with = MatchConductWith::init();
-            _ = with
-                .with_max_n(10)
-                .with_min_sl(11)
-                .with_max_sl(12)
-                .with_ext_ml(2)
-                .with_max_ml(14)
-                .with_sub_e(true);
-
-            let test = with.with();
+            let test = with
+                .with_max_n(11)
+                .with_min_sl(33)
+                .with_max_sl(55)
+                .with_ext_ml(22)
+                .with_max_ml(77)
+                .with_sub_e(true)
+                .with();
 
             let proof = MatchConduct {
-                max_n: 10,
-                min_sl: 11,
-                max_sl: 12,
-                min_ml: 13,
-                max_ml: 14,
+                max_n: 11,
+                min_sl: 33,
+                max_sl: 55,
+                ext_ml: 22,
+                max_ml: 77,
                 sub_e: true,
             };
 
@@ -1803,7 +1838,7 @@ mod tests_of_units {
                 _ = poetrie.it(&entry);
 
                 let key = Entry("semiliteral");
-                let mc = MatchConduct::default();
+                let mc = MatchConduct::test();
                 let find = poetrie.sx(&key, &mc);
 
                 assert_eq!(Ok(vec![proof]), find);
@@ -1814,7 +1849,7 @@ mod tests_of_units {
                 let poetrie = Poetrie::nw();
 
                 let key = Entry("semiliteral");
-                let mc = MatchConduct::default();
+                let mc = MatchConduct::test();
                 let res = poetrie.sx(&key, &mc);
                 assert_eq!(Err(FindErr::EmptyTree), res);
             }
@@ -1831,7 +1866,7 @@ mod tests_of_units {
                 assert_eq!(0, poetrie.buf.capacity());
                 assert_eq!(0, poetrie.bra.capacity());
 
-                let mc = MatchConduct::default();
+                let mc = MatchConduct::test();
                 _ = poetrie.sx(&key_entry, &mc);
                 assert_eq!(0, poetrie.buf.len());
                 assert_eq!(0, poetrie.bra.len());
@@ -2084,7 +2119,7 @@ mod tests_of_units {
                 }
 
                 let k = &Entry("lyrics");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.max_n = usize::MAX;
 
                 let f = poetrie.find(k, &mc, &mut 0).ok().unwrap();
@@ -2096,14 +2131,14 @@ mod tests_of_units {
             }
 
             #[test]
-            fn exactly_last_match_1a() {
+            fn exactly_last_match_a_1() {
                 let e = &Entry("s");
                 let k = &Entry("lyrics");
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e);
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.sub_e = true;
                 mc.max_n = 2;
 
@@ -2121,7 +2156,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn exactly_last_match_1b() {
+            fn exactly_last_match_a_2() {
                 let e = &Entry("s");
                 let k = &Entry("lyrics");
 
@@ -2129,7 +2164,7 @@ mod tests_of_units {
                 _ = poetrie.it(e);
                 _ = poetrie.it(k);
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.sub_e = true;
                 mc.max_n = 2;
 
@@ -2147,14 +2182,14 @@ mod tests_of_units {
             }
 
             #[test]
-            fn exactly_last_match_2a() {
+            fn exactly_last_match_b_1() {
                 let p = "lyrics";
                 let k = &Entry("s");
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&Entry(p));
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 for duo in [(1, 130), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
@@ -2171,7 +2206,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn exactly_last_match_2b() {
+            fn exactly_last_match_b_2() {
                 let p = "lyrics";
 
                 let k = &Entry("s");
@@ -2180,7 +2215,7 @@ mod tests_of_units {
                 _ = poetrie.it(&Entry(p));
                 _ = poetrie.it(k);
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 for duo in [(1, 130), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
@@ -2196,13 +2231,13 @@ mod tests_of_units {
             }
 
             #[test]
-            fn exactly_last_match_3() {
+            fn exactly_last_match_c() {
                 let k = &Entry("s");
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(k);
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 for max_ml in [1, MAX_ML] {
                     mc.max_ml = max_ml;
 
@@ -2219,7 +2254,7 @@ mod tests_of_units {
             #[test]
             fn no_data() {
                 let k = &Entry("lyrics");
-                let mc = MatchConduct::default();
+                let mc = MatchConduct::test();
 
                 let poetrie = Poetrie::nw();
 
@@ -2234,7 +2269,7 @@ mod tests_of_units {
             fn no_suffix_match() {
                 let e = &Entry("epicalyx");
                 let k = &Entry("lyrics");
-                let mc = MatchConduct::default();
+                let mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e);
@@ -2247,9 +2282,9 @@ mod tests_of_units {
             }
 
             #[test]
-            fn key_matches_itself_only_1() {
+            fn key_matches_itself_only_a() {
                 let itself = &Entry("lyrics");
-                let mc = MatchConduct::default();
+                let mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(itself);
@@ -2262,11 +2297,11 @@ mod tests_of_units {
             }
 
             #[test]
-            fn key_matches_itself_only_2() {
+            fn key_matches_itself_only_b() {
                 let p = String::from("lyRics");
                 let e = &Entry(p.as_str());
                 let k = &Entry("lyrics");
-                let mc = MatchConduct::default();
+                let mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e);
@@ -2280,12 +2315,132 @@ mod tests_of_units {
             }
 
             #[test]
+            fn subentry_disjunct_detection_a_1() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = false;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(24, grade);
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_a_2() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = false;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+                _ = poetrie.it(k);
+
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_b_1() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.min_sl = se.0.len() + 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(2056, grade);
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_b_2() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.min_sl = se.0.len() + 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+                _ = poetrie.it(k);
+
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_c_1() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.min_sl = se.0.len();
+                mc.ext_ml = 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(24, grade);
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_c_2() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.min_sl = se.0.len();
+                mc.ext_ml = 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+                _ = poetrie.it(k);
+
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
             fn key_with_subentry_is_suffix_to_entry_1() {
                 let se = RevEntry::new("document");
                 let e = RevEntry::new("documentalist");
                 let k = RevEntry::new("documental");
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
@@ -2314,7 +2469,7 @@ mod tests_of_units {
                 let k = RevEntry::new("documental");
                 let k = &k.entry();
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
@@ -2349,7 +2504,7 @@ mod tests_of_units {
                 _ = poetrie.it(&se_b.entry());
                 _ = poetrie.it(k);
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.sub_e = true;
 
                 let p = Ok(vec![se_a.0, se_b.0]);
@@ -2377,7 +2532,7 @@ mod tests_of_units {
                 _ = poetrie.it(&se_a.entry());
                 _ = poetrie.it(&se_b.entry());
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.sub_e = true;
 
                 let p = Ok(vec![se_a.0, se_b.0]);
@@ -2403,7 +2558,7 @@ mod tests_of_units {
                 _ = poetrie.it(&se);
                 _ = poetrie.it(k);
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.sub_e = true;
 
                 let p = Ok(vec![p]);
@@ -2428,7 +2583,7 @@ mod tests_of_units {
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&se);
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.sub_e = true;
 
                 let p = Ok(vec![p]);
@@ -2450,7 +2605,7 @@ mod tests_of_units {
                 let se = Entry(p.as_str());
 
                 let k = &Entry("X-ode");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
@@ -2476,7 +2631,7 @@ mod tests_of_units {
                 let se = Entry(p.as_str());
 
                 let k = &Entry("X-ode");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
@@ -2502,7 +2657,7 @@ mod tests_of_units {
                 let e_b = Entry("claybank");
 
                 let k = &Entry("haulm");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&e_a);
@@ -2529,7 +2684,7 @@ mod tests_of_units {
                 let e_b = Entry("claybank");
 
                 let k = &Entry("haulm");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&e_a);
@@ -2552,7 +2707,7 @@ mod tests_of_units {
             fn must_not_recourse_to_root_branching_b() {
                 let k = &Entry("lyrics");
                 let e = &Entry("disarrangement");
-                let mc = MatchConduct::default();
+                let mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(k);
@@ -2571,7 +2726,7 @@ mod tests_of_units {
                 let e = &Entry(p.as_str());
 
                 let k = &Entry("athletics");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e);
@@ -2595,7 +2750,7 @@ mod tests_of_units {
                 let e = &Entry(p.as_str());
 
                 let k = &Entry("athletics");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e);
@@ -2620,7 +2775,7 @@ mod tests_of_units {
                 let e = &Entry(p.as_str());
 
                 let k = &Entry("carboniferous");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e);
@@ -2644,7 +2799,7 @@ mod tests_of_units {
                 let e = &Entry(p.as_str());
 
                 let k = &Entry("carboniferous");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e);
@@ -2669,7 +2824,7 @@ mod tests_of_units {
                 let e = &Entry(p.as_str());
 
                 let k = &Entry("A-lyrics");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e);
@@ -2693,7 +2848,7 @@ mod tests_of_units {
                 let e = &Entry(p.as_str());
 
                 let k = &Entry("A-lyrics");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e);
@@ -2721,7 +2876,7 @@ mod tests_of_units {
                 let e_b = &Entry(p_b.as_str());
 
                 let k = &Entry("athletics");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e_a);
@@ -2757,7 +2912,7 @@ mod tests_of_units {
                 let e_b = &Entry(p_b.as_str());
 
                 let k = &Entry("athletics");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e_a);
@@ -2795,7 +2950,7 @@ mod tests_of_units {
                 let e_b = &Entry(p_b.as_str());
 
                 let k = &Entry("carboniferous");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e_a);
@@ -2831,7 +2986,7 @@ mod tests_of_units {
                 let e_b = &Entry(p_b.as_str());
 
                 let k = &Entry("carboniferous");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e_a);
@@ -2869,7 +3024,7 @@ mod tests_of_units {
                 let e_b = &Entry(p_b.as_str());
 
                 let k = &Entry("X-lyrics");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e_a);
@@ -2905,7 +3060,7 @@ mod tests_of_units {
                 let e_b = &Entry(p_b.as_str());
 
                 let k = &Entry("X-lyrics");
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e_a);
@@ -2998,7 +3153,7 @@ mod tests_of_units {
                     poetrie: &Poetrie,
                     n: usize,
                 ) {
-                    let mut mc = MatchConduct::default();
+                    let mut mc = MatchConduct::test();
                     mc.max_n = n;
                     mc.sub_e = true;
 
@@ -3068,7 +3223,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn unknown_not_path() {
+            fn unknown_not_path_a() {
                 let entry = RevEntry::new("wordbook");
                 let bad_entry = RevEntry::new("wordbooks");
 
@@ -3079,7 +3234,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn unknown_not_path_2() {
+            fn unknown_not_path_b() {
                 let entry = RevEntry::new("wordbookz");
                 let bad_entry = RevEntry::new("wordbooks");
 
@@ -3222,7 +3377,7 @@ mod tests_of_units {
         use crate::{Entry, FindErr, MatchConduct, Poetrie};
 
         #[test]
-        fn sample_1() {
+        fn sample_a() {
             let mut poetrie = Poetrie::nw();
             let words = ["analytics", "metrics", "ethics", "Acoustics"]
                 .map(|x| Entry::new_from_str(x).unwrap());
@@ -3230,7 +3385,7 @@ mod tests_of_units {
                 poetrie.it(&w);
             }
 
-            let mc = MatchConduct::default();
+            let mc = MatchConduct::test();
 
             let probe = Entry::new_from_str("lyrics").unwrap();
 
@@ -3242,7 +3397,7 @@ mod tests_of_units {
         }
 
         #[test]
-        fn sample_2() {
+        fn sample_b() {
             let mut poetrie = Poetrie::nw();
             let words = ["lynx", "index"].map(|x| Entry::new_from_str(x).unwrap());
             for w in words {
@@ -3250,7 +3405,7 @@ mod tests_of_units {
             }
 
             let probe = Entry::new_from_str("ynx").unwrap();
-            let mc = MatchConduct::default();
+            let mc = MatchConduct::test();
             let matchee = poetrie.sx(&probe, &mc);
 
             assert_eq!(Ok(vec![String::from("lynx")]), matchee);
