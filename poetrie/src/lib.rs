@@ -545,7 +545,17 @@ impl Poetrie {
 
         // operative node
         let mut op_node = &self.root;
-        if op_node.links.is_none() {
+
+        let mut chars = key.chars();
+        let mut c = unsafe { chars.next_back().unwrap_unchecked() };
+
+        if let Some(l) = op_node.links.as_ref() {
+            if let Some(n) = l.get(&c) {
+                op_node = n;
+            } else {
+                return Err(FindErr::NoJointSuffix);
+            }
+        } else {
             return Err(FindErr::EmptyTree);
         }
 
@@ -553,6 +563,8 @@ impl Poetrie {
         let max_l = mc.max_l();
 
         let min_sl = mc.min_sl;
+        let max_sl = mc.max_sl;
+
         let min_ml = mc.min_ml();
         let max_ml = mc.max_ml;
 
@@ -560,15 +572,15 @@ impl Poetrie {
 
         let branching = self.bra.get_mut();
         let mut bra_skip_n = ptr::null();
-        let mut se_disjunct_hit = false;
+        let mut disjunct_hit = false;
 
         let mut find = Vec::with_capacity(100);
 
         let buff = self.buf.get_mut();
         let mut buf_l;
 
-        let mut chars = key.chars();
         'track: loop {
+            buff.push(c);
             buf_l = buff.len();
 
             let next_c = chars.next_back();
@@ -579,36 +591,34 @@ impl Poetrie {
                 break 'track;
             }
 
+            // unwinding key, instead of short-cutting,
+            // is necessary for disjunct conduct determination
+            let capturing = buf_l <= max_l;
+
             if op_node.entry {
-                if sub_e && min_ml <= buf_l {
+                if sub_e && capturing && min_ml <= buf_l {
                     if push_match(buff, &mut find, max_n) {
                         #[cfg(test)]
                         set_grade(grade::SAT_ON_SE, grade);
                         return Ok(find);
                     }
                 } else {
-                    se_disjunct_hit = true;
+                    disjunct_hit = true;
                 }
             }
 
-            if buf_l == max_l {
-                #[cfg(test)]
-                set_grade(grade::MAX_L_REA_ON_SUF, grade);
-                break;
-            }
-
             if let Some(l) = op_node.links.as_ref() {
-                let c = unsafe { next_c.unwrap_unchecked() };
-
+                c = unsafe { next_c.unwrap_unchecked() };
                 if let Some(n) = l.get(&c) {
-                    if l.len() > 1 && min_sl <= buf_l {
-                        bra_skip_n = n;
-                        branching.push((l, buf_l));
+                    if l.len() > 1 {
+                        if capturing && min_sl <= buf_l {
+                            bra_skip_n = n;
+                            branching.push((l, buf_l));
+                        } else {
+                            disjunct_hit = true;
+                        }
                     }
-
-                    buff.push(c);
                     op_node = n;
-
                     continue;
                 }
 
@@ -622,10 +632,6 @@ impl Poetrie {
             break 'track;
         }
 
-        if buf_l == 0 {
-            return Err(FindErr::NoJointSuffix);
-        }
-
         if buf_l < min_sl {
             #[cfg(test)]
             set_grade(grade::MIN_SL_NOT_REA, grade);
@@ -633,8 +639,8 @@ impl Poetrie {
         }
 
         let links = op_node.links.as_ref();
-        let can_extend = links.is_some() && buf_l < max_ml;
 
+        let can_extend = links.is_some() && (buf_l < max_ml && buf_l <= max_sl);
         let can_branch = branching.len() > 0;
 
         // CONTINUATION
@@ -653,7 +659,7 @@ impl Poetrie {
                 #[cfg(test)]
                 set_grade(grade::G_ZERO_M, grade);
 
-                let err = if se_disjunct_hit {
+                let err = if disjunct_hit || buf_l != key.len() {
                     FindErr::DisjunctConduct
                 } else {
                     FindErr::OnlyKeyMatches
@@ -2142,7 +2148,7 @@ mod tests_of_units {
                 mc.sub_e = true;
                 mc.max_n = 2;
 
-                for duo in [(1, 1056), (MAX_ML, 40)] {
+                for duo in [(1, 40), (MAX_ML, 40)] {
                     mc.max_ml = duo.0;
 
                     let mut grade = 0;
@@ -2168,7 +2174,7 @@ mod tests_of_units {
                 mc.sub_e = true;
                 mc.max_n = 2;
 
-                for duo in [(1, 1056), (MAX_ML, 34)] {
+                for duo in [(1, 34), (MAX_ML, 34)] {
                     mc.max_ml = duo.0;
 
                     let mut grade = 0;
@@ -2278,13 +2284,45 @@ mod tests_of_units {
                 let f = poetrie.find(k, &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::NoJointSuffix), f);
-                assert_eq!(4, grade);
+                assert_eq!(0, grade);
             }
 
             #[test]
-            fn key_matches_itself_only_a() {
+            fn key_matches_itself_only_a_1() {
                 let itself = &Entry("lyrics");
                 let mc = MatchConduct::test();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(itself);
+
+                let mut grade = 0;
+                let f = poetrie.find(itself, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::OnlyKeyMatches), f);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn key_matches_itself_only_a_2() {
+                let itself = &Entry("lyrics");
+                let mut mc = MatchConduct::test();
+                mc.max_ml = itself.0.len() - 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(itself);
+
+                let mut grade = 0;
+                let f = poetrie.find(itself, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::OnlyKeyMatches), f);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn key_matches_itself_only_a_3() {
+                let itself = &Entry("lyrics");
+                let mut mc = MatchConduct::test();
+                mc.max_sl = itself.0.len() - 1;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(itself);
@@ -3125,7 +3163,7 @@ mod tests_of_units {
                 assert(Ok(vec![proof]), 258, key, &poetrie, 1);
 
                 let key = Entry("epicalyx");
-                assert(Err(FindErr::NoJointSuffix), 4, key, &poetrie, 1);
+                assert(Err(FindErr::NoJointSuffix), 0, key, &poetrie, 1);
 
                 let key = RevEntry::new("documental");
                 let proof1 = RevEntry::new("document").0;
@@ -3161,9 +3199,10 @@ mod tests_of_units {
                     assert_eq!(
                         res,
                         poetrie.find(&key, &mc, &mut grade),
-                        "c: {}, bc: {}",
+                        "code: {}, grade: {}, key {:?}",
                         code,
-                        grade
+                        grade,
+                        key
                     );
                     assert_eq!(code, grade);
 
