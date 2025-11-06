@@ -2108,8 +2108,6 @@ mod tests_of_units {
                 pub const SAT_ON_BRA: usize = 256;
                 /// final execution reached
                 pub const FIN: usize = 512;
-                /// match requirement reached with suffix
-                pub const MAX_L_REA_ON_SUF: usize = 1024;
                 /// min suffix requirement not reached
                 pub const MIN_SL_NOT_REA: usize = 2048;
             }
@@ -2431,6 +2429,58 @@ mod tests_of_units {
             }
 
             #[test]
+            fn subentry_disjunct_detection_b_3() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.min_sl = se.0.len();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+
+                let p = Ok(vec![se.0]);
+                for duo in [(1, 64), (usize::MAX, 40)] {
+                    mc.max_n = duo.0;
+                    
+                    let mut grade = 0;
+                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_b_4() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.min_sl = se.0.len();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+                _ = poetrie.it(k);
+
+                let p = Ok(vec![se.0]);
+                for duo in [(1, 64), (usize::MAX, 34)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
             fn subentry_disjunct_detection_c_1() {
                 let se = RevEntry::new("document");
                 let k = RevEntry::new("documentalist");
@@ -2472,6 +2522,241 @@ mod tests_of_units {
                 assert_eq!(18, grade);
             }
 
+            #[test]
+            fn subentry_disjunct_detection_c_3() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.min_sl = se.0.len();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+
+                let p = Ok(vec![se.0]);
+                for duo in [(1, 64), (usize::MAX, 40)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_c_4() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.min_sl = se.0.len();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+                _ = poetrie.it(k);
+
+                let p = Ok(vec![se.0]);
+                for duo in [(1, 64), (usize::MAX, 34)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_d_1() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.max_sl = se.0.len() - 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(24, grade);
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_d_2() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.max_sl = se.0.len() - 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+                _ = poetrie.it(k);
+
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_d_3() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.max_sl = se.0.len();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+
+                let p = Ok(vec![se.0]);
+                for duo in [(1, 64), (usize::MAX, 40)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_d_4() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.max_sl = se.0.len();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+                _ = poetrie.it(k);
+
+                let p = Ok(vec![se.0]);
+                for duo in [(1, 64), (usize::MAX, 34)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_e_1() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.max_ml = se.0.len() - 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(24, grade);
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_e_2() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.max_ml = se.0.len() - 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+                _ = poetrie.it(k);
+
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_e_3() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.max_ml = se.0.len();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+
+                let p = Ok(vec![se.0]);
+                for duo in [(1, 64), (usize::MAX, 40)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn subentry_disjunct_detection_e_4() {
+                let se = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.max_ml = se.0.len();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&se.entry());
+                _ = poetrie.it(k);
+
+                let p = Ok(vec![se.0]);
+                for duo in [(1, 64), (usize::MAX, 34)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, grade);
+                }
+            }
             #[test]
             fn key_with_subentry_is_suffix_to_entry_1() {
                 let se = RevEntry::new("document");
