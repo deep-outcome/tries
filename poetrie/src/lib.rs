@@ -563,7 +563,6 @@ impl Poetrie {
         let max_l = mc.max_l();
 
         let min_sl = mc.min_sl;
-        let max_sl = mc.max_sl;
         let min_ml = mc.min_ml();
         let max_ml = mc.max_ml;
 
@@ -577,13 +576,18 @@ impl Poetrie {
 
         let buff = self.buf.get_mut();
         let mut buf_l;
+        let mut max_l_accord;
 
         'track: loop {
-            // note: can be guarded by inspection also
-            // so heap push is avoided, needs some counter 
+            // note: can be guarded by inspection
+            // so heap push is avoided, needs some counter
             // instead
             buff.push(c);
             buf_l = buff.len();
+
+            // unwinding key, instead of short-cutting,
+            // is necessary for disjunct conduct determination
+            max_l_accord = buf_l <= max_l;
 
             let next_c = chars.next_back();
             if next_c.is_none() {
@@ -591,10 +595,6 @@ impl Poetrie {
                 set_grade(grade::KEY_EXH, grade);
                 break 'track;
             }
-
-            // unwinding key, instead of short-cutting,
-            // is necessary for disjunct conduct determination
-            let max_l_accord = buf_l <= max_l;
 
             if op_node.entry {
                 if sub_e && max_l_accord && min_ml <= buf_l {
@@ -643,8 +643,8 @@ impl Poetrie {
         let links = op_node.links.as_ref();
 
         // extension is special case of branching where branching node
-        // is key last node; node can have more extensions
-        let can_extend = links.is_some() && buf_l < max_ml && buf_l <= max_sl;
+        // is last node of key; node can have more extensions
+        let can_extend = max_l_accord && links.is_some() && buf_l < max_ml;
         let can_branch = branching.len() > 0;
 
         // CONTINUATION
@@ -702,24 +702,25 @@ impl Poetrie {
             for (blinks, blen) in b.next_back() {
                 let blen = *blen;
                 if blen == max_ml {
-                    // `==` situation occurs when buf_l = max_l = max_ml
-                    // it's simpler to discard non-extendable branch here
+                    // `==` occurs when buf_l = max_l = max_ml
+                    // it is simpler to skip already long enough buffer here
                     // than checking each time for both conditions,
-                    // buf_l <= max_sl && buf_l < max_ml, instead of buf_l <= maxl
+                    // buf_l <= max_sl && buf_l < max_ml, instead of buf_l <= max_l
                     continue;
                 }
 
                 extender.b.truncate(blen);
 
+                // note: check with option to avoid raw pointers
                 let blinks = unsafe { blinks.as_ref().unwrap_unchecked() };
 
-                for (&c, node) in blinks.iter() {
+                for (c, node) in blinks.iter() {
                     if bra_skip_n == node as *const Node {
                         // happens only at topmost branching node
                         continue;
                     }
 
-                    if extender.e(node, c) {
+                    if extender.e(node, *c) {
                         #[cfg(test)]
                         set_grade(grade::SAT_ON_BRA, grade);
                         return Ok(find);
