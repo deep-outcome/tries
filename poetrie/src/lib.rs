@@ -564,7 +564,6 @@ impl Poetrie {
 
         let min_sl = mc.min_sl;
         let max_sl = mc.max_sl;
-
         let min_ml = mc.min_ml();
         let max_ml = mc.max_ml;
 
@@ -580,11 +579,13 @@ impl Poetrie {
         let mut buf_l;
 
         'track: loop {
+            // note: can be guarded by inspection also
+            // so heap push is avoided, needs some counter 
+            // instead
             buff.push(c);
             buf_l = buff.len();
 
             let next_c = chars.next_back();
-
             if next_c.is_none() {
                 #[cfg(test)]
                 set_grade(grade::KEY_EXH, grade);
@@ -593,10 +594,10 @@ impl Poetrie {
 
             // unwinding key, instead of short-cutting,
             // is necessary for disjunct conduct determination
-            let capturing = buf_l <= max_l;
+            let max_l_accord = buf_l <= max_l;
 
             if op_node.entry {
-                if sub_e && capturing && min_ml <= buf_l {
+                if sub_e && max_l_accord && min_ml <= buf_l {
                     if push_match(buff, &mut find, max_n) {
                         #[cfg(test)]
                         set_grade(grade::SAT_ON_SE, grade);
@@ -611,13 +612,14 @@ impl Poetrie {
                 c = unsafe { next_c.unwrap_unchecked() };
                 if let Some(n) = l.get(&c) {
                     if l.len() > 1 {
-                        if capturing && min_sl <= buf_l {
+                        if max_l_accord && min_sl <= buf_l {
                             bra_skip_n = n;
                             branching.push((l, buf_l));
                         } else {
                             disjunct_hit = true;
                         }
                     }
+
                     op_node = n;
                     continue;
                 }
@@ -640,7 +642,9 @@ impl Poetrie {
 
         let links = op_node.links.as_ref();
 
-        let can_extend = links.is_some() && (buf_l < max_ml && buf_l <= max_sl);
+        // extension is special case of branching where branching node
+        // is key last node; node can have more extensions
+        let can_extend = links.is_some() && buf_l < max_ml && buf_l <= max_sl;
         let can_branch = branching.len() > 0;
 
         // CONTINUATION
@@ -697,7 +701,11 @@ impl Poetrie {
 
             for (blinks, blen) in b.next_back() {
                 let blen = *blen;
-                if blen > max_ml {
+                if blen == max_ml {
+                    // `==` situation occurs when buf_l = max_l = max_ml
+                    // it's simpler to discard non-extendable branch here
+                    // than checking each time for both conditions,
+                    // buf_l <= max_sl && buf_l < max_ml, instead of buf_l <= maxl
                     continue;
                 }
 
@@ -2443,7 +2451,7 @@ mod tests_of_units {
                 let p = Ok(vec![se.0]);
                 for duo in [(1, 64), (usize::MAX, 40)] {
                     mc.max_n = duo.0;
-                    
+
                     let mut grade = 0;
                     let f = poetrie.find(&k.entry(), &mc, &mut grade);
                     poetrie.clr_f_buffs();
@@ -3044,7 +3052,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_share_suffix_a_1() {
+            fn partially_shared_suffix_a_1() {
                 let p = String::from("lyrics");
                 let e = &Entry(p.as_str());
 
@@ -3068,7 +3076,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_share_suffix_a_2() {
+            fn partially_shared_suffix_a_2() {
                 let p = String::from("lyrics");
                 let e = &Entry(p.as_str());
 
@@ -3093,7 +3101,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_share_suffix_b_1() {
+            fn partially_shared_suffix_b_1() {
                 let p = String::from("lyrics");
                 let e = &Entry(p.as_str());
 
@@ -3117,7 +3125,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_share_suffix_b_2() {
+            fn partially_shared_suffix_b_2() {
                 let p = String::from("lyrics");
                 let e = &Entry(p.as_str());
 
@@ -3142,7 +3150,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_share_suffix_c_1() {
+            fn partially_shared_suffix_c_1() {
                 let p = String::from("B-lyrics");
                 let e = &Entry(p.as_str());
 
@@ -3166,7 +3174,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_share_suffix_c_2() {
+            fn partially_shared_suffix_c_2() {
                 let p = String::from("B-lyrics");
                 let e = &Entry(p.as_str());
 
@@ -3191,7 +3199,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_share_suffix_d_1() {
+            fn partially_shared_suffix_d_1() {
                 let p_a = String::from("lyrics");
                 let e_a = &Entry(p_a.as_str());
 
@@ -3227,7 +3235,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_share_suffix_d_2() {
+            fn partially_shared_suffix_d_2() {
                 let p_a = String::from("lyrics");
                 let e_a = &Entry(p_a.as_str());
 
@@ -3265,7 +3273,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_share_suffix_e_1() {
+            fn partially_shared_suffix_e_1() {
                 let p_a = String::from("lyrics");
                 let e_a = &Entry(p_a.as_str());
 
@@ -3301,7 +3309,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_share_suffix_e_2() {
+            fn partially_shared_suffix_e_2() {
                 let p_a = String::from("lyrics");
                 let e_a = &Entry(p_a.as_str());
 
@@ -3339,7 +3347,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_share_suffix_f_1() {
+            fn partially_shared_suffix_f_1() {
                 let p_a = String::from("T-lyrics");
                 let e_a = &Entry(p_a.as_str());
 
@@ -3375,7 +3383,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_share_suffix_f_2() {
+            fn partially_shared_suffix_f_2() {
                 let p_a = String::from("T-lyrics");
                 let e_a = &Entry(p_a.as_str());
 
@@ -3415,7 +3423,7 @@ mod tests_of_units {
             use crate::Find;
 
             #[test]
-            fn load() {
+            fn composite() {
                 let mut poetrie = Poetrie::nw();
 
                 let rev_entries = ["document", "documentalist"];
