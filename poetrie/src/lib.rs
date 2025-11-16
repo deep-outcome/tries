@@ -3044,6 +3044,102 @@ mod tests_of_units {
             }
 
             #[test]
+            fn minimal_suffix_length_miss_a_1() {
+                let e_a = RevEntry::new("document");
+                let e_b = RevEntry::new("documenter");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.min_sl = e_b.0.len() + 1;
+                mc.sub_e = true;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e_a.entry());
+                _ = poetrie.it(&e_b.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                poetrie.clr_f_buffs();
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(2052, grade);
+            }
+
+            #[test]
+            fn minimal_suffix_length_miss_a_2() {
+                let e_a = RevEntry::new("document");
+                let e_b = RevEntry::new("documenter");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.min_sl = k.0.len() + 1;
+                mc.sub_e = true;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e_a.entry());
+                _ = poetrie.it(&e_b.entry());
+                _ = poetrie.it(k);
+
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
+                poetrie.clr_f_buffs();
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(2050, grade);
+            }
+
+            #[test]
+            fn minimal_suffix_length_miss_a_3() {
+                let e_a = RevEntry::new("document");
+                let e_b = RevEntry::new("documenter");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.min_sl = e_a.0.len();
+                mc.sub_e = true;
+                mc.max_n = usize::MAX;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e_a.entry());
+                _ = poetrie.it(&e_b.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                poetrie.clr_f_buffs();
+
+                let p = Ok(vec![e_a.0, e_b.0]);
+                assert_eq!(p, f);
+                assert_eq!(516, grade);
+            }
+
+            #[test]
+            fn minimal_suffix_length_miss_a_4() {
+                let e_a = RevEntry::new("document");
+                let e_b = RevEntry::new("documenter");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.min_sl = e_a.0.len();
+                mc.sub_e = true;
+                mc.max_n = usize::MAX;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e_a.entry());
+                _ = poetrie.it(&e_b.entry());
+                _ = poetrie.it(k);
+
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
+                poetrie.clr_f_buffs();
+
+                let p = Ok(vec![e_a.0, e_b.0]);
+                assert_eq!(p, f);
+                assert_eq!(514, grade);
+            }
+
+            #[test]
             fn key_with_subentry_is_suffix_to_entry_1() {
                 let se = RevEntry::new("document");
                 let e = RevEntry::new("documentalist");
