@@ -641,10 +641,11 @@ impl Poetrie {
         }
 
         let links = op_node.links.as_ref();
+        let continuable = links.is_some();
 
-        // extension is special case of branching where branching node
-        // is last node of key; node can have more extensions
-        let can_extend = max_l_accord && links.is_some() && buf_l < max_ml;
+        // extension is special case of branching where
+        // branching node is last node of key
+        let can_extend = max_l_accord && continuable && buf_l < max_ml;
         let can_branch = branching.len() > 0;
 
         // CONTINUATION
@@ -663,7 +664,7 @@ impl Poetrie {
                 #[cfg(test)]
                 set_grade(grade::G_ZERO_M, grade);
 
-                let err = if disjunct_hit || buf_l != key.len() {
+                let err = if disjunct_hit || continuable {
                     FindErr::DisjunctConduct
                 } else {
                     FindErr::OnlyKeyMatches
@@ -3059,7 +3060,6 @@ mod tests_of_units {
 
                 let mut grade = 0;
                 let f = poetrie.find(&k.entry(), &mc, &mut grade);
-                poetrie.clr_f_buffs();
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
                 assert_eq!(2052, grade);
@@ -3083,7 +3083,6 @@ mod tests_of_units {
 
                 let mut grade = 0;
                 let f = poetrie.find(k, &mc, &mut grade);
-                poetrie.clr_f_buffs();
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
                 assert_eq!(2050, grade);
@@ -3106,7 +3105,6 @@ mod tests_of_units {
 
                 let mut grade = 0;
                 let f = poetrie.find(&k.entry(), &mc, &mut grade);
-                poetrie.clr_f_buffs();
 
                 let p = Ok(vec![e_a.0, e_b.0]);
                 assert_eq!(p, f);
@@ -3132,11 +3130,164 @@ mod tests_of_units {
 
                 let mut grade = 0;
                 let f = poetrie.find(k, &mc, &mut grade);
-                poetrie.clr_f_buffs();
 
                 let p = Ok(vec![e_a.0, e_b.0]);
                 assert_eq!(p, f);
                 assert_eq!(514, grade);
+            }
+
+            #[test]
+            fn cannot_extend_a_1() {
+                let e = RevEntry::new("documentalist");
+                let k = RevEntry::new("document");
+
+                let mut mc = MatchConduct::test();
+                mc.max_sl = k.0.len() - 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn cannot_extend_a_2() {
+                let e = RevEntry::new("documentalist");
+                let k = RevEntry::new("document");
+
+                let mut mc = MatchConduct::test();
+                mc.max_sl = k.0.len();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+
+                assert_eq!(Ok(vec![e.0]), f);
+                assert_eq!(130, grade);
+            }
+
+            #[test]
+            fn cannot_extend_b_1() {
+                let e = RevEntry::new("documentalist");
+                let k = RevEntry::new("document");
+
+                let mut mc = MatchConduct::test();
+                mc.max_ml = k.0.len();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn cannot_extend_b_2() {
+                let e = RevEntry::new("documentalist");
+                let k = RevEntry::new("document");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.max_n = usize::MAX;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+
+                let e = e.0;
+                for duo in [
+                    (Err(FindErr::DisjunctConduct), k.0.len() + 1),
+                    (Ok(vec![e.clone()]), e.len()),
+                ] {
+                    mc.max_ml = duo.1;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(duo.0, f);
+                    assert_eq!(514, grade);
+                }
+            }
+
+            #[test]
+            fn cannot_extend_c_1() {
+                let k = RevEntry::new("document");
+                let k = &k.entry();
+
+                let mc = MatchConduct::test();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(k);
+
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::OnlyKeyMatches), f);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn cannot_extend_c_2() {
+                let e = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+
+                let mc = MatchConduct::test();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+                _ = poetrie.it(k);
+
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn cannot_extend_d_1() {
+                let e = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+
+                let mc = MatchConduct::test();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(24, grade);
+            }
+
+            #[test]
+            fn cannot_extend_d_2() {
+                let e = RevEntry::new("document");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.max_n = usize::MAX;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+
+                assert_eq!(Ok(vec![e.0]), f);
+                assert_eq!(40, grade);
             }
 
             #[test]
