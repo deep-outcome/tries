@@ -579,7 +579,7 @@ impl Poetrie {
         let mut max_l_accord;
 
         'track: loop {
-            // note: can be guarded by inspection
+            // devnote: can be guarded by inspection
             // so heap push is avoided, needs some counter
             // instead
             buff.push(c);
@@ -712,7 +712,7 @@ impl Poetrie {
 
                 extender.b.truncate(blen);
 
-                // note: check with option to avoid raw pointers
+                // devnote: check with option to avoid raw pointers
                 let blinks = unsafe { blinks.as_ref().unwrap_unchecked() };
 
                 for (c, node) in blinks.iter() {
@@ -3310,6 +3310,177 @@ mod tests_of_units {
 
                 assert_eq!(Ok(vec![e.0]), f);
                 assert_eq!(40, grade);
+            }
+
+            #[test]
+            fn extension_a_1() {
+                let e_a = RevEntry::new("documenting");
+                let e_b = RevEntry::new("documenter");
+                let e_c = RevEntry::new("documental");
+                let e_d = RevEntry::new("documentalist");
+                let e_e = RevEntry::new("documentational");
+                let k = RevEntry::new("document");
+
+                let mut poetrie = Poetrie::nw();
+
+                _ = poetrie.it(&e_a.entry());
+                _ = poetrie.it(&e_b.entry());
+                _ = poetrie.it(&e_c.entry());
+                _ = poetrie.it(&e_d.entry());
+                _ = poetrie.it(&e_e.entry());
+
+                let mut mc = MatchConduct::test();
+                mc.ext_ml = e_b.0.len();
+                mc.max_ml = e_e.0.len() - 1;
+
+                let mut p = vec![e_a.0, e_d.0];
+                p.sort();
+
+                for duo in [(2, 130), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    let mut f = f.unwrap();
+                    f.sort();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn extension_a_2() {
+                let e_a = RevEntry::new("documenting");
+                let e_b = RevEntry::new("documenter");
+                let e_c = RevEntry::new("documental");
+                let e_d = RevEntry::new("documentalist");
+                let e_e = RevEntry::new("documentational");
+                let k = RevEntry::new("document");
+                let k = &k.entry();
+
+                let mut poetrie = Poetrie::nw();
+
+                _ = poetrie.it(&e_a.entry());
+                _ = poetrie.it(&e_b.entry());
+                _ = poetrie.it(&e_c.entry());
+                _ = poetrie.it(&e_d.entry());
+                _ = poetrie.it(&e_e.entry());
+                _ = poetrie.it(k);
+
+                let mut mc = MatchConduct::test();
+                mc.ext_ml = e_b.0.len();
+                mc.max_ml = e_e.0.len() - 1;
+
+                let mut p = vec![e_a.0, e_d.0];
+                p.sort();
+
+                for duo in [(2, 130), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    let mut f = f.unwrap();
+                    f.sort();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            use std::cmp::min;
+            #[test]
+            fn extension_b_1() {
+                let e_a = RevEntry::new("documenting");
+                let e_b = RevEntry::new("documenter");
+                let e_c = RevEntry::new("documental");
+                let e_d = RevEntry::new("documentalist");
+                let e_e = RevEntry::new("documentational");
+                let k = RevEntry::new("document");
+
+                let mut mc = MatchConduct::test();
+                mc.ext_ml = e_b.0.len() - 1;
+                mc.max_ml = e_e.0.len();
+
+                let mut poetrie = Poetrie::nw();
+
+                let entries = [e_a, e_b, e_c, e_d, e_e];
+                for e in entries.iter() {
+                    _ = poetrie.it(&e.entry());
+                }
+
+                let p = HashSet::<String>::from_iter(entries.iter().map(|x| x.0.clone()));
+                let p_len = p.len();
+
+                for duo in [(2, 130), (5, 130), (6, 514)] {
+                    let max_n = duo.0;
+                    mc.max_n = max_n;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    let f = f.unwrap();
+
+                    let len = min(max_n, p_len);
+                    assert_eq!(len, f.len());
+
+                    for f in f {
+                        assert_eq!(true, p.contains(&f));
+                    }
+
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn extension_b_2() {
+                let e_a = RevEntry::new("documenting");
+                let e_b = RevEntry::new("documenter");
+                let e_c = RevEntry::new("documental");
+                let e_d = RevEntry::new("documentalist");
+                let e_e = RevEntry::new("documentational");
+                let k = RevEntry::new("document");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.ext_ml = e_b.0.len() - 1;
+                mc.max_ml = e_e.0.len();
+
+                let mut poetrie = Poetrie::nw();
+
+                let entries = vec![e_a, e_b, e_c, e_d, e_e];
+                for e in entries.iter() {
+                    _ = poetrie.it(&e.entry());
+                }
+
+                _ = poetrie.it(k);
+
+                let p = HashSet::<String>::from_iter(entries.iter().map(|x| x.0.clone()));
+                let p_len = p.len();
+
+                for duo in [(2, 130), (5, 130), (6, 514)] {
+                    let max_n = duo.0;
+                    mc.max_n = max_n;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    let f = f.unwrap();
+
+                    let len = min(max_n, p_len);
+                    assert_eq!(len, f.len());
+
+                    for f in f {
+                        assert_eq!(true, p.contains(&f));
+                    }
+                    assert_eq!(duo.1, grade);
+                }
             }
 
             #[test]

@@ -5,7 +5,8 @@
 - check docs
 - check whether is possible to merge extending into branching
 - add full case-insensitive support to find 
-- check with general note
+- check with poetries' general note
+- check with devnotes (devnote:)
 - merge key into match conduct (idea: do not make search if is not possible to satisfy mc with key)
 
 
