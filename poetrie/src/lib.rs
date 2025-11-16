@@ -2769,6 +2769,28 @@ mod tests_of_units {
             }
 
             #[test]
+            fn saturation_on_sub_entry() {
+                let e_a = RevEntry::new("document");
+                let e_b = RevEntry::new("documental");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+                mc.max_n = 2;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e_a.entry());
+                _ = poetrie.it(&e_b.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+
+                let p = Ok(vec![e_a.0, e_b.0]);
+                assert_eq!(p, f);
+                assert_eq!(64, grade);
+            }
+
+            #[test]
             fn branch_disjunct_detection_a_1() {
                 let e = RevEntry::new("documenter");
                 let k = RevEntry::new("documentalist");
