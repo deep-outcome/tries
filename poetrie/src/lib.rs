@@ -2,9 +2,12 @@
 //!
 //! For given input, and populated tree, it will find words with shared suffix for you.
 
-#![allow(for_loops_over_fallibles)]
-
-use std::{cmp::min, collections::hash_map::HashMap, ops::Deref, ptr};
+use std::{
+    cmp::min,
+    collections::{HashSet, hash_map::HashMap},
+    ops::Deref,
+    ptr,
+};
 
 mod uc;
 use uc::UC;
@@ -77,8 +80,8 @@ impl<'a> Extender<'a> {
 
 fn push_match(c: &[char], f: &mut Find, l: usize) -> bool {
     let e = c.iter().rev().collect();
-    f.push(e);
 
+    f.push(e);
     f.len() == l
 }
 
@@ -700,7 +703,7 @@ impl Poetrie {
         if can_branch {
             let mut b = branching.iter();
 
-            for (blinks, blen) in b.next_back() {
+            while let Some((blinks, blen)) = b.next_back() {
                 let blen = *blen;
                 if blen == max_ml {
                     // `==` occurs when buf_l = max_l = max_ml
@@ -2092,6 +2095,7 @@ mod tests_of_units {
         }
 
         pub mod find {
+            use std::cmp::min;
             use std::collections::HashSet;
 
             use crate::{
@@ -3392,7 +3396,6 @@ mod tests_of_units {
                 }
             }
 
-            use std::cmp::min;
             #[test]
             fn extension_b_1() {
                 let e_a = RevEntry::new("documenting");
@@ -3479,6 +3482,177 @@ mod tests_of_units {
                     for f in f {
                         assert_eq!(true, p.contains(&f));
                     }
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn branching_a_1() {
+                let e_a = RevEntry::new("documenting");
+                let e_b = RevEntry::new("documenter");
+                let e_c = RevEntry::new("documental");
+                let e_d = RevEntry::new("documentalist");
+                let e_e = RevEntry::new("docusate");
+                let k = RevEntry::new("documentational");
+
+                let mut poetrie = Poetrie::nw();
+
+                _ = poetrie.it(&e_a.entry());
+                _ = poetrie.it(&e_b.entry());
+                _ = poetrie.it(&e_c.entry());
+                _ = poetrie.it(&e_d.entry());
+                _ = poetrie.it(&e_e.entry());
+
+                let mut mc = MatchConduct::test();
+                mc.ext_ml = e_e.0.len();
+                mc.max_ml = e_d.0.len() - 1;
+
+                let mut p = vec![e_a.0, e_b.0, e_c.0];
+                p.sort();
+
+                for duo in [(3, 260), (usize::MAX, 516)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    let mut f = f.unwrap();
+                    f.sort();
+
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn branching_a_2() {
+                let e_a = RevEntry::new("documenting");
+                let e_b = RevEntry::new("documenter");
+                let e_c = RevEntry::new("documental");
+                let e_d = RevEntry::new("documentalist");
+                let e_e = RevEntry::new("docusate");
+                let k = RevEntry::new("documentational");
+                let k = &k.entry();
+
+                let mut poetrie = Poetrie::nw();
+
+                _ = poetrie.it(&e_a.entry());
+                _ = poetrie.it(&e_b.entry());
+                _ = poetrie.it(&e_c.entry());
+                _ = poetrie.it(&e_d.entry());
+                _ = poetrie.it(&e_e.entry());
+                _ = poetrie.it(k);
+
+                let mut mc = MatchConduct::test();
+                mc.ext_ml = e_e.0.len();
+                mc.max_ml = e_d.0.len() - 1;
+
+                let mut p = vec![e_a.0, e_b.0, e_c.0];
+                p.sort();
+
+                for duo in [(3, 258), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    let mut f = f.unwrap();
+                    f.sort();
+
+                    assert_eq!(p, f, "{duo:?}, {grade}");
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn branching_b_1() {
+                let e_a = RevEntry::new("documenting");
+                let e_b = RevEntry::new("documenter");
+                let e_c = RevEntry::new("documental");
+                let e_d = RevEntry::new("documentalist");
+                let e_e = RevEntry::new("docusate");
+                let k = RevEntry::new("documentational");
+
+                let mut poetrie = Poetrie::nw();
+
+                let mut mc = MatchConduct::test();
+                mc.ext_ml = e_e.0.len() - 1;
+                mc.max_ml = e_d.0.len();
+
+                let entries = vec![e_a, e_b, e_c, e_d, e_e];
+                for e in entries.iter() {
+                    _ = poetrie.it(&e.entry());
+                }
+
+                let p = HashSet::<String>::from_iter(entries.iter().map(|x| x.0.clone()));
+                let p_len = p.len();
+
+                for duo in [(3, 260), (5, 260), (usize::MAX, 516)] {
+                    let max_n = duo.0;
+                    mc.max_n = max_n;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    let f = f.unwrap();
+
+                    let len = min(max_n, p_len);
+                    assert_eq!(len, f.len(), "{duo:?}, {grade}, {f:?}");
+
+                    for f in f {
+                        assert_eq!(true, p.contains(&f), "{duo:?}, {grade}, {f}");
+                    }
+
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn branching_b_2() {
+                let e_a = RevEntry::new("documenting");
+                let e_b = RevEntry::new("documenter");
+                let e_c = RevEntry::new("documental");
+                let e_d = RevEntry::new("documentalist");
+                let e_e = RevEntry::new("docusate");
+                let k = RevEntry::new("documentational");
+                let k = &k.entry();
+
+                let mut poetrie = Poetrie::nw();
+
+                let mut mc = MatchConduct::test();
+                mc.ext_ml = e_e.0.len() - 1;
+                mc.max_ml = e_d.0.len();
+
+                let entries = vec![e_a, e_b, e_c, e_d, e_e];
+                for e in entries.iter() {
+                    _ = poetrie.it(&e.entry());
+                }
+
+                _ = poetrie.it(k);
+
+                let p = HashSet::<String>::from_iter(entries.iter().map(|x| x.0.clone()));
+                let p_len = p.len();
+
+                for duo in [(3, 258), (5, 258), (usize::MAX, 514)] {
+                    let max_n = duo.0;
+                    mc.max_n = max_n;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    let f = f.unwrap();
+
+                    let len = min(max_n, p_len);
+                    assert_eq!(len, f.len(), "{duo:?}, {grade}, {f:?}");
+
+                    for f in f {
+                        assert_eq!(true, p.contains(&f), "{duo:?}, {grade}, {f}");
+                    }
+
                     assert_eq!(duo.1, grade);
                 }
             }
