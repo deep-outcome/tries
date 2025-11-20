@@ -17,6 +17,7 @@ type Find = Vec<String>;
 type WordBuf = Vec<char>;
 // branching information
 type BraInf = Vec<(*const HashMap<char, Node>, usize)>;
+type SkipNodes = HashSet<*const Node>;
 
 fn extract(l: &Links, buff: &mut WordBuf, o: &mut Vec<String>) {
     for (k, n) in l.iter() {
@@ -43,10 +44,21 @@ struct Extender<'a> {
     xl: usize,
     // min length
     nl: usize,
+    // skip nodes
+    sn: &'a mut SkipNodes,
 }
 
 impl<'a> Extender<'a> {
     pub fn e(&mut self, n: &Node, c: char) -> bool {
+        let ptr = n as *const Node;
+        let sn = &mut self.sn;
+
+        if sn.contains(&ptr) {
+            return false;
+        }
+
+        sn.insert(ptr);
+
         let b = &mut self.b;
         b.push(c);
 
@@ -347,6 +359,8 @@ pub struct Poetrie {
     buf: UC<WordBuf>,
     // branching information
     bra: UC<BraInf>,
+    // branching skip nodes
+    bsn: UC<SkipNodes>,
     // entries count
     cnt: usize,
 }
@@ -357,12 +371,13 @@ use crate::tests_of_units::poetrie::find::grade;
 const NULL: char = '\0';
 impl Poetrie {
     /// Use for `Poetrie` construction.
-    pub const fn nw() -> Poetrie {
+    pub fn nw() -> Poetrie {
         Poetrie {
             root: Node::empty(),
             btr: UC::new(Vec::new()),
             buf: UC::new(Vec::new()),
             bra: UC::new(Vec::new()),
+            bsn: UC::new(SkipNodes::new()),
             cnt: 0,
         }
     }
@@ -461,6 +476,7 @@ impl Poetrie {
     fn clr_f_buffs(&self) {
         self.bra.get_mut().clear();
         self.buf.get_mut().clear();
+        self.bsn.get_mut().clear();
     }
 
     /// Use to remove entry from tree.
@@ -681,12 +697,16 @@ impl Poetrie {
             return Ok(find);
         }
 
+        let bsn = self.bsn.get_mut();
+        bsn.insert(bra_skip_n);
+
         let mut extender = Extender {
             b: buff,
             f: &mut find,
             n: max_n,
             nl: min_ml,
             xl: max_ml,
+            sn: bsn,
         };
 
         if can_extend {
@@ -719,11 +739,6 @@ impl Poetrie {
                 let blinks = unsafe { blinks.as_ref().unwrap_unchecked() };
 
                 for (c, node) in blinks.iter() {
-                    if bra_skip_n == node as *const Node {
-                        // happens only at topmost branching node
-                        continue;
-                    }
-
                     if extender.e(node, *c) {
                         #[cfg(test)]
                         set_grade(grade::SAT_ON_BRA, grade);
@@ -1181,15 +1196,21 @@ mod tests_of_units {
         use seg::*;
         use std::collections::HashSet;
 
-        use crate::{Extender, Find, Node, WordBuf, tests_of_units::rev_entry::rev};
+        use crate::{Extender, Find, Node, SkipNodes, WordBuf, tests_of_units::rev_entry::rev};
 
-        fn basic_ext<'a>(b: &'a mut WordBuf, f: &'a mut Find, n: usize) -> Extender<'a> {
+        fn basic_ext<'a>(
+            b: &'a mut WordBuf,
+            f: &'a mut Find,
+            sn: &'a mut SkipNodes,
+            n: usize,
+        ) -> Extender<'a> {
             Extender {
                 b,
                 f,
                 n,
                 nl: 0,
                 xl: usize::MAX,
+                sn,
             }
         }
 
@@ -1197,11 +1218,12 @@ mod tests_of_units {
         fn basic_test() {
             let mut f = Vec::new();
             let mut b: WordBuf = "end".chars().collect();
+            let mut sn = SkipNodes::new();
 
             let mut n = Node::empty();
             add_linked(&mut n, &["rse", "ment"]);
 
-            let mut extender = basic_ext(&mut b, &mut f, usize::MAX);
+            let mut extender = basic_ext(&mut b, &mut f, &mut sn, usize::MAX);
             _ = extender.e(&n, 'o');
 
             assert_eq!(2, f.len());
@@ -1215,11 +1237,12 @@ mod tests_of_units {
         fn immediate_saturation() {
             let mut f = Vec::new();
             let mut b = Vec::new();
+            let mut sn = SkipNodes::new();
 
             let mut n = Node::empty();
             n.entry = true;
 
-            let mut extender = basic_ext(&mut b, &mut f, 1);
+            let mut extender = basic_ext(&mut b, &mut f, &mut sn, 1);
 
             _ = extender.e(&n, 'o');
 
@@ -1233,8 +1256,9 @@ mod tests_of_units {
         fn invalid_buffer_length() {
             let mut f = Vec::new();
             let mut b = Vec::new();
+            let mut sn = SkipNodes::new();
 
-            let mut extender = basic_ext(&mut b, &mut f, usize::MAX);
+            let mut extender = basic_ext(&mut b, &mut f, &mut sn, usize::MAX);
             extender.xl = 0;
 
             _ = extender.e(&Node::empty(), 'o');
@@ -1244,13 +1268,14 @@ mod tests_of_units {
         fn match_limit_a() {
             let mut f = Vec::new();
             let mut b = "en".chars().collect();
+            let mut sn = SkipNodes::new();
 
             let mut n = Node::empty();
             n.entry = true;
 
             _ = add_one(&mut n, "orse", true);
 
-            let mut extender = basic_ext(&mut b, &mut f, 2);
+            let mut extender = basic_ext(&mut b, &mut f, &mut sn, 2);
 
             let lim = extender.e(&n, 'd');
             assert_eq!(true, lim);
@@ -1271,12 +1296,13 @@ mod tests_of_units {
 
             let mut f = Vec::new();
             let mut b = outset.chars().collect();
+            let mut sn = SkipNodes::new();
 
             let mut n = Node::empty();
             n.entry = true;
 
             _ = add_one(&mut n, "orse", true);
-            let mut extender = basic_ext(&mut b, &mut f, 3);
+            let mut extender = basic_ext(&mut b, &mut f, &mut sn, 3);
             let lim = extender.e(&n, 'd');
             assert_eq!(false, lim);
 
@@ -1294,6 +1320,7 @@ mod tests_of_units {
 
             let mut f = Vec::new();
             let mut b = outset.chars().collect();
+            let mut sn = SkipNodes::new();
 
             let mut n = Node::empty();
 
@@ -1308,6 +1335,7 @@ mod tests_of_units {
                 n: 4,
                 nl: "document".len() + 1,
                 xl: "documentalist".len() - 1,
+                sn: &mut sn,
             };
 
             let res = extender.e(&mut n, 'c');
@@ -1354,10 +1382,11 @@ mod tests_of_units {
         fn load_bearing_a() {
             let mut f = Vec::new();
             let mut b = "ser".chars().collect();
+            let mut sn = SkipNodes::new();
 
             let (n, p) = load_setup();
 
-            let mut extender = basic_ext(&mut b, &mut f, usize::MAX);
+            let mut extender = basic_ext(&mut b, &mut f, &mut sn, usize::MAX);
             _ = extender.e(&n, 'o');
 
             assert_eq!(p.len(), f.len());
@@ -1370,6 +1399,7 @@ mod tests_of_units {
         fn load_bearing_b() {
             let mut f = Vec::new();
             let mut b = "ser".chars().collect();
+            let mut sn = SkipNodes::new();
 
             let (n, p) = load_setup();
 
@@ -1390,6 +1420,7 @@ mod tests_of_units {
                 n: usize::MAX,
                 nl: serotiny_len + 1,
                 xl: serotonergic_len - 1,
+                sn: &mut sn,
             };
 
             _ = extender.e(&n, 'o');
@@ -1877,21 +1908,24 @@ mod tests_of_units {
             fn stores_clearing() {
                 let mut poetrie = Poetrie::nw();
 
-                let entry = Entry("semiliteral");
-                let key_entry = Entry("quadriliteral");
-                _ = poetrie.it(&entry);
-                _ = poetrie.it(&key_entry);
+                let e = Entry("semiliteral");
+                let ke = Entry("quadriliteral");
+                _ = poetrie.it(&e);
+                _ = poetrie.it(&ke);
 
                 assert_eq!(0, poetrie.buf.capacity());
                 assert_eq!(0, poetrie.bra.capacity());
+                assert_eq!(0, poetrie.bsn.capacity());
 
                 let mc = MatchConduct::test();
-                _ = poetrie.sx(&key_entry, &mc);
+                _ = poetrie.sx(&ke, &mc);
                 assert_eq!(0, poetrie.buf.len());
                 assert_eq!(0, poetrie.bra.len());
+                assert_eq!(0, poetrie.bsn.len());
 
                 assert_eq!(true, poetrie.buf.capacity() > 0);
                 assert_eq!(true, poetrie.bra.capacity() > 0);
+                assert_eq!(true, poetrie.bsn.capacity() > 0);
             }
         }
 
@@ -1903,17 +1937,21 @@ mod tests_of_units {
 
             let bra = poetrie.bra.get_mut();
             let buf = poetrie.buf.get_mut();
+            let bsn = poetrie.bsn.get_mut();
 
             bra.push((ptr::null(), 0));
             buf.push('\0');
+            bsn.insert(0 as *const Node);
 
             poetrie.clr_f_buffs();
 
             assert_eq!(0, bra.len());
             assert_eq!(0, buf.len());
+            assert_eq!(0, bsn.len());
 
             assert_eq!(true, 0 < bra.capacity());
             assert_eq!(true, 0 < buf.capacity());
+            assert_eq!(true, 0 < bsn.capacity());
         }
 
         mod re {
@@ -4391,8 +4429,7 @@ mod tests_of_units {
                     );
                     assert_eq!(code, grade);
 
-                    poetrie.buf.get_mut().clear();
-                    poetrie.bra.get_mut().clear();
+                    poetrie.clr_f_buffs();
                 }
             }
         }
