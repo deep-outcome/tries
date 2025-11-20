@@ -730,6 +730,8 @@ impl Poetrie {
                     // it is simpler to skip already long enough buffer here
                     // than checking each time for both conditions,
                     // buf_l <= max_sl && buf_l < max_ml, instead of buf_l <= max_l
+                    #[cfg(test)]
+                    set_grade(grade::BUF_MAX_ALR, grade);
                     continue;
                 }
 
@@ -2160,6 +2162,8 @@ mod tests_of_units {
                 pub const SAT_ON_BRA: usize = 256;
                 /// final execution reached
                 pub const FIN: usize = 512;
+                /// buffer is already at maximum length on branch node
+                pub const BUF_MAX_ALR: usize = 1024;
                 /// min suffix requirement not reached
                 pub const MIN_SL_NOT_REA: usize = 2048;
             }
@@ -3091,7 +3095,7 @@ mod tests_of_units {
 
                 let p = Ok(vec![e.0]);
                 for quadruplet in [
-                    (usize::MAX, 514, e_len - 2, Err(FindErr::DisjunctConduct)),
+                    (usize::MAX, 1538, e_len - 2, Err(FindErr::DisjunctConduct)),
                     (usize::MAX, 514, e_len - 1, Err(FindErr::DisjunctConduct)),
                     (1, 258, e_len, p.clone()),
                     (usize::MAX, 514, e_len, p),
@@ -3104,7 +3108,7 @@ mod tests_of_units {
                     poetrie.clr_f_buffs();
 
                     assert_eq!(quadruplet.3, f);
-                    assert_eq!(quadruplet.1, grade);
+                    assert_eq!(quadruplet.1, grade, "{quadruplet:?}");
                 }
             }
 
@@ -3691,6 +3695,38 @@ mod tests_of_units {
                         assert_eq!(true, p.contains(&f), "{duo:?}, {grade}, {f}");
                     }
 
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn branching_obeys_max_length_precondition() {
+                let e_a = RevEntry::new("docudrama");
+                let e_b = RevEntry::new("documentarize");
+                let k = RevEntry::new("documentarist");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e_a.entry());
+                _ = poetrie.it(&e_b.entry());
+                _ = poetrie.it(k);
+
+                let eb_len = e_b.len();
+
+                for duo in [(2, 1282, vec![e_a.0.clone()]), (0, 258, vec![e_b.0, e_a.0])] {
+                    // subtrahend
+                    let s = duo.0;
+
+                    mc.max_ml = eb_len - s;
+                    mc.max_n = 2 - s / 2;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    assert_eq!(Ok(duo.2), f);
                     assert_eq!(duo.1, grade);
                 }
             }
