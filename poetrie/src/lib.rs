@@ -4386,15 +4386,15 @@ mod tests_of_units {
                 }
             }
 
-            use crate::Find;
+            use super::super::rev_entry;
+            use crate::{Find, Key};
 
             #[test]
-            fn composite() {
+            fn composite_a() {
                 let mut poetrie = Poetrie::nw();
 
-                let rev_entries = ["document", "documentalist"];
-                let rev_entries = rev_entries.map(|x| RevEntry::new(x));
-                let rev_entries = rev_entries.iter().map(|x| x.0.as_str());
+                let rev_entries = ["document", "documentalist"].map(rev_entry::rev);
+                let rev_entries = rev_entries.iter().map(|x| x.as_str());
 
                 let entries = [
                     "aesthetics",
@@ -4409,63 +4409,175 @@ mod tests_of_units {
                     _ = poetrie.it(&Entry(e));
                 }
 
+                let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+
+                let mut ac = AssertComposite { p: poetrie, m: mc };
+
                 let key = Entry("musics");
                 let proof = String::from("physics");
-                assert(Ok(vec![proof]), 132, key, &poetrie, 1);
+                ac.assert_n(Ok(vec![proof]), 132, key, 1);
 
                 let key = Entry("athletics");
                 let proof = String::from("aesthetics");
-                assert(Ok(vec![proof]), 258, key, &poetrie, 1);
+                ac.assert_n(Ok(vec![proof]), 258, key, 1);
 
                 let key = Entry("aesthetics");
                 let proof = String::from("athletics");
-                assert(Ok(vec![proof]), 258, key, &poetrie, 1);
+                ac.assert_n(Ok(vec![proof]), 258, key, 1);
 
                 let key = Entry("epicalyx");
-                assert(Err(FindErr::NoJointSuffix), 0, key, &poetrie, 1);
+                ac.assert_n(Err(FindErr::NoJointSuffix), 0, key, 1);
 
                 let key = RevEntry::new("documental");
                 let proof1 = RevEntry::new("document").0;
                 let proof2 = RevEntry::new("documentalist").0;
-                assert(Ok(vec![proof1, proof2]), 130, key.entry(), &poetrie, 2);
+                ac.assert_n(Ok(vec![proof1, proof2]), 130, key.entry(), 2);
 
                 let key = RevEntry::new("documentalist");
                 let proof = RevEntry::new("document").0;
-                assert(Ok(vec![proof]), 34, key.entry(), &poetrie, 2);
+                ac.assert_n(Ok(vec![proof]), 34, key.entry(), 2);
 
                 let key = RevEntry::new("quadriceps");
                 let proof = String::from("q");
-                assert(Ok(vec![proof]), 64, key.entry(), &poetrie, 1);
+                ac.assert_n(Ok(vec![proof]), 64, key.entry(), 1);
 
                 let key = Entry("q");
-                assert(Err(FindErr::OnlyKeyMatches), 18, key, &poetrie, 1);
+                ac.assert_n(Err(FindErr::OnlyKeyMatches), 18, key, 1);
 
                 let key = Entry("epically");
-                assert(Err(FindErr::OnlyKeyMatches), 18, key, &poetrie, 1);
+                ac.assert_n(Err(FindErr::OnlyKeyMatches), 18, key, 1);
+            }
 
-                fn assert<'a>(
-                    res: Result<Find, FindErr>,
-                    code: usize,
-                    key: crate::Key,
-                    poetrie: &Poetrie,
-                    n: usize,
-                ) {
-                    let mut mc = MatchConduct::test();
-                    mc.max_n = n;
-                    mc.sub_e = true;
+            #[test]
+            fn composite_b() {
+                let entries = [
+                    "doctorate",
+                    "doctoress",
+                    "doctorfish",
+                    "doctorly",
+                    "doctorship",
+                    "doctrinaire",
+                    "doctrinal",
+                    "doctrinarian",
+                    "doctrinarianism",
+                    "doctrine",
+                    "docudrama",
+                    "document",
+                    "documentable",
+                    "documentalist",
+                    "documentarian",
+                    "documentarist",
+                    "documentarize",
+                    "documentary",
+                    "documentation",
+                    "documentational",
+                    "documented",
+                    "documenter",
+                    "surge",
+                    "surgeful",
+                    "surgeoncy",
+                    "surgeonfish",
+                    "surgery",
+                    "surgicenter",
+                    "surging",
+                ]
+                .map(RevEntry::new);
+
+                let mut poetrie = Poetrie::nw();
+                for e in entries {
+                    _ = poetrie.it(&e.entry());
+                }
+
+                let mut mc = MatchConduct::test();
+                mc.min_sl = "doctoral".len() - 1;
+
+                let key = RevEntry::new("doctoral");
+                let proof = rev_entry::rev("doctorate");
+
+                let mut ac = AssertComposite { p: poetrie, m: mc };
+                let mut mc = ac.assert(Ok(vec![proof]), 132, key.entry());
+
+                mc.min_sl = "doctor".len();
+                mc.ext_ml = 4;
+                mc.max_n = usize::MAX;
+
+                let key = RevEntry::new("doctor");
+                let proof = map_rev(["doctorfish", "doctorship"]);
+                mc = ac.assert(proof, 514, key.entry());
+
+                mc.min_sl = "doctrine".len() - 1;
+                mc.max_ml = "doctrinarianism".len() - 1;
+                mc.max_n = 3;
+
+                let key = RevEntry::new("doctrine");
+                let proof = map_rev(["doctrinaire", "doctrinal", "doctrinarian"]);
+                mc = ac.assert(proof, 258, key.entry());
+
+                mc.sub_e = true;
+                mc.min_sl = "documental".len() - 2;
+                mc.max_sl = "documental".len() - 2;
+                mc.max_n = usize::MAX;
+
+                let key = RevEntry::new("documental");
+                let proof = map_rev(["document", "documented", "documenter"]);
+                mc = ac.assert(proof, 514, key.entry());
+
+                mc.min_sl = "surgeful".len();
+                mc.max_sl = "surgeful".len();
+
+                let key = RevEntry::new("surgeful");
+                _ = ac.assert(Err(FindErr::DisjunctConduct), 18, key.entry());
+
+                fn map_rev<const S: usize>(vals: [&str; S]) -> Result<Find, FindErr> {
+                    let mut map = vals.map(rev_entry::rev);
+                    map.sort();
+                    Ok(map.to_vec())
+                }
+            }
+
+            struct AssertComposite {
+                p: Poetrie,
+                m: MatchConduct,
+            }
+
+            impl AssertComposite {
+                fn assert(
+                    &mut self,
+                    r: Result<Find, FindErr>,
+                    g: usize,
+                    k: Key,
+                ) -> &mut MatchConduct {
+                    self.assert_dynamo(r, g, k);
+
+                    self.m = MatchConduct::test();
+                    &mut self.m
+                }
+
+                fn assert_dynamo(&self, r: Result<Find, FindErr>, g: usize, k: Key) {
+                    let p = &self.p;
 
                     let mut grade = 0;
-                    assert_eq!(
-                        res,
-                        poetrie.find(&key, &mc, &mut grade),
-                        "code: {}, grade: {}, key {:?}",
-                        code,
-                        grade,
-                        key
-                    );
-                    assert_eq!(code, grade);
+                    let f = p.find(&k, &self.m, &mut grade);
 
-                    poetrie.clr_f_buffs();
+                    if r.is_ok() {
+                        let mut f = f.unwrap();
+                        f.sort();
+
+                        let r = r.unwrap();
+                        assert_eq!(r, f, "g: {g}, grade: {grade}, k {k:?}");
+                    } else {
+                        assert_eq!(r, f, "g: {g}, grade: {grade}, k {k:?}");
+                    }
+
+                    assert_eq!(g, grade);
+                    p.clr_f_buffs();
+                }
+
+                fn assert_n(&mut self, r: Result<Find, FindErr>, g: usize, k: Key, n: usize) {
+                    self.m.max_n = n;
+
+                    self.assert_dynamo(r, g, k)
                 }
             }
         }
