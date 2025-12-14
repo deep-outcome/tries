@@ -6,7 +6,6 @@ use std::{
     cmp::min,
     collections::{HashSet, hash_map::HashMap},
     ops::Deref,
-    ptr,
 };
 
 mod uc;
@@ -589,7 +588,6 @@ impl Poetrie {
 
         let branching = self.bra.get_mut();
         let bsn = self.bsn.get_mut();
-        let mut bra_skip_n = ptr::null();
         let mut disjunct_hit = false;
 
         let mut find = Vec::with_capacity(100);
@@ -626,8 +624,6 @@ impl Poetrie {
                 } else {
                     disjunct_hit = true;
                 }
-
-                bsn.insert(op_node);
             }
 
             if let Some(l) = op_node.links.as_ref() {
@@ -635,7 +631,7 @@ impl Poetrie {
                 if let Some(n) = l.get(&c) {
                     if l.len() > 1 {
                         if max_l_accord && min_sl <= buf_l {
-                            bra_skip_n = n;
+                            bsn.insert(n);
                             branching.push((l, buf_l));
                         } else {
                             disjunct_hit = true;
@@ -699,8 +695,6 @@ impl Poetrie {
             set_grade(grade::SUB_E_ONLY, grade);
             return Ok(find);
         }
-
-        bsn.insert(bra_skip_n);
 
         let mut extender = Extender {
             b: buff,
@@ -3358,6 +3352,82 @@ mod tests_of_units {
 
                 assert_eq!(Ok(vec![e.0]), f);
                 assert_eq!(40, grade);
+            }
+
+            #[test]
+            fn must_not_recourse_to_subentry_a() {
+                let entries = ["document", "documenter", "documental", "docudrama"]
+                    .map(rev_entry::rev)
+                    .to_vec();
+
+                let key = RevEntry::new("documented");
+                let key = &key.entry();
+
+                let mut poetrie = Poetrie::nw();
+                for e in entries.iter() {
+                    _ = poetrie.it(&Entry(e.as_str()));
+                }
+
+                let mut mc = MatchConduct::default();
+                mc.max_n = usize::MAX;
+
+                let mut proof = entries.clone();
+                proof.remove(0);
+                let proof = Ok(proof);
+
+                let mut grade = 0;
+                let mut f = poetrie.find(key, &mc, &mut grade);
+                assert_eq!(proof, f);
+                assert_eq!(516, grade);
+
+                poetrie.clr_f_buffs();
+
+                let proof = Ok(entries);
+                mc.sub_e = true;
+
+                grade = 0;
+                f = poetrie.find(key, &mc, &mut grade);
+                assert_eq!(proof, f);
+                assert_eq!(516, grade);
+            }
+
+            #[test]
+            fn must_not_recourse_to_subentry_b() {
+                let entries = ["document", "documenter", "docudrama"]
+                    .map(rev_entry::rev)
+                    .to_vec();
+
+                let key = RevEntry::new("documented");
+                let key = &key.entry();
+
+                let mut poetrie = Poetrie::nw();
+                for e in entries.iter() {
+                    _ = poetrie.it(&Entry(e.as_str()));
+                }
+
+                _ = poetrie.it(key);
+
+                let mut mc = MatchConduct::default();
+                mc.max_n = usize::MAX;
+
+                let mut proof = entries.clone();
+                proof.remove(0);
+                let proof = Ok(proof);
+
+                let mut grade = 0;
+                let mut f = poetrie.find(key, &mc, &mut grade);
+                assert_eq!(proof, f);
+                assert_eq!(514, grade);
+
+                poetrie.clr_f_buffs();
+
+                let proof = Ok(entries);
+                mc.sub_e = true;
+
+                grade = 0;
+                f = poetrie.find(key, &mc, &mut grade);
+                assert_eq!(proof, f);
+                assert_eq!(514, grade);
             }
 
             #[test]
