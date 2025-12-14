@@ -4577,6 +4577,7 @@ mod tests_of_units {
                     "docudrama",
                     "document",
                     "documentable",
+                    "documental",
                     "documentalist",
                     "documentarian",
                     "documentarist",
@@ -4639,7 +4640,48 @@ mod tests_of_units {
                 mc.max_sl = "surgeful".len();
 
                 let key = RevEntry::new("surgeful");
-                _ = ac.assert(Err(FindErr::DisjunctConduct), 18, key.entry());
+                mc = ac.assert(Err(FindErr::DisjunctConduct), 18, key.entry());
+
+                mc.max_n = usize::MAX;
+                mc.sub_e = true;
+                mc.min_sl = "document".len();
+
+                let key = RevEntry::new("documentational");
+                let proof = map_rev([
+                    "document",
+                    "documentable",
+                    "documental",
+                    "documentalist",
+                    "documentarian",
+                    "documentarist",
+                    "documentarize",
+                    "documentary",
+                    "documentation",
+                    "documented",
+                    "documenter",
+                ]);
+                mc = ac.assert(proof, 514, key.entry());
+
+                mc.max_n = usize::MAX;
+                mc.sub_e = true;
+                mc.min_sl = "docu".len();
+
+                let key = RevEntry::new("documentalist");
+                let proof = map_rev([
+                    "docudrama",
+                    "document",
+                    "documentable",
+                    "documental",
+                    "documentarian",
+                    "documentarist",
+                    "documentarize",
+                    "documentary",
+                    "documentation",
+                    "documentational",
+                    "documented",
+                    "documenter",
+                ]);
+                _ = ac.assert(proof, 514, key.entry());
 
                 fn map_rev<const S: usize>(vals: [&str; S]) -> Result<Find, FindErr> {
                     let mut map = vals.map(rev_entry::rev);
