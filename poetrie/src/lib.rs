@@ -588,6 +588,7 @@ impl Poetrie {
         let sub_e = mc.sub_e;
 
         let branching = self.bra.get_mut();
+        let bsn = self.bsn.get_mut();
         let mut bra_skip_n = ptr::null();
         let mut disjunct_hit = false;
 
@@ -625,6 +626,8 @@ impl Poetrie {
                 } else {
                     disjunct_hit = true;
                 }
+
+                bsn.insert(op_node);
             }
 
             if let Some(l) = op_node.links.as_ref() {
@@ -697,7 +700,6 @@ impl Poetrie {
             return Ok(find);
         }
 
-        let bsn = self.bsn.get_mut();
         bsn.insert(bra_skip_n);
 
         let mut extender = Extender {
@@ -4386,6 +4388,46 @@ mod tests_of_units {
                 }
             }
 
+            #[test]
+            fn ordering() {
+                let entries = [
+                    "document",
+                    "documentation",
+                    "documentable",
+                    "documented",
+                    "docudrama",
+                ]
+                .map(rev_entry::rev)
+                .to_vec();
+
+                let key = RevEntry::new("documentational");
+                let key = &key.entry();
+
+                let mut poetrie = Poetrie::nw();
+                for e in entries.iter() {
+                    _ = poetrie.it(&Entry(e.as_str()));
+                }
+
+                let mut mc = MatchConduct::default();
+                mc.max_n = usize::MAX;
+                mc.sub_e = true;
+
+                let proof = Ok(entries);
+
+                let mut grade = 0;
+                let mut f = poetrie.find(key, &mc, &mut grade);
+                assert_eq!(proof, f);
+                assert_eq!(520, grade);
+
+                poetrie.clr_f_buffs();
+                _ = poetrie.it(key);
+
+                grade = 0;
+                f = poetrie.find(key, &mc, &mut grade);
+                assert_eq!(proof, f);
+                assert_eq!(514, grade);
+            }
+
             use super::super::rev_entry;
             use crate::{Find, Key};
 
@@ -4825,7 +4867,7 @@ mod tests_of_units {
             assert_eq!(confirmation.len(), matchee.len());
 
             let mc = MatchConduct::default();
-            
+
             let probe = Entry::new_from_str("anticruelty").unwrap();
             assert_eq!(Err(FindErr::OnlyKeyMatches), poetrie.sx(&probe, &mc));
 
