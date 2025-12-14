@@ -4783,23 +4783,51 @@ mod tests_of_units {
     }
 
     mod readme {
-        use crate::{Entry, FindErr, MatchConduct, Poetrie};
+        use crate::{Entry, FindErr, MatchConduct, MatchConductWith, Poetrie};
+        use std::collections::HashSet;
 
         #[test]
         fn sample_a() {
             let mut poetrie = Poetrie::nw();
-            let words = ["analytics", "metrics", "ethics", "Acoustics"]
-                .map(|x| Entry::new_from_str(x).unwrap());
+            let words = [
+                "analytics",
+                "metrics",
+                "ethics",
+                "Acoustics",
+                "antics",
+                "topics",
+                "anticruelty",
+            ]
+            .map(Entry::new_from_str)
+            .map(Option::unwrap);
+
             for w in words {
                 poetrie.it(&w);
             }
 
-            let mc = MatchConduct::test();
+            let mc = MatchConductWith::init()
+                .with_max_n(usize::MAX) // unlimited matches count
+                .with_max_sl(3) // only 'ics' or less but not '…rics'
+                .with_max_ml(8) // only 8 or less length matches
+                .with()
+                .unwrap();
 
             let probe = Entry::new_from_str("lyrics").unwrap();
-
             let matchee = poetrie.sx(&probe, &mc);
-            assert_eq!(Ok(vec![String::from("metrics")]), matchee);
+
+            let confirmation: HashSet<String> =
+                ["ethics", "antics", "topics"].map(String::from).into();
+
+            let matchee = matchee.unwrap_or_default();
+            for m in matchee.iter() {
+                assert!(confirmation.contains(m));
+            }
+            assert_eq!(confirmation.len(), matchee.len());
+
+            let mc = MatchConduct::default();
+            
+            let probe = Entry::new_from_str("anticruelty").unwrap();
+            assert_eq!(Err(FindErr::OnlyKeyMatches), poetrie.sx(&probe, &mc));
 
             let probe = Entry::new_from_str("solemn").unwrap();
             assert_eq!(Err(FindErr::NoJointSuffix), poetrie.sx(&probe, &mc));
@@ -4808,13 +4836,16 @@ mod tests_of_units {
         #[test]
         fn sample_b() {
             let mut poetrie = Poetrie::nw();
-            let words = ["lynx", "index"].map(|x| Entry::new_from_str(x).unwrap());
+            let words = ["lynx", "index"]
+                .map(Entry::new_from_str)
+                .map(Option::unwrap);
+
             for w in words {
                 poetrie.it(&w);
             }
 
             let probe = Entry::new_from_str("ynx").unwrap();
-            let mc = MatchConduct::test();
+            let mc = MatchConduct::default();
             let matchee = poetrie.sx(&probe, &mc);
 
             assert_eq!(Ok(vec![String::from("lynx")]), matchee);
