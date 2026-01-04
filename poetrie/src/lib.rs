@@ -391,6 +391,11 @@ impl Poetrie {
         while let Some(c) = chars.next_back() {
             let links = node.links.get_or_insert_with(|| Links::new());
             node = links.entry(c).or_insert(Node::empty());
+
+            #[cfg(test)]
+            {
+                node.c = c;
+            }
         }
 
         if node.entry {
@@ -631,6 +636,7 @@ impl Poetrie {
                 if let Some(n) = l.get(&c) {
                     if l.len() > 1 {
                         if max_l_accord && min_sl <= buf_l {
+                            // checknote: is unit tested?
                             bsn.insert(n);
                             branching.push((l, buf_l));
                         } else {
@@ -857,6 +863,8 @@ pub enum FindErr {
 
 #[cfg_attr(test, derive(PartialEq))]
 struct Node {
+    #[cfg(test)]
+    c: char,
     links: Option<Links>,
     entry: bool,
 }
@@ -868,6 +876,8 @@ impl Node {
 
     const fn empty() -> Self {
         Node {
+            #[cfg(test)]
+            c: '\0',
             links: None,
             entry: false,
         }
@@ -3605,8 +3615,10 @@ mod tests_of_units {
                 let e_a = RevEntry::new("documenting");
                 let e_b = RevEntry::new("documenter");
                 let e_c = RevEntry::new("documental");
-                let e_d = RevEntry::new("documentalist");
-                let e_e = RevEntry::new("docusate");
+                let e_d = RevEntry::new("documentalistic");
+                let e_e = RevEntry::new("docuer");
+                let e_f = RevEntry::new("document");
+                let e_g = RevEntry::new("documentation");
                 let k = RevEntry::new("documentational");
 
                 let mut poetrie = Poetrie::nw();
@@ -3616,6 +3628,8 @@ mod tests_of_units {
                 _ = poetrie.it(&e_c.entry());
                 _ = poetrie.it(&e_d.entry());
                 _ = poetrie.it(&e_e.entry());
+                _ = poetrie.it(&e_f.entry());
+                _ = poetrie.it(&e_g.entry());
 
                 let mut mc = MatchConduct::test();
                 mc.ext_ml = e_e.0.len();
@@ -3624,7 +3638,7 @@ mod tests_of_units {
                 let mut p = vec![e_a.0, e_b.0, e_c.0];
                 p.sort();
 
-                for duo in [(3, 260), (usize::MAX, 516)] {
+                for duo in [(3, 264), (usize::MAX, 520)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
@@ -3644,8 +3658,10 @@ mod tests_of_units {
                 let e_a = RevEntry::new("documenting");
                 let e_b = RevEntry::new("documenter");
                 let e_c = RevEntry::new("documental");
-                let e_d = RevEntry::new("documentalist");
-                let e_e = RevEntry::new("docusate");
+                let e_d = RevEntry::new("documentalistic");
+                let e_e = RevEntry::new("docuer");
+                let e_f = RevEntry::new("document");
+                let e_g = RevEntry::new("documentation");
                 let k = RevEntry::new("documentational");
                 let k = &k.entry();
 
@@ -3656,6 +3672,8 @@ mod tests_of_units {
                 _ = poetrie.it(&e_c.entry());
                 _ = poetrie.it(&e_d.entry());
                 _ = poetrie.it(&e_e.entry());
+                _ = poetrie.it(&e_f.entry());
+                _ = poetrie.it(&e_g.entry());
                 _ = poetrie.it(k);
 
                 let mut mc = MatchConduct::test();
@@ -3685,8 +3703,10 @@ mod tests_of_units {
                 let e_a = RevEntry::new("documenting");
                 let e_b = RevEntry::new("documenter");
                 let e_c = RevEntry::new("documental");
-                let e_d = RevEntry::new("documentalist");
-                let e_e = RevEntry::new("docusate");
+                let e_d = RevEntry::new("documentalistic");
+                let e_e = RevEntry::new("docuer");
+                let e_f = RevEntry::new("document");
+                let e_g = RevEntry::new("documentation");
                 let k = RevEntry::new("documentational");
 
                 let mut poetrie = Poetrie::nw();
@@ -3695,15 +3715,18 @@ mod tests_of_units {
                 mc.ext_ml = e_e.0.len() - 1;
                 mc.max_ml = e_d.0.len();
 
-                let entries = vec![e_a, e_b, e_c, e_d, e_e];
-                for e in entries.iter() {
+                let proof = vec![e_a, e_b, e_c, e_d, e_e];
+                for e in proof.iter() {
                     _ = poetrie.it(&e.entry());
                 }
 
-                let p = HashSet::<String>::from_iter(entries.iter().map(|x| x.0.clone()));
+                _ = poetrie.it(&e_f.entry());
+                _ = poetrie.it(&e_g.entry());
+
+                let p = HashSet::<String>::from_iter(proof.iter().map(|x| x.0.clone()));
                 let p_len = p.len();
 
-                for duo in [(3, 260), (5, 260), (usize::MAX, 516)] {
+                for duo in [(3, 264), (5, 264), (usize::MAX, 520)] {
                     let max_n = duo.0;
                     mc.max_n = max_n;
 
@@ -3729,8 +3752,10 @@ mod tests_of_units {
                 let e_a = RevEntry::new("documenting");
                 let e_b = RevEntry::new("documenter");
                 let e_c = RevEntry::new("documental");
-                let e_d = RevEntry::new("documentalist");
-                let e_e = RevEntry::new("docusate");
+                let e_d = RevEntry::new("documentalistic");
+                let e_e = RevEntry::new("docuer");
+                let e_f = RevEntry::new("document");
+                let e_g = RevEntry::new("documentation");
                 let k = RevEntry::new("documentational");
                 let k = &k.entry();
 
@@ -3740,14 +3765,16 @@ mod tests_of_units {
                 mc.ext_ml = e_e.0.len() - 1;
                 mc.max_ml = e_d.0.len();
 
-                let entries = vec![e_a, e_b, e_c, e_d, e_e];
-                for e in entries.iter() {
+                let proof = vec![e_a, e_b, e_c, e_d, e_e];
+                for e in proof.iter() {
                     _ = poetrie.it(&e.entry());
                 }
 
+                _ = poetrie.it(&e_f.entry());
+                _ = poetrie.it(&e_g.entry());
                 _ = poetrie.it(k);
 
-                let p = HashSet::<String>::from_iter(entries.iter().map(|x| x.0.clone()));
+                let p = HashSet::<String>::from_iter(proof.iter().map(|x| x.0.clone()));
                 let p_len = p.len();
 
                 for duo in [(3, 258), (5, 258), (usize::MAX, 514)] {
