@@ -14,13 +14,13 @@ use tra::{tsdv, TraStrain};
 mod uc;
 use uc::UC;
 
-/// Tree node links.
+/// Tree node branches.
 ///
 /// [`char`] is mapped to [`Node`].
-pub type Links<T> = HashMap<char, Node<T>>;
+pub type Branches<T> = HashMap<char, Node<T>>;
 
-fn ext<T>(l: &mut Links<T>, buff: &mut String, o: &mut Vec<(String, T)>) {
-    for (k, n) in l.iter_mut() {
+fn ext<T>(b: &mut Branches<T>, buff: &mut String, o: &mut Vec<(String, T)>) {
+    for (k, n) in b.iter_mut() {
         buff.push(*k);
 
         if let Some(e) = n.entry.take() {
@@ -28,16 +28,16 @@ fn ext<T>(l: &mut Links<T>, buff: &mut String, o: &mut Vec<(String, T)>) {
             o.push((key, e));
         }
 
-        if let Some(l) = n.links.as_mut() {
-            ext(l, buff, o);
+        if let Some(b) = n.branches.as_mut() {
+            ext(b, buff, o);
         }
 
         _ = buff.pop();
     }
 }
 
-fn view<'a, T>(l: &'a Links<T>, buff: &mut String, o: &mut Vec<(String, &'a T)>) {
-    for (k, n) in l.iter() {
+fn view<'a, T>(b: &'a Branches<T>, buff: &mut String, o: &mut Vec<(String, &'a T)>) {
+    for (k, n) in b.iter() {
         buff.push(*k);
 
         if let Some(e) = n.entry.as_ref() {
@@ -45,8 +45,8 @@ fn view<'a, T>(l: &'a Links<T>, buff: &mut String, o: &mut Vec<(String, &'a T)>)
             o.push((key, e));
         }
 
-        if let Some(l) = n.links.as_ref() {
-            view(l, buff, o);
+        if let Some(b) = n.branches.as_ref() {
+            view(b, buff, o);
         }
 
         _ = buff.pop();
@@ -88,8 +88,8 @@ impl<T> Trie<T> {
 
         let mut node = &mut self.root;
         while let Some(c) = next {
-            let links = node.links.get_or_insert_with(|| Links::new());
-            node = links.entry(c).or_insert(Node::<T>::empty());
+            let branches = node.branches.get_or_insert_with(|| Branches::new());
+            node = branches.entry(c).or_insert(Node::<T>::empty());
 
             next = key.next();
         }
@@ -155,7 +155,7 @@ impl<T> Trie<T> {
         let mut node = unsafe { en_duo.1.as_mut().unwrap_unchecked() };
 
         let entry = node.entry.take().unwrap();
-        if node.links() {
+        if node.branches() {
             #[cfg(test)]
             set_code(1, esc_code);
 
@@ -166,13 +166,13 @@ impl<T> Trie<T> {
         let mut sn_key = &en_duo.0;
         while let Some((c, n)) = trace.next_back() {
             node = unsafe { n.as_mut().unwrap_unchecked() };
-            let links = unsafe { node.links.as_mut().unwrap_unchecked() };
-            _ = links.remove(sn_key);
+            let branches = unsafe { node.branches.as_mut().unwrap_unchecked() };
+            _ = branches.remove(sn_key);
 
             #[cfg(test)]
             set_code(2, esc_code);
 
-            if links.len() > 0 {
+            if branches.len() > 0 {
                 #[cfg(test)]
                 set_code(4, esc_code);
 
@@ -189,7 +189,7 @@ impl<T> Trie<T> {
             sn_key = c;
         }
 
-        node.links = None;
+        node.branches = None;
         #[cfg(test)]
         if *esc_code != (2 | 8) {
             set_code(16, esc_code);
@@ -225,8 +225,8 @@ impl<T> Trie<T> {
         while let Some(c) = next {
             next = key.next();
 
-            if let Some(l) = node.links.as_ref() {
-                if let Some(n) = l.get(&c) {
+            if let Some(b) = node.branches.as_ref() {
+                if let Some(n) = b.get(&c) {
                     if tracing {
                         tr.push((c, n.to_mut_ptr()));
                     }
@@ -237,7 +237,7 @@ impl<T> Trie<T> {
                 return TraRes::UnknownForAbsentPathNode;
             }
 
-            return TraRes::UnknownForAbsentPathLinks;
+            return TraRes::UnknownForAbsentPathBranches;
         }
 
         if node.entry() {
@@ -340,7 +340,7 @@ impl<T> Trie<T> {
         // capacity is prebuffered to 1000
         let mut res = Vec::with_capacity(1000);
 
-        let rl = unsafe { self.root.links.as_mut().unwrap_unchecked() };
+        let rl = unsafe { self.root.branches.as_mut().unwrap_unchecked() };
         ext(rl, &mut buff, &mut res);
 
         _ = self.clr();
@@ -368,24 +368,24 @@ impl<T> Trie<T> {
         // capacity is prebuffered to 1000
         let mut res = Vec::with_capacity(1000);
 
-        let rl = unsafe { self.root.links.as_ref().unwrap_unchecked() };
+        let rl = unsafe { self.root.branches.as_ref().unwrap_unchecked() };
         view(rl, &mut buff, &mut res);
 
         Some(res)
     }
 
-    /// For non-empty tree, provides reference access to tree root links. [`None`] otherwise.
+    /// For non-empty tree, provides reference access to tree root branches. [`None`] otherwise.
     ///
     /// Intended for functional extension of trie.
-    pub fn as_ref(&self) -> Option<&Links<T>> {
-        self.root.links.as_ref()
+    pub fn as_ref(&self) -> Option<&Branches<T>> {
+        self.root.branches.as_ref()
     }
 
-    /// For non-empty tree, provides mutable reference access to tree root links. [`None`] otherwise.
+    /// For non-empty tree, provides mutable reference access to tree root branches. [`None`] otherwise.
     ///
     /// Intended for functional extension of trie.
-    pub fn as_mut(&mut self) -> Option<&mut Links<T>> {
-        self.root.links.as_mut()
+    pub fn as_mut(&mut self) -> Option<&mut Branches<T>> {
+        self.root.branches.as_mut()
     }
 }
 
@@ -396,7 +396,7 @@ enum TraRes<'a, T> {
     OkMut(&'a mut Node<T>),
     ZeroLenKey,
     UnknownForNotEntry,
-    UnknownForAbsentPathLinks,
+    UnknownForAbsentPathBranches,
     UnknownForAbsentPathNode,
 }
 
@@ -405,7 +405,7 @@ impl<'a, T> TraRes<'a, T> {
         match self {
             TraRes::ZeroLenKey => KeyErr::ZeroLen,
             TraRes::UnknownForNotEntry
-            | TraRes::UnknownForAbsentPathLinks
+            | TraRes::UnknownForAbsentPathBranches
             | TraRes::UnknownForAbsentPathNode => KeyErr::Unknown,
             _ => panic!("Unsupported arm match."),
         }
@@ -414,12 +414,12 @@ impl<'a, T> TraRes<'a, T> {
 
 /// Tree node.
 ///
-/// It is associated with `char` in [`Links`].
-/// Optionally: can link to another entries and hold some entry.
+/// It is associated with `char` in [`Branches`].
+/// Optionally: can link to entries and hold some entry.
 #[derive(PartialEq, Clone)]
 pub struct Node<T> {
-    /// Node links to another nodes.
-    pub links: Option<Links<T>>,
+    /// Node branches to sub-level nodes.
+    pub branches: Option<Branches<T>>,
     /// Some entry.
     pub entry: Option<T>,
 }
@@ -429,13 +429,13 @@ impl<T> Node<T> {
         self.entry.is_some()
     }
 
-    const fn links(&self) -> bool {
-        self.links.is_some()
+    const fn branches(&self) -> bool {
+        self.branches.is_some()
     }
 
     const fn empty() -> Self {
         Node {
-            links: None,
+            branches: None,
             entry: None,
         }
     }
@@ -452,11 +452,11 @@ where
     T: Debug,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let links = if self.links() { "Some" } else { "None" };
+        let branches = if self.branches() { "Some" } else { "None" };
 
         f.write_fmt(format_args!(
-            "Node {{\n  links: {}\n  entry: {:?}\n}}",
-            links, self.entry
+            "Node {{\n  branches: {}\n  entry: {:?}\n}}",
+            branches, self.entry
         ))
     }
 }
@@ -481,8 +481,8 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            let links = trie.root.links.as_mut().unwrap();
-            ext(links, &mut buff, &mut test);
+            let branches = trie.root.branches.as_mut().unwrap();
+            ext(branches, &mut buff, &mut test);
 
             let proof = vec![(String::from("a"), 1), (String::from("z"), 2)];
             assert_eq!(proof.len(), test.len());
@@ -516,8 +516,8 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            let links = trie.root.links.as_mut().unwrap();
-            ext(links, &mut buff, &mut test);
+            let branches = trie.root.branches.as_mut().unwrap();
+            ext(branches, &mut buff, &mut test);
 
             assert_eq!(entries.len(), test.len());
 
@@ -548,8 +548,8 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            let links = trie.root.links.as_mut().unwrap();
-            ext(links, &mut buff, &mut test);
+            let branches = trie.root.branches.as_mut().unwrap();
+            ext(branches, &mut buff, &mut test);
 
             assert_eq!(paths.len(), test.len());
 
@@ -578,8 +578,8 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            let links = unsafe { trie.root.links.as_ref().unwrap_unchecked() };
-            view(links, &mut buff, &mut test);
+            let branches = unsafe { trie.root.branches.as_ref().unwrap_unchecked() };
+            view(branches, &mut buff, &mut test);
 
             let proof = vec![(String::from("a"), &a_entry), (String::from("z"), &z_entry)];
 
@@ -611,8 +611,8 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            let links = unsafe { trie.root.links.as_ref().unwrap_unchecked() };
-            view(links, &mut buff, &mut test);
+            let branches = unsafe { trie.root.branches.as_ref().unwrap_unchecked() };
+            view(branches, &mut buff, &mut test);
 
             assert_eq!(entries.len(), test.len());
 
@@ -643,8 +643,8 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            let links = unsafe { trie.root.links.as_ref().unwrap_unchecked() };
-            view(links, &mut buff, &mut test);
+            let branches = unsafe { trie.root.branches.as_ref().unwrap_unchecked() };
+            view(branches, &mut buff, &mut test);
 
             assert_eq!(paths.len(), test.len());
             test.sort_by_key(|x| x.0.clone());
@@ -662,7 +662,7 @@ mod tests_of_units {
 
             let root = &trie.root;
             assert_eq!(false, root.entry());
-            assert_eq!(None, root.links);
+            assert_eq!(None, root.branches);
             assert_eq!(0, trie.cnt);
 
             let btr = &trie.btr;
@@ -690,24 +690,24 @@ mod tests_of_units {
                 let res = trie.ins(3usize, KEY.chars());
                 assert_eq!(InsRes::Ok((&mut 3, None)), res);
 
-                let links = &trie.root.links.as_ref();
-                assert_eq!(true, links.is_some());
-                let mut links = links.unwrap();
+                let branches = &trie.root.branches.as_ref();
+                assert_eq!(true, branches.is_some());
+                let mut branches = branches.unwrap();
 
                 let last_node_ix = KEY.len() - 1;
                 for (ix, c) in KEY.chars().enumerate() {
-                    let node = &links.get(&c);
+                    let node = &branches.get(&c);
 
                     assert!(node.is_some());
                     let node = node.unwrap();
 
                     if ix == last_node_ix {
-                        assert_eq!(false, node.links());
+                        assert_eq!(false, node.branches());
                         assert_eq!(Some(3), node.entry);
                     } else {
                         assert_eq!(false, node.entry());
-                        assert_eq!(true, node.links());
-                        links = node.links.as_ref().unwrap();
+                        assert_eq!(true, node.branches());
+                        branches = node.branches.as_ref().unwrap();
                     }
                 }
 
@@ -744,10 +744,10 @@ mod tests_of_units {
                 assert_eq!(InsRes::Ok((&mut entry, None)), res);
                 assert_eq!(1, trie.cnt);
 
-                let links = trie.root.links;
-                assert_eq!(true, links.is_some());
-                let links = links.unwrap();
-                let node = links.get(&'a');
+                let branches = trie.root.branches;
+                assert_eq!(true, branches.is_some());
+                let branches = branches.unwrap();
+                let node = branches.get(&'a');
                 assert_eq!(true, node.is_some());
                 assert_eq!(Some(entry), node.unwrap().entry);
             }
@@ -768,22 +768,22 @@ mod tests_of_units {
                 assert_eq!(InsRes::Ok((&mut entry_2, Some(entry_1))), res);
                 assert_eq!(1, trie.cnt);
 
-                let links = &trie.root.links.as_ref();
-                assert_eq!(true, links.is_some());
-                let mut links = links.unwrap();
+                let branches = &trie.root.branches.as_ref();
+                assert_eq!(true, branches.is_some());
+                let mut branches = branches.unwrap();
 
                 let last_ix = key.len() - 1;
                 for (ix, c) in keyer().enumerate() {
-                    let node = links.get(&c);
+                    let node = branches.get(&c);
                     assert_eq!(true, node.is_some());
                     let node = node.unwrap();
 
                     if ix == last_ix {
-                        assert_eq!(false, node.links());
+                        assert_eq!(false, node.branches());
                         assert_eq!(Some(entry_2), node.entry)
                     } else {
-                        assert_eq!(true, node.links());
-                        links = node.links.as_ref().unwrap();
+                        assert_eq!(true, node.branches());
+                        branches = node.branches.as_ref().unwrap();
                     }
                 }
             }
@@ -921,7 +921,7 @@ mod tests_of_units {
                 assert_eq!(entry, trie.rem_actual(&mut esc_code));
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
                 assert_eq!(18, esc_code);
-                assert_eq!(false, trie.root.links());
+                assert_eq!(false, trie.root.branches());
             }
 
             #[test]
@@ -985,7 +985,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn links_removal() {
+            fn branches_removal() {
                 let key = || "Keyword".chars();
                 let mut trie = Trie::new();
                 trie.ins(1usize, key());
@@ -996,7 +996,7 @@ mod tests_of_units {
                 assert_eq!(18, esc_code);
 
                 assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
-                assert_eq!(None, trie.root.links);
+                assert_eq!(None, trie.root.branches);
             }
 
             #[test]
@@ -1038,7 +1038,7 @@ mod tests_of_units {
                 let last = btr[btr.len() - 1];
                 assert_eq!('r', last.0);
                 let node = unsafe { last.1.as_ref() }.unwrap();
-                assert_eq!(false, node.links());
+                assert_eq!(false, node.branches());
             }
         }
 
@@ -1144,7 +1144,7 @@ mod tests_of_units {
                 let mut trie = Trie::new();
                 _ = trie.ins(500, key());
                 let res = trie.track(bad_key(), TraStrain::NonEmp);
-                assert_eq!(TraRes::UnknownForAbsentPathLinks, res);
+                assert_eq!(TraRes::UnknownForAbsentPathBranches, res);
             }
 
             #[test]
@@ -1355,7 +1355,7 @@ mod tests_of_units {
         }
 
         mod as_ref {
-            use crate::{Links, Trie};
+            use crate::{Branches, Trie};
 
             #[test]
             fn empty_tree() {
@@ -1369,15 +1369,15 @@ mod tests_of_units {
                 let mut trie = Trie::new();
                 _ = trie.ins(0, "0".chars());
 
-                let as_ref = (trie.as_ref().unwrap() as *const Links<i32>) as usize;
-                let proof = (trie.root.links.as_ref().unwrap() as *const Links<i32>) as usize;
+                let as_ref = (trie.as_ref().unwrap() as *const Branches<i32>) as usize;
+                let proof = (trie.root.branches.as_ref().unwrap() as *const Branches<i32>) as usize;
 
                 assert_eq!(as_ref, proof);
             }
         }
 
         mod as_mut {
-            use crate::{Links, Trie};
+            use crate::{Branches, Trie};
 
             #[test]
             fn empty_tree() {
@@ -1391,8 +1391,8 @@ mod tests_of_units {
                 let mut trie = Trie::new();
                 _ = trie.ins(0, "0".chars());
 
-                let as_mut = (trie.as_mut().unwrap() as *const Links<i32>) as usize;
-                let proof = (trie.root.links.as_mut().unwrap() as *const Links<i32>) as usize;
+                let as_mut = (trie.as_mut().unwrap() as *const Branches<i32>) as usize;
+                let proof = (trie.root.branches.as_mut().unwrap() as *const Branches<i32>) as usize;
 
                 assert_eq!(as_mut, proof);
             }
@@ -1408,7 +1408,7 @@ mod tests_of_units {
             assert_eq!(KeyErr::Unknown, TraRes::<u8>::UnknownForNotEntry.key_err());
             assert_eq!(
                 KeyErr::Unknown,
-                TraRes::<u8>::UnknownForAbsentPathLinks.key_err()
+                TraRes::<u8>::UnknownForAbsentPathBranches.key_err()
             );
             assert_eq!(
                 KeyErr::Unknown,
@@ -1425,7 +1425,7 @@ mod tests_of_units {
 
     mod node {
 
-        use crate::{Links, Node};
+        use crate::{Branches, Node};
 
         #[test]
         fn entry() {
@@ -1437,19 +1437,19 @@ mod tests_of_units {
         }
 
         #[test]
-        fn links() {
+        fn branches() {
             let mut node = Node::<usize>::empty();
 
-            assert!(!node.links());
-            node.links = Some(Links::new());
-            assert!(node.links());
+            assert!(!node.branches());
+            node.branches = Some(Branches::new());
+            assert!(node.branches());
         }
 
         #[test]
         fn empty() {
             let node = Node::<usize>::empty();
 
-            assert!(node.links.is_none());
+            assert!(node.branches.is_none());
             assert!(node.entry.is_none());
         }
 
