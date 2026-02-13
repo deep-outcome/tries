@@ -1,6 +1,6 @@
 //! Dynamic trie in contrast to classic trie does not have fixed size alphabet associated with node.
 //!
-//! Each node has dynamic alphabet of size as to satisfy exactly associated branches.
+//! Each node has dynamic alphabet of size as to satisfy associated branches.
 
 use core::panic;
 use std::collections::hash_map::HashMap;
@@ -14,7 +14,10 @@ use tra::{tsdv, TraStrain};
 mod uc;
 use uc::UC;
 
-type Links<T> = HashMap<char, Node<T>>;
+/// Tree node links.
+///
+/// [`char`] is mapped to [`Node`].
+pub type Links<T> = HashMap<char, Node<T>>;
 
 fn ext<T>(l: &mut Links<T>, buff: &mut String, o: &mut Vec<(String, T)>) {
     for (k, n) in l.iter_mut() {
@@ -52,7 +55,7 @@ fn view<'a, T>(l: &'a Links<T>, buff: &mut String, o: &mut Vec<(String, &'a T)>)
 
 /// Retrieval tree implementation allowing for mapping any `T` to any `impl Iterator<Item = char>` type.
 ///
-/// Node occurs per every `char` as defined by Rust lang and uses `std::collections::HashMap`
+/// Node occurs per every [`char`] as defined by Rust lang and uses [`std::collections::HashMap`]
 /// to linking subnodes. Thus all methods complexity is respective to hashmap methods complexity.
 pub struct Trie<T> {
     root: Node<T>,
@@ -127,7 +130,7 @@ impl<T> Trie<T> {
 
     /// Removes key-entry duo from tree.
     ///
-    /// Check with `put_trace_cap` also.
+    /// Check with [`Trie::put_trace_cap`] also.
     pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
         let tra_res = self.track(key, TraStrain::TraEmp);
         let res = if let TraRes::Ok = tra_res {
@@ -252,19 +255,19 @@ impl<T> Trie<T> {
         }
     }
 
-    /// `Trie` uses internal buffer, to avoid excessive allocations and copying, which grows
-    /// over time due backtracing in `rem` method which backtraces whole path from entry
+    /// [`Trie`] uses internal buffer, to avoid excessive allocations and copying, which grows
+    /// over time due backtracing in [`Trie::rem`] method which backtraces whole path from entry
     /// node to root node.
     ///
     /// Use this method to shrink or extend it to fit actual program needs. Neither shrinking nor extending
-    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal `rem` performance, set `approx_cap` to, at least, key length.
+    /// is guaranteed to be exact. See [`Vec::with_capacity()`] and [`Vec::reserve()`]. For optimal [`Trie::rem`] performance, set `approx_cap` to, at least, key length.
     ///
     /// Some high value is sufficient anyway. Since buffer continuous
     /// usage, its capacity will likely expand at some point in time to size sufficient to all keys.
     ///
     /// Return value is actual buffer capacity.
     ///
-    /// **Note:** While `String` is UTF8 encoded, its byte length does not have to equal its `char` count
+    /// **Note:** While [`String`] is UTF8 encoded, its byte length does not have to equal its [`char`] count
     /// which is either equal or lesser.
     /// ```
     /// let star = "⭐";
@@ -293,7 +296,7 @@ impl<T> Trie<T> {
 
     /// Return value is internal backtracing buffer capacity.
     ///
-    /// Check with `fn put_trace_cap` for details.
+    /// Check with [`Trie::put_trace_cap`] for details.
     pub fn acq_trace_cap(&self) -> usize {
         self.btr.capacity()
     }
@@ -302,7 +305,7 @@ impl<T> Trie<T> {
     ///
     /// Return value is count of entries before clearing.
     ///
-    /// Does not reset backtracing buffer. Check with `fn put_trace_cap` for details.
+    /// Does not reset backtracing buffer. Check with [`Trie::put_trace_cap`] for details.
     pub fn clr(&mut self) -> usize {
         self.root = Node::<T>::empty();
 
@@ -319,10 +322,10 @@ impl<T> Trie<T> {
     /// Extracts key-entry duos from tree. Leaves tree empty.
     ///
     /// Extraction is alphabetically unordered. Exactly, order depends on
-    /// order given by `std::collections::hash_map::IterMut` iterator produced by
-    /// `std::collections::HashMap::iter_mut` at each node.
+    /// order given by [`std::collections::hash_map::IterMut`] iterator produced by
+    /// [`std::collections::HashMap::iter_mut`] at each node.
     ///
-    /// Return value is `None` for empty `Trie<T>`.
+    /// Return value is [`None`] for empty [`Trie`].
     ///
     /// Returned set can be overcapacitated, i.e. its capacity
     /// will not be shrunken according to its length.
@@ -347,10 +350,10 @@ impl<T> Trie<T> {
     /// Creates view onto key-entry duos in tree.
     ///
     /// View is alphabetically unordered. Exactly, order depends on
-    /// order given by `std::collections::hash_map::Iter` iterator produced by
-    /// `std::collections::HashMap::iter` at each node.
+    /// order given by [`std::collections::hash_map::Iter`] iterator produced by
+    /// [`std::collections::HashMap::iter`] at each node.
     ///
-    /// Return value is `None` for empty `Trie<T>`.
+    /// Return value is [`None`] for empty [`Trie`].
     ///
     /// Returned set can be overcapacitated, i.e. its capacity
     /// will not be shrunken according to its length.
@@ -369,6 +372,20 @@ impl<T> Trie<T> {
         view(rl, &mut buff, &mut res);
 
         Some(res)
+    }
+
+    /// For non-empty tree, provides reference access to tree root links. [`None`] otherwise.
+    ///
+    /// Intended for functional extension of trie.
+    pub fn as_ref(&self) -> Option<&Links<T>> {
+        self.root.links.as_ref()
+    }
+
+    /// For non-empty tree, provides mutable reference access to tree root links. [`None`] otherwise.
+    ///
+    /// Intended for functional extension of trie.
+    pub fn as_mut(&mut self) -> Option<&mut Links<T>> {
+        self.root.links.as_mut()
     }
 }
 
@@ -395,10 +412,16 @@ impl<'a, T> TraRes<'a, T> {
     }
 }
 
-#[cfg_attr(test, derive(PartialEq, Clone))]
-struct Node<T> {
-    links: Option<Links<T>>,
-    entry: Option<T>,
+/// Tree node.
+///
+/// It is associated with `char` in [`Links`].
+/// Optionally: can link to another entries and hold some entry.
+#[derive(PartialEq, Clone)]
+pub struct Node<T> {
+    /// Node links to another nodes.
+    pub links: Option<Links<T>>,
+    /// Some entry.
+    pub entry: Option<T>,
 }
 
 impl<T> Node<T> {
@@ -422,10 +445,8 @@ impl<T> Node<T> {
     }
 }
 
-#[cfg(test)]
 use std::fmt::{Debug, Formatter};
 
-#[cfg(test)]
 impl<T> Debug for Node<T>
 where
     T: Debug,
@@ -1330,6 +1351,50 @@ mod tests_of_units {
                 let view = trie.view();
 
                 assert_eq!(None, view);
+            }
+        }
+
+        mod as_ref {
+            use crate::{Links, Trie};
+
+            #[test]
+            fn empty_tree() {
+                let trie = Trie::<usize>::new();
+                let as_ref = trie.as_ref();
+                assert_eq!(None, as_ref);
+            }
+
+            #[test]
+            fn non_empty_tree() {
+                let mut trie = Trie::new();
+                _ = trie.ins(0, "0".chars());
+
+                let as_ref = (trie.as_ref().unwrap() as *const Links<i32>) as usize;
+                let proof = (trie.root.links.as_ref().unwrap() as *const Links<i32>) as usize;
+
+                assert_eq!(as_ref, proof);
+            }
+        }
+
+        mod as_mut {
+            use crate::{Links, Trie};
+
+            #[test]
+            fn empty_tree() {
+                let mut trie = Trie::<usize>::new();
+                let as_mut = trie.as_mut();
+                assert_eq!(None, as_mut);
+            }
+
+            #[test]
+            fn non_empty_tree() {
+                let mut trie = Trie::new();
+                _ = trie.ins(0, "0".chars());
+
+                let as_mut = (trie.as_mut().unwrap() as *const Links<i32>) as usize;
+                let proof = (trie.root.links.as_mut().unwrap() as *const Links<i32>) as usize;
+
+                assert_eq!(as_mut, proof);
             }
         }
     }
