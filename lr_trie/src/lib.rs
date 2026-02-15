@@ -14,9 +14,13 @@ use uc::UC;
 /// Tree node branches type.
 pub type Branches = Vec<Box<Node>>;
 /// Branches of left tree root.
-pub type LBranches = Vec<Box<Node>>;
+///
+/// Same type as [`Branches`].
+pub type LeftBranches = Vec<Box<Node>>;
 /// Branches of right tree root.
-pub type RBranches = Vec<Box<Node>>;
+///
+/// Same type as [`Branches`].
+pub type RightBranches = Vec<Box<Node>>;
 
 type NodeTrace = Vec<PathNode>;
 type EntryTrace = Vec<char>;
@@ -592,7 +596,7 @@ impl LrTrie {
     /// For non-empty tree, provides reference access to root branches of trees. [`None`] otherwise.
     ///
     /// Intended for functional extension of trie.
-    pub fn as_ref(&self) -> Option<(&LBranches, &RBranches)> {
+    pub fn as_ref(&self) -> Option<(&LeftBranches, &RightBranches)> {
         return if let Some(l) = self.left.branches.as_ref() {
             let r = unsafe { self.right.branches.as_ref().unwrap_unchecked() };
             Some((l, r))
@@ -604,7 +608,7 @@ impl LrTrie {
     /// For non-empty tree, provides mutable reference access to root branches of trees. [`None`] otherwise.
     ///
     /// Intended for functional extension of trie.
-    pub fn as_mut(&mut self) -> Option<(&mut LBranches, &mut RBranches)> {
+    pub fn as_mut(&mut self) -> Option<(&mut LeftBranches, &mut RightBranches)> {
         return if let Some(l) = self.left.branches.as_mut() {
             let r = unsafe { self.right.branches.as_mut().unwrap_unchecked() };
             Some((l, r))
@@ -720,35 +724,31 @@ mod tests_of_units {
     }
 
     mod pathnode_test_impl {
-        use crate::{Node, PathNode};
+        use crate::{tests_of_units::address, Node, PathNode};
 
         #[test]
         fn n_ref() {
             let mut n = Node::empty();
             let pn = PathNode(0, &mut n);
-            assert_eq!(
-                &n as *const Node as usize,
-                pn.n_ref() as *const Node as usize
-            );
+            assert_eq!(address(&n), address(pn.n_ref()));
         }
     }
 
     mod pathnode {
+        use crate::tests_of_units::address;
         use crate::{Node, PathNode};
 
         #[test]
         fn n_mut() {
             let n = &mut Node::empty();
             let pn = PathNode(0, n);
-            assert_eq!(
-                n as *const Node as usize,
-                pn.n_mut() as *const Node as usize
-            );
+            assert_eq!(address(n), address(pn.n_mut()));
         }
     }
 
     mod node {
 
+        use super::address;
         use crate::{Branches, Node, NULL_CHAR};
         use std::ptr;
 
@@ -790,28 +790,28 @@ mod tests_of_units {
             let new = Node::new(c, &sn);
 
             assert_eq!(c, new.c);
-            assert_eq!(&sn as *const Node, new.supernode);
+            assert_eq!(address(&sn), new.supernode as usize);
             assert_eq!(None, new.branches);
             assert_eq!(0, new.lrref as usize);
         }
 
         #[test]
         fn as_mut() {
-            let n = &mut Node::empty() as *mut Node;
-            assert_eq!(n as usize, Node::as_mut(n) as *const Node as usize);
+            let n = &mut Node::empty();
+            assert_eq!(address(n), address(Node::as_mut(n)));
         }
 
         #[test]
         fn as_ref() {
-            let n = &Node::empty() as *const Node;
-            assert_eq!(n as usize, Node::as_ref(n) as *const Node as usize);
+            let n = &Node::empty();
+            assert_eq!(address(n), address(Node::as_ref(n)));
         }
 
         #[test]
         fn to_mut_ptr() {
             let n = Node::empty();
-            let n_add = &n as *const Node as usize;
-            assert_eq!(n_add, n.to_mut_ptr() as usize);
+            let n_add = &n;
+            assert_eq!(address(n_add), n.to_mut_ptr() as usize);
         }
 
         #[test]
@@ -1709,16 +1709,17 @@ mod tests_of_units {
             }
         }
 
+        use crate::tests_of_units::address;
         #[test]
         fn root() {
             let trie = LrTrie::new();
 
-            let left = &trie.left as *const Node as usize;
-            let right = &trie.right as *const Node as usize;
+            let left = address(&trie.left);
+            let right = address(&trie.right);
 
             let vals = [(left, LeftRight::Left), (right, LeftRight::Right)];
             for v in vals {
-                let test = trie.root(v.1) as *const Node as usize;
+                let test = address(trie.root(v.1));
                 assert_eq!(v.0, test);
             }
         }
@@ -1728,11 +1729,11 @@ mod tests_of_units {
         #[test]
         fn branches() {
             let mut trie = LrTrie::new();
-            let l_proof: *const Branches = trie.left.branches.get_or_insert(Branches::new());
-            let r_proof: *const Branches = trie.right.branches.get_or_insert(Branches::new());
+            let l_proof = address(trie.left.branches.get_or_insert(Branches::new()));
+            let r_proof = address(trie.right.branches.get_or_insert(Branches::new()));
 
-            let l_test: *const Branches = trie.branches(LeftRight::Left).unwrap();
-            let r_test: *const Branches = trie.branches(LeftRight::Right).unwrap();
+            let l_test = address(trie.branches(LeftRight::Left).unwrap());
+            let r_test = address(trie.branches(LeftRight::Right).unwrap());
 
             assert_eq!(l_proof, l_test);
             assert_eq!(r_proof, r_test);
