@@ -11,12 +11,12 @@ use tra::{tsdv, TraStrain};
 mod uc;
 use uc::UC;
 
-/// Tree node links type.
-pub type Links = Vec<Box<Node>>;
-/// Links of left tree root.
-pub type LeftLinks = Vec<Box<Node>>;
-/// Links of right tree root.
-pub type RightLinks = Vec<Box<Node>>;
+/// Tree node branches type.
+pub type Branches = Vec<Box<Node>>;
+/// Branches of left tree root.
+pub type LBranches = Vec<Box<Node>>;
+/// Branches of right tree root.
+pub type RBranches = Vec<Box<Node>>;
 
 type NodeTrace = Vec<PathNode>;
 type EntryTrace = Vec<char>;
@@ -42,8 +42,8 @@ pub struct Node {
     pub c: char,
     /// Pointer to super-level node, if exist.
     pub supernode: *const Node,
-    /// Links to sub-level nodes, if exists.
-    pub links: Option<Links>,
+    /// Branches to sub-level nodes, if exists.
+    pub branches: Option<Branches>,
     /// Pointer to other tree entry node, not `null` when node is entry node.
     pub lrref: *const Node,
     #[cfg(test)]
@@ -58,15 +58,15 @@ impl Node {
         self.lrref != NULL_NODE
     }
 
-    const fn links(&self) -> bool {
-        self.links.is_some()
+    const fn branches(&self) -> bool {
+        self.branches.is_some()
     }
 
     const fn empty() -> Self {
         Node {
             c: NULL_CHAR,
             supernode: NULL_NODE,
-            links: None,
+            branches: None,
             lrref: NULL_NODE,
             #[cfg(test)]
             id: 0,
@@ -77,7 +77,7 @@ impl Node {
         Node {
             c,
             supernode,
-            links: None,
+            branches: None,
             lrref: NULL_NODE,
             #[cfg(test)]
             id: 0,
@@ -141,17 +141,17 @@ fn insert_crux<'a>(mut supernode: &'a mut Node, e: &Entry) -> &'a mut Node {
     let mut swap = Node::empty_boxed();
     let mut sn_ptr: *const Node = supernode;
     for c in e.chars() {
-        let links = supernode.links.get_or_insert_with(|| Links::new());
+        let branches = supernode.branches.get_or_insert_with(|| Branches::new());
 
-        let ix = if let Some(i) = index_of_c(links, c) {
+        let ix = if let Some(i) = index_of_c(branches, c) {
             i
         } else {
             let boxed = Node::new_boxed(c, sn_ptr);
-            links.push(boxed);
-            links.len() - 1
+            branches.push(boxed);
+            branches.len() - 1
         };
 
-        let node = &mut links[ix];
+        let node = &mut branches[ix];
 
         // Can be made coherent after
         // https://github.com/rust-lang/rust/issues/129090.
@@ -168,12 +168,12 @@ fn insert_crux<'a>(mut supernode: &'a mut Node, e: &Entry) -> &'a mut Node {
     supernode
 }
 
-fn index_of_c(links: &Links, c: char) -> Option<usize> {
-    let links_len = links.len();
+fn index_of_c(branches: &Branches, c: char) -> Option<usize> {
+    let branches_len = branches.len();
     let mut ix = 0;
 
-    while ix < links_len {
-        let n = &links[ix];
+    while ix < branches_len {
+        let n = &branches[ix];
         if n.c == c {
             return Some(ix);
         }
@@ -185,7 +185,7 @@ fn index_of_c(links: &Links, c: char) -> Option<usize> {
 }
 
 const fn cl_lrref(keyentry_n: &mut Node) -> bool {
-    if keyentry_n.links() {
+    if keyentry_n.branches() {
         keyentry_n.lrref = NULL_NODE;
         true
     } else {
@@ -194,11 +194,11 @@ const fn cl_lrref(keyentry_n: &mut Node) -> bool {
 }
 
 fn delete_subnode(n: &mut Node, subnode_ix: usize) -> bool {
-    let n_links = n.links.as_mut().unwrap();
-    _ = n_links.swap_remove(subnode_ix);
+    let n_branches = n.branches.as_mut().unwrap();
+    _ = n_branches.swap_remove(subnode_ix);
 
-    if n_links.len() == 0 {
-        n.links = None;
+    if n_branches.len() == 0 {
+        n.branches = None;
     } else {
         return true;
     }
@@ -247,8 +247,8 @@ fn delete_entry_side(key_side_entry_n: &Node) {
         }
 
         let super_n = Node::as_mut(super_n);
-        let sn_links = unsafe { super_n.links.as_ref().unwrap_unchecked() };
-        let n_ix = unsafe { index_of_c(sn_links, node.c).unwrap_unchecked() };
+        let sn_branches = unsafe { super_n.branches.as_ref().unwrap_unchecked() };
+        let n_ix = unsafe { index_of_c(sn_branches, node.c).unwrap_unchecked() };
 
         if delete_subnode(super_n, n_ix) {
             break;
@@ -271,7 +271,7 @@ fn set_cap<T>(buf: &UC<Vec<T>>, approx_cap: usize) -> usize {
     buf.capacity()
 }
 
-fn ext(l: &Links, k_buf: &mut String, e_buf: &mut Vec<char>, o: &mut Vec<(String, String)>) {
+fn ext(l: &Branches, k_buf: &mut String, e_buf: &mut Vec<char>, o: &mut Vec<(String, String)>) {
     for n in l {
         k_buf.push(n.c);
 
@@ -282,7 +282,7 @@ fn ext(l: &Links, k_buf: &mut String, e_buf: &mut Vec<char>, o: &mut Vec<(String
             o.push((k, e));
         }
 
-        if let Some(l) = n.links.as_ref() {
+        if let Some(l) = n.branches.as_ref() {
             ext(l, k_buf, e_buf, o);
         }
 
@@ -346,7 +346,7 @@ enum TraRes<'a> {
     Ok,
     OkRef(&'a Node),
     UnknownForNotEntry,
-    UnknownForAbsentPathLinks,
+    UnknownForAbsentPathBranches,
     UnknownForAbsentPathNode,
 }
 
@@ -404,7 +404,7 @@ impl LrTrie {
         let mut key = key.chars();
         let mut node = Node::as_ref(root);
         while let Some(c) = key.next() {
-            if let Some(l) = &node.links {
+            if let Some(l) = &node.branches {
                 if let Some(ix) = index_of_c(l, c) {
                     node = &l[ix];
                     if tracing {
@@ -415,7 +415,7 @@ impl LrTrie {
                 }
                 return TraRes::UnknownForAbsentPathNode;
             }
-            return TraRes::UnknownForAbsentPathLinks;
+            return TraRes::UnknownForAbsentPathBranches;
         }
 
         if node.lrref() {
@@ -452,8 +452,8 @@ impl LrTrie {
         }
     }
 
-    const fn links(&self, lr: LeftRight) -> Option<&Links> {
-        self.root(lr).links.as_ref()
+    const fn branches(&self, lr: LeftRight) -> Option<&Branches> {
+        self.root(lr).branches.as_ref()
     }
 
     /// Deletes both key and its entry seeking key in specified tree.
@@ -576,7 +576,7 @@ impl LrTrie {
     /// Returned set can be overcapacitated, i.e. its capacity will not
     /// be shrunken according to its length.
     pub fn extract(&self, lr: LeftRight) -> Option<Vec<(String, String)>> {
-        if let Some(l) = self.links(lr) {
+        if let Some(l) = self.branches(lr) {
             let mut o = Vec::with_capacity(1000);
             let mut e_buf = Vec::with_capacity(1000);
             let mut k_buf = String::with_capacity(1000);
@@ -589,24 +589,24 @@ impl LrTrie {
         }
     }
 
-    /// For non-empty tree, provides reference access to root links of trees. [`None`] otherwise.
+    /// For non-empty tree, provides reference access to root branches of trees. [`None`] otherwise.
     ///
     /// Intended for functional extension of trie.
-    pub fn as_ref(&self) -> Option<(&LeftLinks, &RightLinks)> {
-        return if let Some(l) = self.left.links.as_ref() {
-            let r = unsafe { self.right.links.as_ref().unwrap_unchecked() };
+    pub fn as_ref(&self) -> Option<(&LBranches, &RBranches)> {
+        return if let Some(l) = self.left.branches.as_ref() {
+            let r = unsafe { self.right.branches.as_ref().unwrap_unchecked() };
             Some((l, r))
         } else {
             None
         };
     }
 
-    /// For non-empty tree, provides mutable reference access to root links of trees. [`None`] otherwise.
+    /// For non-empty tree, provides mutable reference access to root branches of trees. [`None`] otherwise.
     ///
     /// Intended for functional extension of trie.
-    pub fn as_mut(&mut self) -> Option<(&mut LeftLinks, &mut RightLinks)> {
-        return if let Some(l) = self.left.links.as_mut() {
-            let r = unsafe { self.right.links.as_mut().unwrap_unchecked() };
+    pub fn as_mut(&mut self) -> Option<(&mut LBranches, &mut RBranches)> {
+        return if let Some(l) = self.left.branches.as_mut() {
+            let r = unsafe { self.right.branches.as_mut().unwrap_unchecked() };
             Some((l, r))
         } else {
             None
@@ -617,7 +617,7 @@ impl LrTrie {
 use std::fmt::{Debug, Formatter};
 impl Debug for Node {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let links = if self.links() { "Some" } else { "None" };
+        let branches = if self.branches() { "Some" } else { "None" };
         let lrref = if self.lrref() { "Some" } else { "None" };
         let sn = if self.supernode.is_null() {
             "Null"
@@ -626,8 +626,8 @@ impl Debug for Node {
         };
 
         f.write_fmt(format_args!(
-            "Node {{\n  c: {}\n  sn: {}\n  links: {}\n  lrref: {}\n}}",
-            self.c, sn, links, lrref
+            "Node {{\n  c: {}\n  sn: {}\n  branches: {}\n  lrref: {}\n}}",
+            self.c, sn, branches, lrref
         ))
     }
 }
@@ -636,7 +636,7 @@ impl PartialEq for Node {
     fn eq(&self, other: &Self) -> bool {
         self.c == other.c
             && self.supernode == other.supernode
-            && self.links == other.links
+            && self.branches == other.branches
             && self.lrref == other.lrref
     }
 }
@@ -749,7 +749,7 @@ mod tests_of_units {
 
     mod node {
 
-        use crate::{Links, Node, NULL_CHAR};
+        use crate::{Branches, Node, NULL_CHAR};
         use std::ptr;
 
         #[test]
@@ -762,12 +762,12 @@ mod tests_of_units {
         }
 
         #[test]
-        fn links() {
+        fn branches() {
             let mut node = Node::empty();
 
-            assert_eq!(false, node.links());
-            node.links = Some(Links::new());
-            assert!(node.links());
+            assert_eq!(false, node.branches());
+            node.branches = Some(Branches::new());
+            assert!(node.branches());
         }
 
         #[test]
@@ -778,7 +778,7 @@ mod tests_of_units {
 
             assert_eq!(NULL_CHAR, node.c);
             assert_eq!(null_ptr, node.supernode);
-            assert_eq!(None, node.links);
+            assert_eq!(None, node.branches);
             assert_eq!(null_ptr, node.lrref);
         }
 
@@ -791,7 +791,7 @@ mod tests_of_units {
 
             assert_eq!(c, new.c);
             assert_eq!(&sn as *const Node, new.supernode);
-            assert_eq!(None, new.links);
+            assert_eq!(None, new.branches);
             assert_eq!(0, new.lrref as usize);
         }
 
@@ -818,8 +818,8 @@ mod tests_of_units {
         fn eq() {
             let sn = Node::empty();
             let mut n1 = Node::new('x', &sn);
-            let links = vec![Node::new_boxed('y', &sn)];
-            n1.links = Some(links);
+            let branches = vec![Node::new_boxed('y', &sn)];
+            n1.branches = Some(branches);
             n1.lrref = &sn;
 
             let n2 = n1.clone();
@@ -869,21 +869,21 @@ mod tests_of_units {
         fn basic_test() {
             let mut root = Node::empty();
 
-            const ENTRY: &str = "lr_links_inserT";
+            const ENTRY: &str = "lr_branches_inserT";
             let limit = ENTRY.len() - 1;
 
             let entry: Entry = KeyEntry(ENTRY);
             let node = insert_crux(&mut root, &entry);
 
             assert_eq!('T', node.c);
-            assert_eq!(None, node.links);
+            assert_eq!(None, node.branches);
 
-            assert!(root.links.is_some());
+            assert!(root.branches.is_some());
 
-            let mut links = root.links.as_ref().unwrap();
+            let mut branches = root.branches.as_ref().unwrap();
             let mut super_n: *const Node = &root;
             for (ix, c) in ENTRY.chars().enumerate() {
-                let node = links.get(0);
+                let node = branches.get(0);
 
                 assert!(node.is_some());
                 let node = node.unwrap();
@@ -893,11 +893,11 @@ mod tests_of_units {
                 super_n = node.deref();
 
                 if ix < limit {
-                    let temp = &node.links;
+                    let temp = &node.branches;
                     assert!(temp.is_some());
-                    links = temp.as_ref().unwrap();
+                    branches = temp.as_ref().unwrap();
                 } else {
-                    assert!(&node.links.is_none());
+                    assert!(&node.branches.is_none());
                 }
             }
         }
@@ -928,41 +928,41 @@ mod tests_of_units {
 
     mod index_of_c {
 
-        use crate::{index_of_c, Links, Node};
+        use crate::{index_of_c, Branches, Node};
 
-        fn links(cs: &[char]) -> Links {
+        fn branches(cs: &[char]) -> Branches {
             cs.iter()
                 .map(|x| Node::new_boxed(*x, 0 as *const Node))
-                .collect::<Links>()
+                .collect::<Branches>()
         }
 
         #[test]
         fn some() {
-            let links = links(&['a', 'b', 'c']);
+            let branches = branches(&['a', 'b', 'c']);
 
-            let index = index_of_c(&links, 'c');
+            let index = index_of_c(&branches, 'c');
             assert!(index.is_some());
             assert_eq!(2, index.unwrap());
         }
 
         #[test]
         fn none() {
-            let links = links(&['a', 'b', 'c']);
+            let branches = branches(&['a', 'b', 'c']);
 
-            let index = index_of_c(&links, 'd');
+            let index = index_of_c(&branches, 'd');
             assert!(index.is_none());
         }
     }
 
     mod cl_lrref {
-        use crate::{cl_lrref, Links, Node};
+        use crate::{cl_lrref, Branches, Node};
         use std::ptr;
 
         #[test]
         fn has_to() {
             let mut node = Node::empty();
             node.lrref = &node;
-            node.links = Some(Links::new());
+            node.branches = Some(Branches::new());
 
             assert_eq!(true, cl_lrref(&mut node));
             assert_eq!(ptr::null(), node.lrref);
@@ -979,7 +979,7 @@ mod tests_of_units {
     }
 
     mod delete_subnode {
-        use crate::{delete_subnode, Links, Node};
+        use crate::{delete_subnode, Branches, Node};
         use std::{ops::Deref, vec};
 
         // deletion continues when and only when
@@ -988,34 +988,34 @@ mod tests_of_units {
         #[test]
         fn deletion_continues() {
             let mut node = Node::empty();
-            node.links = Some(vec![Node::empty_boxed()]);
+            node.branches = Some(vec![Node::empty_boxed()]);
 
             assert_eq!(false, delete_subnode(&mut node, 0));
-            assert_eq!(None, node.links);
+            assert_eq!(None, node.branches);
         }
 
-        // when node holds some links after removing subnode in
+        // when node holds some branches after removing subnode in
         // question, it participates in path to another node
         #[test]
-        fn node_with_links() {
+        fn node_with_branches() {
             let mut node = Node::empty();
 
             #[rustfmt::skip]
-            let links = vec![
+            let branches = vec![
             Node::empty_boxed(),
             Node::new_boxed('a', 0 as *const Node),
             Node::new_boxed('b', 0 as *const Node),
             Node::new_boxed('c', 0 as *const Node),
             ];
 
-            node.links = Some(links);
+            node.branches = Some(branches);
             assert_eq!(true, delete_subnode(&mut node, 1));
 
-            let links = node.links.as_ref().unwrap();
-            assert_eq!(3, links.len());
-            assert_eq!(&Node::empty(), links[0].deref());
-            assert_eq!('c', links[1].c);
-            assert_eq!('b', links[2].c);
+            let branches = node.branches.as_ref().unwrap();
+            assert_eq!(3, branches.len());
+            assert_eq!(&Node::empty(), branches[0].deref());
+            assert_eq!('c', branches[1].c);
+            assert_eq!('b', branches[2].c);
         }
 
         // key node has reference to entry node
@@ -1025,31 +1025,31 @@ mod tests_of_units {
         fn key_node() {
             let mut node = Node::empty();
 
-            node.links = Some(vec![Node::empty_boxed()]);
+            node.branches = Some(vec![Node::empty_boxed()]);
             node.lrref = &node;
 
             assert_eq!(true, delete_subnode(&mut node, 0));
-            assert_eq!(None, node.links);
+            assert_eq!(None, node.branches);
         }
 
         #[test]
         #[should_panic(expected = "swap_remove index (is 0) should be < len (is 0)")]
         fn index_out_of_bounds() {
             let mut node = Node::empty();
-            node.links = Some(Links::new());
+            node.branches = Some(Branches::new());
             delete_subnode(&mut node, 0);
         }
     }
 
     mod delete_key_side {
-        use crate::{delete_key_side, Links, Node, PathNode};
+        use crate::{delete_key_side, Branches, Node, PathNode};
         use std::{ops::DerefMut, ptr};
 
         #[test]
-        fn keynode_with_links() {
+        fn keynode_with_branches() {
             let mut n = Node::empty();
             n.lrref = &n;
-            n.links = Some(Links::new());
+            n.branches = Some(Branches::new());
 
             #[rustfmt::skip]
             let path = vec![
@@ -1063,11 +1063,11 @@ mod tests_of_units {
         }
 
         #[test]
-        fn node_with_links() {
+        fn node_with_branches() {
             let mut empty_n = Node::empty();
 
             let mut n = Node::empty();
-            n.links = Some(vec![Node::empty_boxed(), Node::empty_boxed()]);
+            n.branches = Some(vec![Node::empty_boxed(), Node::empty_boxed()]);
 
             #[rustfmt::skip]
             let path = vec![
@@ -1078,7 +1078,7 @@ mod tests_of_units {
 
             delete_key_side(&path);
 
-            assert_eq!(1, n.links.as_ref().unwrap().len());
+            assert_eq!(1, n.branches.as_ref().unwrap().len());
         }
 
         #[test]
@@ -1087,10 +1087,10 @@ mod tests_of_units {
 
             let mut n1 = Node::empty();
             n1.lrref = &n1;
-            n1.links = Some(vec![Node::empty_boxed()]);
+            n1.branches = Some(vec![Node::empty_boxed()]);
 
             let mut n2 = Node::empty();
-            n2.links = Some(vec![Node::empty_boxed()]);
+            n2.branches = Some(vec![Node::empty_boxed()]);
 
             #[rustfmt::skip]
             let path = vec![
@@ -1102,37 +1102,37 @@ mod tests_of_units {
 
             delete_key_side(&path);
 
-            assert_eq!(false, n1.links());
-            assert_eq!(false, n2.links());
+            assert_eq!(false, n1.branches());
+            assert_eq!(false, n2.branches());
         }
 
         #[test]
         fn root_escape() {
             let mut root = Node::empty();
             let node = Node::new_boxed('a', &root);
-            root.links = Some(vec![node]);
+            root.branches = Some(vec![node]);
 
             #[rustfmt::skip]
             let path = vec![
                 PathNode(usize::MAX, &mut root),
-                PathNode(0, root.links.as_mut().unwrap()[0].deref_mut()),
+                PathNode(0, root.branches.as_mut().unwrap()[0].deref_mut()),
             ];
 
             delete_key_side(&path);
-            assert_eq!(None, root.links);
+            assert_eq!(None, root.branches);
         }
     }
 
     mod delete_entry_side {
-        use crate::{delete_entry_side, Links, Node};
+        use crate::{delete_entry_side, Branches, Node};
         use std::{ops::Deref, ptr};
 
         #[test]
-        fn keynode_with_links() {
+        fn keynode_with_branches() {
             let mut n = Node::empty();
             n.supernode = &n;
             n.lrref = &n;
-            n.links = Some(Links::new());
+            n.branches = Some(Branches::new());
 
             delete_entry_side(&n);
 
@@ -1140,50 +1140,50 @@ mod tests_of_units {
         }
 
         #[test]
-        fn node_with_links() {
+        fn node_with_branches() {
             let mut n = Node::empty();
             n.supernode = &n;
-            n.links = Some(vec![Node::new_boxed('a', &n), Node::empty_boxed()]);
+            n.branches = Some(vec![Node::new_boxed('a', &n), Node::empty_boxed()]);
 
             let mut ks_en = Node::empty();
-            ks_en.lrref = n.links.as_ref().unwrap()[0].deref();
+            ks_en.lrref = n.branches.as_ref().unwrap()[0].deref();
 
             delete_entry_side(&ks_en);
 
-            let links = n.links.as_ref();
-            assert!(links.is_some());
-            let links = links.unwrap();
+            let branches = n.branches.as_ref();
+            assert!(branches.is_some());
+            let branches = branches.unwrap();
 
-            assert_eq!(1, links.len());
-            assert_eq!('\0', links[0].c);
+            assert_eq!(1, branches.len());
+            assert_eq!('\0', branches[0].c);
         }
 
         #[test]
         fn node_being_keyentry() {
             let mut n = Node::empty();
             n.supernode = &n;
-            n.links = Some(vec![Node::new_boxed('a', &n)]);
+            n.branches = Some(vec![Node::new_boxed('a', &n)]);
             n.lrref = &n;
 
             let mut ks_en = Node::empty();
-            ks_en.lrref = n.links.as_ref().unwrap()[0].deref();
+            ks_en.lrref = n.branches.as_ref().unwrap()[0].deref();
 
             delete_entry_side(&ks_en);
 
-            assert_eq!(None, n.links);
+            assert_eq!(None, n.branches);
         }
 
         #[test]
         fn root_escape() {
             let mut root = Node::empty();
             let node = Node::new_boxed('a', &root);
-            root.links = Some(vec![node]);
+            root.branches = Some(vec![node]);
 
             let mut ks_en = Node::empty();
-            ks_en.lrref = root.links.as_ref().unwrap()[0].deref();
+            ks_en.lrref = root.branches.as_ref().unwrap()[0].deref();
 
             delete_entry_side(&ks_en);
-            assert_eq!(None, root.links);
+            assert_eq!(None, root.branches);
         }
     }
 
@@ -1247,9 +1247,9 @@ mod tests_of_units {
             let mut e_buf = Vec::new();
             let mut res = Vec::new();
 
-            let links = trie.left.links.as_ref().unwrap();
+            let branches = trie.left.branches.as_ref().unwrap();
 
-            ext(links, &mut k_buf, &mut e_buf, &mut res);
+            ext(branches, &mut k_buf, &mut e_buf, &mut res);
 
             assert_eq!(2, res.len());
             for z in proof.iter().zip(res.iter()) {
@@ -1293,9 +1293,9 @@ mod tests_of_units {
             let mut e_buf = Vec::new();
             let mut res = Vec::new();
 
-            let links = trie.right.links.as_ref().unwrap();
+            let branches = trie.right.branches.as_ref().unwrap();
 
-            ext(links, &mut k_buf, &mut e_buf, &mut res);
+            ext(branches, &mut k_buf, &mut e_buf, &mut res);
 
             assert_eq!(proof.len(), res.len());
             for z in proof.iter().zip(res.iter()) {
@@ -1361,14 +1361,14 @@ mod tests_of_units {
 
         mod insert {
 
-            use crate::{Entry, Key, KeyEntry, LeftRight, Links, LrTrie, Node};
+            use crate::{Branches, Entry, Key, KeyEntry, LeftRight, LrTrie, Node};
 
-            fn last_node(links: &Links) -> &Node {
-                let node = links.get(0);
+            fn last_node(branches: &Branches) -> &Node {
+                let node = branches.get(0);
                 assert!(node.is_some());
 
                 let mut node = node.unwrap();
-                while let Some(l) = node.links.as_ref() {
+                while let Some(l) = node.branches.as_ref() {
                     let n = l.get(0);
                     assert!(n.is_some());
 
@@ -1381,10 +1381,10 @@ mod tests_of_units {
             fn insert(trie: &mut LrTrie, lke: &Entry, rke: &Entry) -> (*const Node, *const Node) {
                 trie.insert(lke, rke);
 
-                let l_links = &trie.left.links.as_ref().unwrap();
-                let r_links = &trie.right.links.as_ref().unwrap();
+                let l_branches = &trie.left.branches.as_ref().unwrap();
+                let r_branches = &trie.right.branches.as_ref().unwrap();
 
-                (last_node(l_links), last_node(r_links))
+                (last_node(l_branches), last_node(r_branches))
             }
 
             fn put_id(node: *const Node, val: usize) {
@@ -1413,7 +1413,7 @@ mod tests_of_units {
                     assert!(member.is_some());
                     assert_eq!(e.0, &member.unwrap());
 
-                    last_node(trie.links(lr).unwrap())
+                    last_node(trie.branches(lr).unwrap())
                 }
             }
 
@@ -1639,7 +1639,7 @@ mod tests_of_units {
                 let mut trie = LrTrie::new();
                 _ = trie.insert(entry, entry);
                 let res = trie.track(key, LeftRight::Left, TraStrain::NonEmp);
-                assert_eq!(TraRes::UnknownForAbsentPathLinks, res);
+                assert_eq!(TraRes::UnknownForAbsentPathBranches, res);
             }
 
             #[test]
@@ -1723,16 +1723,16 @@ mod tests_of_units {
             }
         }
 
-        use crate::Links;
+        use crate::Branches;
 
         #[test]
-        fn links() {
+        fn branches() {
             let mut trie = LrTrie::new();
-            let l_proof: *const Links = trie.left.links.get_or_insert(Links::new());
-            let r_proof: *const Links = trie.right.links.get_or_insert(Links::new());
+            let l_proof: *const Branches = trie.left.branches.get_or_insert(Branches::new());
+            let r_proof: *const Branches = trie.right.branches.get_or_insert(Branches::new());
 
-            let l_test: *const Links = trie.links(LeftRight::Left).unwrap();
-            let r_test: *const Links = trie.links(LeftRight::Right).unwrap();
+            let l_test: *const Branches = trie.branches(LeftRight::Left).unwrap();
+            let r_test: *const Branches = trie.branches(LeftRight::Right).unwrap();
 
             assert_eq!(l_proof, l_test);
             assert_eq!(r_proof, r_test);
@@ -1806,16 +1806,16 @@ mod tests_of_units {
 
                         _ = trie.track(&key, lr, TraStrain::TraEmp);
                         let y_node = trie.trace[key.0.len()].n_ref();
-                        let links = y_node.links.as_ref().unwrap();
-                        assert_eq!(2, links.len());
-                        let filtered = links.iter().filter(|x| x.c == 'w' || x.c == 'p').count();
+                        let branches = y_node.branches.as_ref().unwrap();
+                        assert_eq!(2, branches.len());
+                        let filtered = branches.iter().filter(|x| x.c == 'w' || x.c == 'p').count();
                         assert_eq!(2, filtered);
                     }
                 }
             }
 
             #[test]
-            fn links_removal() {
+            fn branches_removal() {
                 let keyword = KeyEntry("Keyword");
                 let mut trie = LrTrie::new();
 
@@ -1826,8 +1826,8 @@ mod tests_of_units {
                     assert!(trie.member(&keyword, lr.clone()).is_none());
                     assert!(trie.member(&keyword, lr.invert()).is_none());
 
-                    assert!(trie.links(LeftRight::Left).is_none());
-                    assert!(trie.links(LeftRight::Right).is_none());
+                    assert!(trie.branches(LeftRight::Left).is_none());
+                    assert!(trie.branches(LeftRight::Right).is_none());
                 }
             }
 
@@ -1863,9 +1863,9 @@ mod tests_of_units {
                     assert!(trie.member(&keyword, lr.clone()).is_none());
                     assert!(trie.member(&k, lr.clone()).is_some());
 
-                    let links = trie.links(lr);
-                    let k = &links.unwrap()[0];
-                    assert_eq!(false, k.links());
+                    let branches = trie.branches(lr);
+                    let k = &branches.unwrap()[0];
+                    assert_eq!(false, k.branches());
                 }
             }
 
@@ -1884,10 +1884,10 @@ mod tests_of_units {
                     assert!(trie.member(&k, lr.clone()).is_none());
                     assert!(trie.member(&keyword, lr.clone()).is_some());
 
-                    let links = trie.links(lr);
-                    let k = links.unwrap()[0].deref();
+                    let branches = trie.branches(lr);
+                    let k = branches.unwrap()[0].deref();
                     assert_eq!('K', k.c);
-                    assert_eq!(true, k.links());
+                    assert_eq!(true, k.branches());
                 }
             }
 
@@ -1906,8 +1906,8 @@ mod tests_of_units {
                     assert!(trie.member(&k, lr.clone()).is_none());
                     assert!(trie.member(&c, lr.clone()).is_some());
 
-                    let links = trie.links(lr);
-                    let c = links.unwrap()[0].deref();
+                    let branches = trie.branches(lr);
+                    let c = branches.unwrap()[0].deref();
                     assert_eq!('C', c.c);
                 }
             }
@@ -2087,12 +2087,12 @@ mod tests_of_units {
             let key = KeyEntry("0");
             _ = trie.insert(&key, &key);
 
-            let root_links = trie.as_ref().unwrap();
-            let l_test = address(root_links.0);
-            let r_test = address(root_links.1);
+            let root_branches = trie.as_ref().unwrap();
+            let l_test = address(root_branches.0);
+            let r_test = address(root_branches.1);
 
-            let l_proof = address(trie.left.links.as_ref().unwrap());
-            let r_proof = address(trie.right.links.as_ref().unwrap());
+            let l_proof = address(trie.left.branches.as_ref().unwrap());
+            let r_proof = address(trie.right.branches.as_ref().unwrap());
 
             assert_eq!(l_test, l_proof);
             assert_eq!(r_test, r_proof);
@@ -2116,12 +2116,12 @@ mod tests_of_units {
             let key = KeyEntry("0");
             _ = trie.insert(&key, &key);
 
-            let root_links = trie.as_mut().unwrap();
-            let l_test = address(root_links.0);
-            let r_test = address(root_links.1);
+            let root_branches = trie.as_mut().unwrap();
+            let l_test = address(root_branches.0);
+            let r_test = address(root_branches.1);
 
-            let l_proof = address(trie.left.links.as_mut().unwrap());
-            let r_proof = address(trie.right.links.as_mut().unwrap());
+            let l_proof = address(trie.left.branches.as_mut().unwrap());
+            let r_proof = address(trie.right.branches.as_mut().unwrap());
 
             assert_eq!(l_test, l_proof);
             assert_eq!(r_test, r_proof);
