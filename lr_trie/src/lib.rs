@@ -11,7 +11,13 @@ use tra::{tsdv, TraStrain};
 mod uc;
 use uc::UC;
 
-type Links = Vec<Box<Node>>;
+/// Tree node links type.
+pub type Links = Vec<Box<Node>>;
+/// Links of left tree root.
+pub type LeftLinks = Vec<Box<Node>>;
+/// Links of right tree root.
+pub type RightLinks = Vec<Box<Node>>;
+
 type NodeTrace = Vec<PathNode>;
 type EntryTrace = Vec<char>;
 
@@ -29,12 +35,17 @@ pub type Entry<'a> = KeyEntry<'a>;
 /// `KeyEntry` playing key role.
 pub type Key<'a> = KeyEntry<'a>;
 
-#[cfg_attr(test, derive(Clone))]
-struct Node {
-    c: char,
-    supernode: *const Node,
-    links: Option<Links>,
-    lrref: *const Node,
+#[derive(Clone)]
+/// Tree node.
+pub struct Node {
+    /// `char` conjoined to tree node.
+    pub c: char,
+    /// Pointer to super-level node, if exist.
+    pub supernode: *const Node,
+    /// Links to sub-level nodes, if exists.
+    pub links: Option<Links>,
+    /// Pointer to other tree entry node, not `null` when node is entry node.
+    pub lrref: *const Node,
     #[cfg(test)]
     id: usize,
 }
@@ -577,6 +588,57 @@ impl LrTrie {
             None
         }
     }
+
+    /// For non-empty tree, provides reference access to root links of trees. [`None`] otherwise.
+    ///
+    /// Intended for functional extension of trie.
+    pub fn as_ref(&self) -> Option<(&LeftLinks, &RightLinks)> {
+        return if let Some(l) = self.left.links.as_ref() {
+            let r = unsafe { self.right.links.as_ref().unwrap_unchecked() };
+            Some((l, r))
+        } else {
+            None
+        };
+    }
+
+    /// For non-empty tree, provides mutable reference access to root links of trees. [`None`] otherwise.
+    ///
+    /// Intended for functional extension of trie.
+    pub fn as_mut(&mut self) -> Option<(&mut LeftLinks, &mut RightLinks)> {
+        return if let Some(l) = self.left.links.as_mut() {
+            let r = unsafe { self.right.links.as_mut().unwrap_unchecked() };
+            Some((l, r))
+        } else {
+            None
+        };
+    }
+}
+
+use std::fmt::{Debug, Formatter};
+impl Debug for Node {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let links = if self.links() { "Some" } else { "None" };
+        let lrref = if self.lrref() { "Some" } else { "None" };
+        let sn = if self.supernode.is_null() {
+            "Null"
+        } else {
+            "Parent"
+        };
+
+        f.write_fmt(format_args!(
+            "Node {{\n  c: {}\n  sn: {}\n  links: {}\n  lrref: {}\n}}",
+            self.c, sn, links, lrref
+        ))
+    }
+}
+
+impl PartialEq for Node {
+    fn eq(&self, other: &Self) -> bool {
+        self.c == other.c
+            && self.supernode == other.supernode
+            && self.links == other.links
+            && self.lrref == other.lrref
+    }
 }
 
 #[cfg(test)]
@@ -584,49 +646,18 @@ mod tests_of_units {
 
     use crate::{LeftRight, LrTrie, Node};
 
-    impl PartialEq for Node {
-        fn eq(&self, other: &Self) -> bool {
-            self.c == other.c
-                && self.supernode == other.supernode
-                && self.links == other.links
-                && self.lrref == other.lrref
-        }
+    fn address<T>(t: &T) -> usize {
+        (t as *const T) as usize
     }
 
-    mod node_test_imp {
-        use crate::Node;
+    #[test]
+    fn address_test() {
+        let addr = 333;
+        let ptr = addr as *const LrTrie;
+        let _ref = unsafe { ptr.as_ref() }.unwrap();
 
-        #[test]
-        fn eq() {
-            let sn = Node::empty();
-            let mut n1 = Node::new('x', &sn);
-            let links = vec![Node::new_boxed('y', &sn)];
-            n1.links = Some(links);
-            n1.lrref = &sn;
-
-            let n2 = n1.clone();
-
-            assert_eq!(true, n1.eq(&n2));
-        }
-    }
-
-    use std::fmt::{Debug, Formatter};
-
-    impl Debug for Node {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            let links = if self.links() { "Some" } else { "None" };
-            let lrref = if self.lrref() { "Some" } else { "None" };
-            let sn = if self.supernode.is_null() {
-                "Null"
-            } else {
-                "Parent"
-            };
-
-            f.write_fmt(format_args!(
-                "Node {{\n  c: {}\n  sn: {}\n  links: {}\n  lrref: {}\n}}",
-                self.c, sn, links, lrref
-            ))
-        }
+        let test = address(_ref);
+        assert_eq!(addr, test);
     }
 
     use crate::NodeTrace;
@@ -781,6 +812,19 @@ mod tests_of_units {
             let n = Node::empty();
             let n_add = &n as *const Node as usize;
             assert_eq!(n_add, n.to_mut_ptr() as usize);
+        }
+
+        #[test]
+        fn eq() {
+            let sn = Node::empty();
+            let mut n1 = Node::new('x', &sn);
+            let links = vec![Node::new_boxed('y', &sn)];
+            n1.links = Some(links);
+            n1.lrref = &sn;
+
+            let n2 = n1.clone();
+
+            assert_eq!(true, n1.eq(&n2));
         }
     }
 
@@ -2023,6 +2067,64 @@ mod tests_of_units {
             let trie = LrTrie::new();
             assert_eq!(None, trie.extract(LeftRight::Right));
             assert_eq!(None, trie.extract(LeftRight::Left));
+        }
+    }
+
+    mod as_ref {
+        use super::address;
+        use crate::{KeyEntry, LrTrie};
+
+        #[test]
+        fn empty_tree() {
+            let trie = LrTrie::new();
+            let as_ref = trie.as_ref();
+            assert_eq!(None, as_ref);
+        }
+
+        #[test]
+        fn non_empty_tree() {
+            let mut trie = LrTrie::new();
+            let key = KeyEntry("0");
+            _ = trie.insert(&key, &key);
+
+            let root_links = trie.as_ref().unwrap();
+            let l_test = address(root_links.0);
+            let r_test = address(root_links.1);
+
+            let l_proof = address(trie.left.links.as_ref().unwrap());
+            let r_proof = address(trie.right.links.as_ref().unwrap());
+
+            assert_eq!(l_test, l_proof);
+            assert_eq!(r_test, r_proof);
+        }
+    }
+
+    mod as_mut {
+        use super::address;
+        use crate::{KeyEntry, LrTrie};
+
+        #[test]
+        fn empty_tree() {
+            let mut trie = LrTrie::new();
+            let as_mut = trie.as_mut();
+            assert_eq!(None, as_mut);
+        }
+
+        #[test]
+        fn non_empty_tree() {
+            let mut trie = LrTrie::new();
+            let key = KeyEntry("0");
+            _ = trie.insert(&key, &key);
+
+            let root_links = trie.as_mut().unwrap();
+            let l_test = address(root_links.0);
+            let r_test = address(root_links.1);
+
+            let l_proof = address(trie.left.links.as_mut().unwrap());
+            let r_proof = address(trie.right.links.as_mut().unwrap());
+
+            assert_eq!(l_test, l_proof);
+            assert_eq!(r_test, r_proof);
         }
     }
 
