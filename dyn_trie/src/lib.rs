@@ -420,7 +420,7 @@ impl<'a, T> TraRes<'a, T> {
 pub struct Node<T> {
     /// Node branches to sub-level nodes.
     pub branches: Option<Branches<T>>,
-    /// Some entry.
+    /// Entry if node is entry node. [`None`] otherwise.
     pub entry: Option<T>,
 }
 
