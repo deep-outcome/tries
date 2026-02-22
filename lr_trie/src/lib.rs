@@ -646,23 +646,12 @@ impl PartialEq for Node {
 }
 
 #[cfg(test)]
+mod aide;
+
+#[cfg(test)]
 mod tests_of_units {
 
     use crate::{LeftRight, LrTrie, Node};
-
-    fn address<T>(t: &T) -> usize {
-        (t as *const T) as usize
-    }
-
-    #[test]
-    fn address_test() {
-        let addr = 333;
-        let ptr = addr as *const LrTrie;
-        let _ref = unsafe { ptr.as_ref() }.unwrap();
-
-        let test = address(_ref);
-        assert_eq!(addr, test);
-    }
 
     use crate::NodeTrace;
     impl LrTrie {
@@ -724,7 +713,8 @@ mod tests_of_units {
     }
 
     mod pathnode_test_impl {
-        use crate::{tests_of_units::address, Node, PathNode};
+        use crate::aide::address;
+        use crate::{Node, PathNode};
 
         #[test]
         fn n_ref() {
@@ -735,7 +725,7 @@ mod tests_of_units {
     }
 
     mod pathnode {
-        use crate::tests_of_units::address;
+        use crate::aide::address;
         use crate::{Node, PathNode};
 
         #[test]
@@ -748,7 +738,7 @@ mod tests_of_units {
 
     mod node {
 
-        use super::address;
+        use crate::aide::address;
         use crate::{Branches, Node, NULL_CHAR};
         use std::ptr;
 
@@ -1709,7 +1699,7 @@ mod tests_of_units {
             }
         }
 
-        use crate::tests_of_units::address;
+        use crate::aide::address;
         #[test]
         fn root() {
             let trie = LrTrie::new();
@@ -2072,7 +2062,7 @@ mod tests_of_units {
     }
 
     mod as_ref {
-        use super::address;
+        use crate::aide::address;
         use crate::{KeyEntry, LrTrie};
 
         #[test]
@@ -2101,7 +2091,7 @@ mod tests_of_units {
     }
 
     mod as_mut {
-        use super::address;
+        use crate::aide::address;
         use crate::{KeyEntry, LrTrie};
 
         #[test]
