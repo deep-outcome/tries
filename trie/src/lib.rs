@@ -1661,14 +1661,13 @@ mod tests_of_units {
         }
 
         use crate::aide::address;
-        use std::ptr::addr_of;
 
         #[test]
         fn as_ref() {
             let trie = Trie::<usize>::new();
 
             let as_ref = address(trie.as_ref());
-            let proof = addr_of!(trie.rt).addr();
+            let proof = address(&trie.rt);
 
             assert_eq!(as_ref, proof);
         }
@@ -1678,7 +1677,7 @@ mod tests_of_units {
             let mut trie = Trie::<usize>::new();
 
             let as_mut = address(trie.as_mut());
-            let proof = addr_of!(trie.rt).addr();
+            let proof = address(&trie.rt);
 
             assert_eq!(as_mut, proof);
         }

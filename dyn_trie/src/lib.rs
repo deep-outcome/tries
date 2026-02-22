@@ -462,6 +462,9 @@ where
 }
 
 #[cfg(test)]
+mod aide;
+
+#[cfg(test)]
 mod tests_of_units {
 
     mod ext {
@@ -1355,7 +1358,8 @@ mod tests_of_units {
         }
 
         mod as_ref {
-            use crate::{Branches, Trie};
+            use crate::aide::address;
+            use crate::Trie;
 
             #[test]
             fn empty_tree() {
@@ -1369,15 +1373,16 @@ mod tests_of_units {
                 let mut trie = Trie::new();
                 _ = trie.ins(0, "0".chars());
 
-                let as_ref = (trie.as_ref().unwrap() as *const Branches<i32>) as usize;
-                let proof = (trie.root.branches.as_ref().unwrap() as *const Branches<i32>) as usize;
+                let as_ref = address(trie.as_ref().unwrap());
+                let proof = address(trie.root.branches.as_ref().unwrap());
 
                 assert_eq!(as_ref, proof);
             }
         }
 
         mod as_mut {
-            use crate::{Branches, Trie};
+            use crate::aide::address;
+            use crate::Trie;
 
             #[test]
             fn empty_tree() {
@@ -1391,8 +1396,8 @@ mod tests_of_units {
                 let mut trie = Trie::new();
                 _ = trie.ins(0, "0".chars());
 
-                let as_mut = (trie.as_mut().unwrap() as *const Branches<i32>) as usize;
-                let proof = (trie.root.branches.as_mut().unwrap() as *const Branches<i32>) as usize;
+                let as_mut = address(trie.as_mut().unwrap());
+                let proof = address(trie.root.branches.as_mut().unwrap());
 
                 assert_eq!(as_mut, proof);
             }
@@ -1453,10 +1458,11 @@ mod tests_of_units {
             assert!(node.entry.is_none());
         }
 
+        use crate::aide::address;
         #[test]
         fn to_mut_ptr() {
             let n = Node::<usize>::empty();
-            let n_add = &n as *const Node<usize> as usize;
+            let n_add = address(&n);
             assert_eq!(n_add, n.to_mut_ptr() as usize);
         }
     }
