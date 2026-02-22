@@ -12,13 +12,15 @@ mod tra;
 use tra::{tsdv, TraStrain};
 
 use std::vec::Vec;
-/// `Letter` is `Alphabet` element, represents tree node.
+/// [`Letter`] is [`Alphabet`] element, represents tree node.
 #[cfg_attr(test, derive(PartialEq))]
-struct Letter<T> {
+pub struct Letter<T> {
     #[cfg(test)]
     val: char,
-    ab: Option<Alphabet<T>>,
-    en: Option<T>,
+    /// Arms to sub-level tree nodes, if some exist.
+    pub ab: Option<Alphabet<T>>,
+    /// `T` type entry, if node is entry node.
+    pub en: Option<T>,
 }
 
 impl<T> Letter<T> {
@@ -44,17 +46,17 @@ impl<T> Letter<T> {
     }
 }
 
-/// Tree node arms. Consists of `Letter`s.
-type Alphabet<T> = Box<[Letter<T>]>;
+/// Tree node arms. Consists of [`Letter`]s.
+pub type Alphabet<T> = Box<[Letter<T>]>;
 /// Index conversion function. Tighten with alphabet used.
-/// Returns corresponding `usize`d index of `char`.
+/// Returns corresponding [`usize`]d index of [`char`].
 ///
-/// Check with `english_letters::ix` implementation for lodestar.
+/// Check with [`english_letters::ix`] implementation for lodestar.
 pub type Ix = fn(char) -> usize;
 
-/// Reversal index conversion function. Symmetrically mirrors `Ix` function.
+/// Reversal index conversion function. Symmetrically mirrors [`Ix`] function.
 ///
-/// Check with `english_letters::re` for lodestar.
+/// Check with [`english_letters::re`] for lodestar.
 pub type Re = fn(usize) -> char;
 
 /// Alphabet function, tree arms generation of length specified.
@@ -134,7 +136,7 @@ fn view<'a, T>(ab: &'a Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(Stri
 
 /// Module for working with English alphabet small letters, a-z.
 ///
-/// Check with `Trie::new_with()` for more.
+/// Check with [`Trie::new_with()`] for more.
 pub mod english_letters {
 
     #[allow(non_upper_case_globals)]
@@ -215,7 +217,7 @@ impl<'a, T> TraRes<'a, T> {
 /// ```
 ///
 /// When asymptotic computational complexity is not explicitly specified , it is:
-/// - c is count of `char`s iterated over.
+/// - c is count of [`char`]s iterated over.
 /// - time:  Θ(c).
 /// - space: Θ(0).
 pub struct Trie<T> {
@@ -234,8 +236,8 @@ pub struct Trie<T> {
 }
 
 impl<T> Trie<T> {
-    /// Constructs default version of `Trie`, i.e. via
-    /// `fn new_with()` with `english_letters::{ix, re, ALPHABET_LEN}`.
+    /// Constructs default version of [`Trie`], i.e. via
+    /// [`Trie::new_with()`] with [`english_letters`]`::{ix, re, ALPHABET_LEN}`.
     pub fn new() -> Self {
         Self::new_with(
             english_letters::ix,
@@ -288,19 +290,19 @@ impl<T> Trie<T> {
         }
     }
 
-    /// `Trie` uses internal buffer, to avoid excessive allocations and copying, which grows
-    /// over time due backtracing in `rem` method which backtraces whole path from entry
+    /// [`Trie`] uses internal buffer, to avoid excessive allocations and copying, which grows
+    /// over time due backtracing in [`Trie::rem`] method which holds backtrace of whole path from entry
     /// node to root node.
     ///
     /// Use this method to shrink or extend it to fit actual program needs. Neither shrinking nor extending
-    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal `rem` performance, set `approx_cap` to, at least, `key.count()`.
+    /// is guaranteed to be exact. See [`Vec::with_capacity()`] and [`Vec::reserve()`]. For optimal [`Trie::rem`] performance, set `approx_cap` to, at least, `key.count()`.
     ///
     /// Some high value is sufficient anyway. Since buffer continuous
     /// usage, its capacity will likely expand at some point in time to size sufficient to all keys.
     ///
     /// Return value is actual buffer capacity.
     ///
-    /// **Note:** While `String` is UTF8 encoded, its byte length does not have to equal its `char` count
+    /// **Note:** While [`String`] is UTF8 encoded, its byte length does not have to equal its [`char`] count
     /// which is either equal or lesser.
     /// ```
     /// let star = "⭐";
@@ -329,7 +331,7 @@ impl<T> Trie<T> {
 
     /// Return value is internal backtracing buffer capacity.
     ///
-    /// Check with `fn put_trace_cap` for details.
+    /// Check with [`Trie::put_trace_cap`] for details.
     pub fn acq_trace_cap(&self) -> usize {
         self.tr.capacity()
     }
@@ -338,7 +340,7 @@ impl<T> Trie<T> {
     ///
     /// Only invalid key recognized is zero-length key.
     ///
-    /// - SC: Θ(q) where q is number of unique nodes, i.e. `char`s in respective branches.
+    /// - SC: Θ(q) where q is number of unique nodes, i.e. [`char`]s in respective branches.
     pub fn ins(&mut self, mut key: impl Iterator<Item = char>, entry: T) -> InsRes<T> {
         let c = key.next();
 
@@ -396,7 +398,7 @@ impl<T> Trie<T> {
     /// - TC: Ω(c) or ϴ(c). / Backtracing buffer capacity dependent complexity. /
     /// - SC: ϴ(c).
     ///
-    /// Check with `put_trace_cap` for details on backtracing.
+    /// Check with [`Trie::put_trace_cap`] for details on backtracing.
     pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
         let res = match self.track(key, TraStrain::TraEmp) {
             TraRes::Ok => {
@@ -512,7 +514,7 @@ impl<T> Trie<T> {
     ///
     /// Extraction is alphabetically ordered.
     ///
-    /// Return value is `None` for empty `Trie<T>`.
+    /// Return value is [`None`] for empty [`Trie<T>`].
     ///
     /// - TC: Ω(n) where n is count of nodes in tree.
     /// - SC: Θ(s) where s is key lengths summation.
@@ -544,7 +546,7 @@ impl<T> Trie<T> {
     ///
     /// View is alphabetically ordered.
     ///
-    /// Return value is `None` for empty `Trie<T>`.
+    /// Return value is [`None`] for empty [`Trie<T>`].
     ///
     /// - TC: Ω(n) where n is count of nodes in tree.
     /// - SC: Θ(s) where s is key lengths summation.
