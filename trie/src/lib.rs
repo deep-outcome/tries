@@ -588,7 +588,24 @@ impl<T> Trie<T> {
     pub const fn ct(&self) -> usize {
         self.ct
     }
+
+    /// Provides reference access to tree root arms.
+    ///
+    /// Intended for functional extension of trie.
+    pub fn as_ref(&self) -> &Alphabet<T> {
+        &self.rt
+    }
+
+    /// Provides mutable reference access to tree root arms.
+    ///
+    /// Intended for functional extension of trie.
+    pub fn as_mut(&mut self) -> &mut Alphabet<T> {
+        &mut self.rt
+    }
 }
+
+#[cfg(test)]
+mod aide;
 
 #[cfg(test)]
 mod tests_of_units {
@@ -1641,6 +1658,29 @@ mod tests_of_units {
             assert_eq!(0, trie.ct());
             trie.ct = test;
             assert_eq!(test, trie.ct());
+        }
+
+        use crate::aide::address;
+        use std::ptr::addr_of;
+
+        #[test]
+        fn as_ref() {
+            let trie = Trie::<usize>::new();
+
+            let as_ref = address(trie.as_ref());
+            let proof = addr_of!(trie.rt).addr();
+
+            assert_eq!(as_ref, proof);
+        }
+
+        #[test]
+        fn as_mut() {
+            let mut trie = Trie::<usize>::new();
+
+            let as_mut = address(trie.as_mut());
+            let proof = addr_of!(trie.rt).addr();
+
+            assert_eq!(as_mut, proof);
         }
     }
 }
