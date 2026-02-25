@@ -83,9 +83,9 @@ fn ab<T>(len: usize) -> Alphabet<T> {
 }
 
 // TC: Ω(n ⋅alphabet size) ⇒ Ω(n), n = nodes count
-// SC: Θ(s +n) ⇒ Θ(s), n = nodes count, s = key lengths sum
-// to lower estimation add unpredictible count of string clonings
-// and buffers (capacity-) reallocations
+// SC: Θ(s) for small sized Ts or Θ(s +n ⋅`size_of<T>`), n = nodes count, s = key lengths sum
+// to lower estimation add most notably unpredictable count of string clonings
+// and buffers capacity-reallocations
 fn ext<T>(ab: &mut Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(String, T)>) {
     let len = ab.len();
     let mut ix = 0;
@@ -109,9 +109,34 @@ fn ext<T>(ab: &mut Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(String, 
 }
 
 // TC: Ω(n ⋅alphabet size) ⇒ Ω(n), n = nodes count
-// SC: Θ(s +n) ⇒ Θ(s), n = nodes count, s = key lengths sum
-// to lower estimation add unpredictible count of string clonings
-// and buffers (capacity-) reallocations
+// SC: Θ(n ⋅size_of<T>), n = nodes count
+// to lower estimation adds most notably unpredictable
+// count of buffer capacity-reallocations
+fn vals<T>(ab: &Alphabet<T>, o: &mut Vec<T>)
+where
+    T: Clone,
+{
+    let len = ab.len();
+    let mut ix = 0;
+    while ix < len {
+        let letter = &ab[ix];
+        ix += 1;
+
+        if let Some(e) = letter.en.as_ref() {
+            let c = e.clone();
+            o.push(c);
+        }
+
+        if let Some(ab) = letter.ab.as_ref() {
+            vals(ab, o);
+        }
+    }
+}
+
+// TC: Ω(n ⋅alphabet size) ⇒ Ω(n), n = nodes count
+// SC: Θ(s) for small sized Ts or Θ(s +n ⋅`size_of<T>`), n = nodes count, s = key lengths sum
+// to lower estimation add most notably unpredictable count of string clonings
+// and buffers capacity-reallocations
 fn view<'a, T>(ab: &'a Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(String, &'a T)>) {
     let len = ab.len();
     let mut ix = 0;
@@ -512,26 +537,24 @@ impl<T> Trie<T> {
 
     /// Used to extract key-entry duos from tree. Leaves tree empty.
     ///
-    /// Extraction is alphabetically ordered.
+    /// Extraction is alphabetically ordered, exactly according to [`Re`] function.
     ///
     /// Return value is [`None`] for empty [`Trie<T>`].
     ///
     /// - TC: Ω(n) where n is count of nodes in tree.
-    /// - SC: Θ(s) where s is key lengths summation.
-    ///
-    /// Returned set can be overcapacitated, i.e. its capacity
-    /// will not be shrunken according to its length.
+    /// - SC: Θ(s) for small sized Ts or Θ(s +n ⋅`size_of<T>`) where s is key lengths summation.
     pub fn ext(&mut self) -> Option<Vec<(String, T)>> {
         if let Some(re) = self.re {
-            if self.ct == 0 {
+            let ct = self.ct;
+            if ct == 0 {
                 return None;
             }
 
             // capacity is prebuffered to 1000
             let mut buff = String::with_capacity(1000);
 
-            // capacity is prebuffered to 1000
-            let mut res = Vec::with_capacity(1000);
+            let mut res = Vec::new();
+            res.reserve_exact(ct);
 
             ext(&mut self.rt, &mut buff, re, &mut res);
             _ = self.clr();
@@ -542,28 +565,51 @@ impl<T> Trie<T> {
         }
     }
 
-    /// Used to get view onto key-entry duos in tree.
+    /// Used to acquire cloned values from tree.
     ///
-    /// View is alphabetically ordered.
+    /// Extraction is alphabetically ordered, exactly according to [`Ix`] function.
     ///
     /// Return value is [`None`] for empty [`Trie<T>`].
     ///
     /// - TC: Ω(n) where n is count of nodes in tree.
-    /// - SC: Θ(s) where s is key lengths summation.
+    /// - SC: Θ(n ⋅`size_of<T>`).
+    pub fn vals(&self) -> Option<Vec<T>>
+    where
+        T: Clone,
+    {
+        let ct = self.ct;
+        if ct == 0 {
+            return None;
+        }
+
+        let mut res = Vec::new();
+        res.reserve_exact(ct);
+
+        vals(&self.rt, &mut res);
+
+        Some(res)
+    }
+
+    /// Used to get view onto key-entry duos in tree.
     ///
-    /// Returned set can be overcapacitated, i.e. its capacity
-    /// will not be shrunken according to its length.
+    /// View is alphabetically ordered, exactly according to [`Re`] function.
+    ///
+    /// Return value is [`None`] for empty [`Trie<T>`].
+    ///
+    /// - TC: Ω(n) where n is count of nodes in tree.
+    /// - SC: Θ(s) for small sized Ts or Θ(s +n ⋅`size_of<T>`) where s is key lengths summation.
     pub fn view(&self) -> Option<Vec<(String, &T)>> {
         if let Some(re) = self.re {
-            if self.ct == 0 {
+            let ct = self.ct;
+            if ct == 0 {
                 return None;
             }
 
             // capacity is prebuffered to 1000
             let mut buff = String::with_capacity(1000);
 
-            // capacity is prebuffered to 1000
-            let mut res = Vec::with_capacity(1000);
+            let mut res = Vec::new();
+            res.reserve_exact(ct);
 
             view(&self.rt, &mut buff, re, &mut res);
             Some(res)
@@ -774,6 +820,89 @@ mod tests_of_units {
             ext(&mut trie.rt, &mut buff, re, &mut test);
 
             assert_eq!(paths, test);
+        }
+    }
+
+    mod vals {
+
+        use crate::{vals, Trie};
+
+        #[test]
+        fn basic_test() {
+            let mut trie = Trie::new();
+
+            let a = || "a".chars();
+            let z = || "z".chars();
+
+            _ = trie.ins(a(), 1usize);
+            _ = trie.ins(z(), 2usize);
+
+            let mut test = Vec::new();
+
+            vals(&mut trie.rt, &mut test);
+
+            let proof = vec![1, 2];
+            assert_eq!(proof, test);
+
+            assert_eq!(true, trie.acq(a()).is_ok());
+            assert_eq!(true, trie.acq(z()).is_ok());
+        }
+
+        #[test]
+        fn nesting() {
+            let mut trie = Trie::new();
+
+            let entries = [
+                ("a", 3),
+                ("az", 5),
+                ("b", 5),
+                ("by", 8),
+                ("y", 10),
+                ("yb", 12),
+                ("z", 99),
+                ("za", 103),
+            ];
+
+            for e in entries.iter() {
+                _ = trie.ins(e.0.chars(), e.1);
+            }
+
+            let mut test = Vec::new();
+
+            vals(&mut trie.rt, &mut test);
+
+            for zip in entries.iter().zip(test.iter()) {
+                assert_eq!(zip.0 .1, *zip.1);
+            }
+        }
+
+        #[test]
+        fn in_depth_recursion() {
+            let mut trie = Trie::new();
+
+            let paths = [
+                ("aa", 13),
+                ("azbq", 11),
+                ("by", 329),
+                ("ybc", 7),
+                ("ybcrqutmop", 33),
+                ("ybcrqutmopfvb", 99),
+                ("ybcrqutmoprfg", 80),
+                ("ybxr", 53),
+                ("zazazazazabyyb", 55),
+            ];
+
+            for p in paths.iter() {
+                _ = trie.ins(p.0.chars(), p.1);
+            }
+
+            let mut test = Vec::new();
+
+            vals(&mut trie.rt, &mut test);
+
+            for zip in paths.iter().zip(test.iter()) {
+                assert_eq!(zip.0 .1, *zip.1);
+            }
         }
     }
 
@@ -1552,6 +1681,8 @@ mod tests_of_units {
                     (String::from("zazazazazabyyb"), 55),
                 ];
 
+                let p_len = proof.len();
+
                 let mut trie = Trie::new();
                 for p in proof.iter() {
                     _ = trie.ins(p.0.chars(), p.1);
@@ -1561,9 +1692,9 @@ mod tests_of_units {
                 assert_eq!(true, ext.is_some());
                 let ext = ext.unwrap();
 
-                assert_eq!(proof.len(), ext.len());
+                assert_eq!(p_len, ext.len());
                 assert_eq!(proof, ext);
-                assert_eq!(true, ext.capacity() >= 1000);
+                assert_eq!(true, ext.capacity() >= p_len);
 
                 for p in proof.iter() {
                     assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(p.0.chars()));
@@ -1585,6 +1716,54 @@ mod tests_of_units {
             }
         }
 
+        mod vals {
+            use crate::{AcqRes, Trie};
+
+            #[test]
+            fn basic_test() {
+                let proof = [
+                    ("aa", 13),
+                    ("azbq", 11),
+                    ("by", 329),
+                    ("ybc", 7),
+                    ("ybxr", 53),
+                    ("ybxrqutmop", 33),
+                    ("ybxrqutmopfvb", 99),
+                    ("ybxrqutmoprfg", 80),
+                    ("zazazazazabyyb", 55),
+                ];
+
+                let p_len = proof.len();
+
+                let mut trie = Trie::new();
+                for p in proof.iter() {
+                    _ = trie.ins(p.0.chars(), p.1);
+                }
+
+                let vals = trie.vals();
+                assert_eq!(true, vals.is_some());
+                let vals = vals.unwrap();
+
+                assert_eq!(p_len, vals.len());
+
+                for zip in proof.iter().zip(vals.iter()) {
+                    assert_eq!(zip.0 .1, *zip.1);
+                }
+
+                assert_eq!(true, vals.capacity() >= p_len);
+
+                for p in proof.iter() {
+                    assert_eq!(AcqRes::Ok(&p.1), trie.acq(p.0.chars()));
+                }
+            }
+
+            #[test]
+            fn empty_tree() {
+                let trie = Trie::<usize>::new();
+                assert_eq!(None, trie.vals());
+            }
+        }
+
         mod view {
             use crate::english_letters::ix;
             use crate::{AcqRes, Trie};
@@ -1603,6 +1782,8 @@ mod tests_of_units {
                     (String::from("zazazazazabyyb"), &55),
                 ];
 
+                let p_len = proof.len();
+
                 let mut trie = Trie::new();
                 for p in proof.iter() {
                     _ = trie.ins(p.0.chars(), *p.1);
@@ -1612,9 +1793,9 @@ mod tests_of_units {
                 assert_eq!(true, view.is_some());
                 let view = view.unwrap();
 
-                assert_eq!(proof.len(), view.len());
+                assert_eq!(p_len, view.len());
                 assert_eq!(proof, view);
-                assert_eq!(true, view.capacity() >= 1000);
+                assert_eq!(true, view.capacity() >= p_len);
 
                 for p in proof.iter() {
                     assert_eq!(AcqRes::Ok(p.1), trie.acq(p.0.chars()));
@@ -1684,5 +1865,5 @@ mod tests_of_units {
     }
 }
 
-// cargo test --features test-ext --release
-// cargo test --release
+// cargo fmt && cargo test --features test-ext --release
+// cargo fmt && cargo test --release
