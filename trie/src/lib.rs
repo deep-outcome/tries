@@ -134,6 +134,32 @@ where
 }
 
 // TC: Ω(n ⋅alphabet size) ⇒ Ω(n), n = nodes count
+// SC: Θ(s), s = key lengths sum
+// to lower estimation add most notably unpredictable count of string clonings
+// and buffer capacity-reallocations
+fn keys<T>(ab: &Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<String>) {
+    let len = ab.len();
+    let mut ix = 0;
+    while ix < len {
+        buff.push(re(ix));
+
+        let letter = &ab[ix];
+        ix += 1;
+
+        if letter.en.is_some() {
+            let key = buff.clone();
+            o.push(key);
+        }
+
+        if let Some(ab) = letter.ab.as_ref() {
+            keys(ab, buff, re, o);
+        }
+
+        _ = buff.pop();
+    }
+}
+
+// TC: Ω(n ⋅alphabet size) ⇒ Ω(n), n = nodes count
 // SC: Θ(s) for small sized Ts or Θ(s +n ⋅`size_of<T>`), n = nodes count, s = key lengths sum
 // to lower estimation add most notably unpredictable count of string clonings
 // and buffers capacity-reallocations
@@ -260,6 +286,8 @@ pub struct Trie<T> {
     ct: usize,
 }
 
+const RE_MISS: &str =
+    "This method is unsupported when `new_with` `re` parameter is provided with `None`.";
 impl<T> Trie<T> {
     /// Constructs default version of [`Trie`], i.e. via
     /// [`Trie::new_with()`] with [`english_letters`]`::{ix, re, ALPHABET_LEN}`.
@@ -561,7 +589,7 @@ impl<T> Trie<T> {
 
             Some(res)
         } else {
-            panic!("This method is unsupported when `new_with` `re` parameter is provided with `None`.");
+            panic!("{}", RE_MISS);
         }
     }
 
@@ -571,7 +599,7 @@ impl<T> Trie<T> {
     ///
     /// Return value is [`None`] for empty [`Trie<T>`].
     ///
-    /// - TC: Ω(n) where n is count of nodes in tree.
+    /// - TC: Θ(n) where n is count of nodes in tree.
     /// - SC: Θ(n ⋅`size_of<T>`).
     pub fn vals(&self) -> Option<Vec<T>>
     where
@@ -588,6 +616,35 @@ impl<T> Trie<T> {
         vals(&self.rt, &mut res);
 
         Some(res)
+    }
+
+    /// Used to acquire keys of entries in tree.
+    ///
+    /// Extraction is alphabetically ordered, exactly according to [`Re`] function.
+    ///
+    /// Return value is [`None`] for empty [`Trie<T>`].
+    ///
+    /// - TC: Ω(n) where n is count of nodes in tree.
+    /// - SC: Θ(s) where s is key lengths summation.
+    pub fn keys(&self) -> Option<Vec<String>> {
+        if let Some(re) = self.re {
+            let ct = self.ct;
+            if ct == 0 {
+                return None;
+            }
+
+            // capacity is prebuffered to 1000
+            let mut buff = String::with_capacity(1000);
+
+            let mut res = Vec::new();
+            res.reserve_exact(ct);
+
+            keys(&self.rt, &mut buff, re, &mut res);
+
+            Some(res)
+        } else {
+            panic!("{}", RE_MISS);
+        }
     }
 
     /// Used to get view onto key-entry duos in tree.
@@ -614,7 +671,7 @@ impl<T> Trie<T> {
             view(&self.rt, &mut buff, re, &mut res);
             Some(res)
         } else {
-            panic!("This method is unsupported when `new_with` `re` parameter is provided with `None`.");
+            panic!("{}", RE_MISS);
         }
     }
 
@@ -902,6 +959,93 @@ mod tests_of_units {
 
             for zip in paths.iter().zip(test.iter()) {
                 assert_eq!(zip.0 .1, *zip.1);
+            }
+        }
+    }
+
+    mod keys {
+
+        use crate::english_letters::re;
+        use crate::{keys, Trie};
+
+        #[test]
+        fn basic_test() {
+            let mut trie = Trie::new();
+
+            let a = || "a".chars();
+            let z = || "z".chars();
+
+            let a_entry = 1usize;
+            let z_entry = 2;
+
+            _ = trie.ins(a(), a_entry);
+            _ = trie.ins(z(), z_entry);
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            keys(&trie.rt, &mut buff, re, &mut test);
+
+            let proof = vec![String::from("a"), String::from("z")];
+            assert_eq!(proof, test);
+        }
+
+        #[test]
+        fn nesting() {
+            let mut trie = Trie::new();
+
+            let entries = vec![
+                (String::from("a"), 3),
+                (String::from("az"), 5),
+                (String::from("b"), 5),
+                (String::from("by"), 8),
+                (String::from("y"), 10),
+                (String::from("yb"), 12),
+                (String::from("z"), 99),
+                (String::from("za"), 103),
+            ];
+
+            for e in entries.iter() {
+                _ = trie.ins(e.0.chars(), e.1);
+            }
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            keys(&trie.rt, &mut buff, re, &mut test);
+
+            for zip in entries.iter().zip(test.iter()) {
+                assert_eq!(zip.0 .0, *zip.1);
+            }
+        }
+
+        #[test]
+        fn in_depth_recursion() {
+            let mut trie = Trie::new();
+
+            let paths = vec![
+                (String::from("aa"), 13),
+                (String::from("azbq"), 11),
+                (String::from("by"), 329),
+                (String::from("ybc"), 7),
+                (String::from("ybcrqutmop"), 33),
+                (String::from("ybcrqutmopfvb"), 99),
+                (String::from("ybcrqutmoprfg"), 80),
+                (String::from("ybxr"), 53),
+                (String::from("zazazazazabyyb"), 55),
+            ];
+
+            for p in paths.iter() {
+                _ = trie.ins(p.0.chars(), p.1);
+            }
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            keys(&trie.rt, &mut buff, re, &mut test);
+
+            for zip in paths.iter().zip(test.iter()) {
+                assert_eq!(zip.0 .0, *zip.1);
             }
         }
     }
@@ -1761,6 +1905,63 @@ mod tests_of_units {
             fn empty_tree() {
                 let trie = Trie::<usize>::new();
                 assert_eq!(None, trie.vals());
+            }
+        }
+
+        mod keys {
+            use crate::english_letters::ix;
+            use crate::{AcqRes, Trie};
+
+            #[test]
+            fn basic_test() {
+                let proof = vec![
+                    (String::from("aa"), 13),
+                    (String::from("azbq"), 11),
+                    (String::from("by"), 329),
+                    (String::from("ybc"), 7),
+                    (String::from("ybxr"), 53),
+                    (String::from("ybxrqutmop"), 33),
+                    (String::from("ybxrqutmopfvb"), 99),
+                    (String::from("ybxrqutmoprfg"), 80),
+                    (String::from("zazazazazabyyb"), 55),
+                ];
+
+                let p_len = proof.len();
+
+                let mut trie = Trie::new();
+                for p in proof.iter() {
+                    _ = trie.ins(p.0.chars(), p.1);
+                }
+
+                let keys = trie.keys();
+                assert_eq!(true, keys.is_some());
+                let keys = keys.unwrap();
+
+                assert_eq!(p_len, keys.len());
+
+                for zip in proof.iter().zip(keys.iter()) {
+                    assert_eq!(zip.0 .0, *zip.1);
+                }
+
+                assert_eq!(true, keys.capacity() >= p_len);
+
+                for p in proof.iter() {
+                    assert_eq!(AcqRes::Ok(&p.1), trie.acq(p.0.chars()));
+                }
+            }
+
+            #[test]
+            #[should_panic(
+                expected = "This method is unsupported when `new_with` `re` parameter is provided with `None`."
+            )]
+            fn re_not_provided() {
+                _ = Trie::<usize>::new_with(ix, None, 0).keys()
+            }
+
+            #[test]
+            fn empty_tree() {
+                let trie = Trie::<usize>::new();
+                assert_eq!(None, trie.keys());
             }
         }
 
