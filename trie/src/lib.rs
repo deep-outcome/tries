@@ -83,7 +83,7 @@ fn ab<T>(len: usize) -> Alphabet<T> {
 }
 
 // TC: Ω(n ⋅alphabet size) ⇒ Ω(n), n = nodes count
-// SC: Θ(s) for small sized Ts or Θ(s +n ⋅`size_of<T>`), n = nodes count, s = key lengths sum
+// SC: ϴ(s) for small sized Ts or ϴ(s +n ⋅`size_of<T>`) ⇒ ϴ(s +n), n = nodes count, s = key lengths sum
 // to lower estimation add most notably unpredictable count of string clonings
 // and buffers capacity-reallocations
 fn ext<T>(ab: &mut Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(String, T)>) {
@@ -109,7 +109,7 @@ fn ext<T>(ab: &mut Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(String, 
 }
 
 // TC: Ω(n ⋅alphabet size) ⇒ Ω(n), n = nodes count
-// SC: Θ(n ⋅size_of<T>), n = nodes count
+// SC: ϴ(n ⋅size_of<T>) ⇒ ϴ(n), n = nodes count
 // to lower estimation adds most notably unpredictable
 // count of buffer capacity-reallocations
 fn vals<T>(ab: &Alphabet<T>, o: &mut Vec<T>)
@@ -134,7 +134,7 @@ where
 }
 
 // TC: Ω(n ⋅alphabet size) ⇒ Ω(n), n = nodes count
-// SC: Θ(s), s = key lengths sum
+// SC: ϴ(s), s = key lengths sum
 // to lower estimation add most notably unpredictable count of string clonings
 // and buffer capacity-reallocations
 fn keys<T>(ab: &Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<String>) {
@@ -160,7 +160,7 @@ fn keys<T>(ab: &Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<String>) {
 }
 
 // TC: Ω(n ⋅alphabet size) ⇒ Ω(n), n = nodes count
-// SC: Θ(s) for small sized Ts or Θ(s +n ⋅`size_of<T>`), n = nodes count, s = key lengths sum
+// SC: ϴ(s), s = key lengths sum
 // to lower estimation add most notably unpredictable count of string clonings
 // and buffers capacity-reallocations
 fn view<'a, T>(ab: &'a Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(String, &'a T)>) {
@@ -267,10 +267,15 @@ impl<'a, T> TraRes<'a, T> {
 /// assert!(catch.is_err());
 /// ```
 ///
-/// When asymptotic computational complexity is not explicitly specified , it is:
-/// - c is count of [`char`]s iterated over.
-/// - time:  Θ(c).
-/// - space: Θ(0).
+/// When asymptotic computational complexity (ACC) is not explicitly specified , it is:
+/// - time:  ϴ(c).
+/// - space: ϴ(0).
+///
+///  ACC can use these size metrics:
+/// - n — nodes count
+/// - q — unique nodes count
+/// - c — `char`s iterated over count
+/// - s — string lengths summation
 pub struct Trie<T> {
     // tree root
     rt: Alphabet<T>,
@@ -393,7 +398,7 @@ impl<T> Trie<T> {
     ///
     /// Only invalid key recognized is zero-length key.
     ///
-    /// - SC: Θ(q) where q is number of unique nodes, i.e. [`char`]s in respective branches.
+    /// - SC: ϴ(q).
     pub fn ins(&mut self, mut key: impl Iterator<Item = char>, entry: T) -> InsRes<T> {
         let c = key.next();
 
@@ -569,8 +574,8 @@ impl<T> Trie<T> {
     ///
     /// Return value is [`None`] for empty [`Trie<T>`].
     ///
-    /// - TC: Ω(n) where n is count of nodes in tree.
-    /// - SC: Θ(s) for small sized Ts or Θ(s +n ⋅`size_of<T>`) where s is key lengths summation.
+    /// - TC: Ω(n).
+    /// - SC: ϴ(s) for small sized Ts or ϴ(s +n).
     pub fn ext(&mut self) -> Option<Vec<(String, T)>> {
         if let Some(re) = self.re {
             let ct = self.ct;
@@ -599,8 +604,8 @@ impl<T> Trie<T> {
     ///
     /// Return value is [`None`] for empty [`Trie<T>`].
     ///
-    /// - TC: Θ(n) where n is count of nodes in tree.
-    /// - SC: Θ(n ⋅`size_of<T>`).
+    /// - TC: ϴ(n).
+    /// - SC: ϴ(n).
     pub fn vals(&self) -> Option<Vec<T>>
     where
         T: Clone,
@@ -624,8 +629,8 @@ impl<T> Trie<T> {
     ///
     /// Return value is [`None`] for empty [`Trie<T>`].
     ///
-    /// - TC: Ω(n) where n is count of nodes in tree.
-    /// - SC: Θ(s) where s is key lengths summation.
+    /// - TC: Ω(n).
+    /// - SC: ϴ(s).
     pub fn keys(&self) -> Option<Vec<String>> {
         if let Some(re) = self.re {
             let ct = self.ct;
@@ -653,8 +658,8 @@ impl<T> Trie<T> {
     ///
     /// Return value is [`None`] for empty [`Trie<T>`].
     ///
-    /// - TC: Ω(n) where n is count of nodes in tree.
-    /// - SC: Θ(s) for small sized Ts or Θ(s +n ⋅`size_of<T>`) where s is key lengths summation.
+    /// - TC: Ω(n).
+    /// - SC: ϴ(s).
     pub fn view(&self) -> Option<Vec<(String, &T)>> {
         if let Some(re) = self.re {
             let ct = self.ct;
@@ -679,7 +684,7 @@ impl<T> Trie<T> {
     ///
     /// Return value is count of entries before clearing.
     ///
-    /// TC: Θ(n) where n is count of nodes in tree.
+    /// TC: ϴ(n).
     pub fn clr(&mut self) -> usize {
         self.rt = ab(self.al);
         let ct = self.ct;
