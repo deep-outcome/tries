@@ -78,7 +78,7 @@ impl<T> Trie<T> {
 
     /// Inserts entry into tree under key specified.
     ///
-    /// Only invalid key recognized is zero-length key.
+    /// Only invalid key classified is zero-length key.
     ///
     /// ```
     /// use dyn_trie::{Trie, InsResAide};

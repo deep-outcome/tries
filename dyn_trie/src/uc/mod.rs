@@ -41,10 +41,10 @@ impl<T> Deref for UC<T> {
 mod tests_of_units {
     use std::ops::Deref;
 
-    use crate::UC;
+    use super::UC;
 
     mod partial_eq {
-        use crate::UC;
+        use super::super::UC;
 
         #[test]
         fn eq() {

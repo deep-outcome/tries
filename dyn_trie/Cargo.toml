@@ -1,6 +1,6 @@
 [package]
 name = "dyn_trie"
-version = "5.0.0"
+version = "5.0.1"
 edition = "2021"
 keywords = [ "digital-tree", "prefix-tree", "trie", "retrieval-tree" ]
 authors = [ "software9119.technology" ]
