@@ -6,7 +6,7 @@ use core::panic;
 use std::collections::hash_map::HashMap;
 
 mod res;
-pub use res::{AcqMutRes, AcqRes, InsRes, KeyErr, RemRes};
+pub use res::{InsRes, InsResAide, KeyErr};
 
 mod tra;
 use tra::{tsdv, TraStrain};
@@ -79,11 +79,28 @@ impl<T> Trie<T> {
     /// Inserts entry into tree under key specified.
     ///
     /// Only invalid key recognized is zero-length key.
-    pub fn ins(&mut self, entry: T, mut key: impl Iterator<Item = char>) -> InsRes<T> {
+    ///
+    /// ```
+    /// use dyn_trie::{Trie, InsResAide};
+    ///
+    /// let mut trie = Trie::new();
+    /// let mut key = || "abc".chars();
+    ///
+    /// let test = trie.ins(3, key());
+    /// assert!(test.is_ok());
+    ///
+    /// let test = trie.ins(4, key());
+    /// assert_eq!(3, test.unwrap().uproot_previous());
+    /// ```
+    pub fn ins(
+        &mut self,
+        entry: T,
+        mut key: impl Iterator<Item = char>,
+    ) -> Result<InsRes<'_, T>, KeyErr> {
         let mut next = key.next();
 
         if next.is_none() {
-            return InsRes::Err(KeyErr::ZeroLen);
+            return Err(KeyErr::ZeroLen);
         }
 
         let mut node = &mut self.root;
@@ -102,36 +119,36 @@ impl<T> Trie<T> {
         }
 
         let curr = en.as_mut().unwrap();
-        InsRes::Ok((curr, prev))
+        Ok((curr, prev))
     }
 
     /// Acquires reference to entry associted to `key`.
-    pub fn acq(&self, key: impl Iterator<Item = char>) -> AcqRes<T> {
+    pub fn acq(&self, key: impl Iterator<Item = char>) -> Result<&T, KeyErr> {
         let res = self.track(key, TraStrain::NonRef);
 
         if let TraRes::OkRef(en) = res {
             let en = en.entry.as_ref();
-            AcqRes::Ok(unsafe { en.unwrap_unchecked() })
+            Ok(unsafe { en.unwrap_unchecked() })
         } else {
-            AcqRes::Err(res.key_err())
+            Err(res.key_err())
         }
     }
 
     /// Acquires mutable reference to entry associted to `key`.
-    pub fn acq_mut(&mut self, key: impl Iterator<Item = char>) -> AcqMutRes<T> {
+    pub fn acq_mut(&mut self, key: impl Iterator<Item = char>) -> Result<&mut T, KeyErr> {
         match self.track(key, TraStrain::NonMut) {
             TraRes::OkMut(n) => {
                 let en = n.entry.as_mut();
-                AcqMutRes::Ok(unsafe { en.unwrap_unchecked() })
+                Ok(unsafe { en.unwrap_unchecked() })
             }
-            res => AcqMutRes::Err(res.key_err()),
+            res => Err(res.key_err()),
         }
     }
 
     /// Removes key-entry duo from tree.
     ///
     /// Check with [`Trie::put_trace_cap`] also.
-    pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
+    pub fn rem(&mut self, key: impl Iterator<Item = char>) -> Result<T, KeyErr> {
         let tra_res = self.track(key, TraStrain::TraEmp);
         let res = if let TraRes::Ok = tra_res {
             let en = self.rem_actual(
@@ -140,9 +157,9 @@ impl<T> Trie<T> {
             );
 
             self.cnt -= 1;
-            RemRes::Ok(en)
+            Ok(en)
         } else {
-            RemRes::Err(tra_res.key_err())
+            Err(tra_res.key_err())
         };
 
         self.btr.get_mut().clear();
@@ -469,7 +486,7 @@ mod tests_of_units {
 
     mod ext {
 
-        use crate::{ext, AcqRes, KeyErr, Trie};
+        use crate::{ext, KeyErr, Trie};
 
         #[test]
         fn basic_test() {
@@ -493,8 +510,8 @@ mod tests_of_units {
 
             assert_eq!(proof, test);
 
-            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(a()));
-            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(z()));
+            assert_eq!(Err(KeyErr::Unknown), trie.acq(a()));
+            assert_eq!(Err(KeyErr::Unknown), trie.acq(z()));
         }
 
         #[test]
@@ -674,12 +691,12 @@ mod tests_of_units {
         }
 
         mod ins {
-            use crate::{AcqRes, InsRes, KeyErr, Trie};
+            use crate::{KeyErr, Trie};
 
             #[test]
             fn zero_length_key() {
                 let mut trie = Trie::new();
-                let proof = InsRes::Err(KeyErr::ZeroLen);
+                let proof = Err(KeyErr::ZeroLen);
                 let test = trie.ins(0usize, "".chars());
                 assert_eq!(proof, test);
                 assert_eq!(0, trie.cnt);
@@ -691,7 +708,7 @@ mod tests_of_units {
 
                 let mut trie = Trie::new();
                 let res = trie.ins(3usize, KEY.chars());
-                assert_eq!(InsRes::Ok((&mut 3, None)), res);
+                assert_eq!(Ok((&mut 3, None)), res);
 
                 let branches = &trie.root.branches.as_ref();
                 assert_eq!(true, branches.is_some());
@@ -727,15 +744,15 @@ mod tests_of_units {
                 let mut trie = Trie::<usize>::new();
 
                 let res = trie.ins(exi_val, existing());
-                assert_eq!(InsRes::Ok((&mut exi_val, None)), res);
+                assert_eq!(Ok((&mut exi_val, None)), res);
                 assert_eq!(1, trie.cnt);
 
                 let res = trie.ins(new_val, new());
-                assert_eq!(InsRes::Ok((&mut new_val, None)), res);
+                assert_eq!(Ok((&mut new_val, None)), res);
                 assert_eq!(2, trie.cnt);
 
-                assert_eq!(AcqRes::Ok(&exi_val), trie.acq(existing()));
-                assert_eq!(AcqRes::Ok(&new_val), trie.acq(new()));
+                assert_eq!(Ok(&exi_val), trie.acq(existing()));
+                assert_eq!(Ok(&new_val), trie.acq(new()));
             }
 
             #[test]
@@ -744,7 +761,7 @@ mod tests_of_units {
 
                 let mut trie = Trie::new();
                 let res = trie.ins(entry, "a".chars());
-                assert_eq!(InsRes::Ok((&mut entry, None)), res);
+                assert_eq!(Ok((&mut entry, None)), res);
                 assert_eq!(1, trie.cnt);
 
                 let branches = trie.root.branches;
@@ -764,11 +781,11 @@ mod tests_of_units {
 
                 let mut trie = Trie::new();
                 let res = trie.ins(entry_1, keyer());
-                assert_eq!(InsRes::Ok((&mut entry_1, None)), res);
+                assert_eq!(Ok((&mut entry_1, None)), res);
                 assert_eq!(1, trie.cnt);
 
                 let res = trie.ins(entry_2, keyer());
-                assert_eq!(InsRes::Ok((&mut entry_2, Some(entry_1))), res);
+                assert_eq!(Ok((&mut entry_2, Some(entry_1))), res);
                 assert_eq!(1, trie.cnt);
 
                 let branches = &trie.root.branches.as_ref();
@@ -794,27 +811,27 @@ mod tests_of_units {
 
         mod acq {
 
-            use crate::{AcqRes, KeyErr, Trie};
+            use crate::{KeyErr, Trie};
 
             #[test]
             fn member() {
                 let key = || "Keyword".chars();
                 let mut trie = Trie::new();
-                trie.ins(27usize, key());
+                _ = trie.ins(27usize, key());
 
                 let res = trie.acq(key());
-                assert_eq!(AcqRes::Ok(&27), res);
+                assert_eq!(Ok(&27), res);
             }
 
             #[test]
             fn not_member() {
                 let key = "Keyword";
                 let mut trie = Trie::new();
-                trie.ins(0usize, key.chars());
+                _ = trie.ins(0usize, key.chars());
 
                 for key in ["Key", "Opener"] {
                     let res = trie.acq(key.chars());
-                    assert_eq!(AcqRes::Err(KeyErr::Unknown), res);
+                    assert_eq!(Err(KeyErr::Unknown), res);
                 }
             }
 
@@ -822,33 +839,33 @@ mod tests_of_units {
             fn zero_length_key() {
                 let trie = Trie::<usize>::new();
                 let res = trie.acq("".chars());
-                assert_eq!(AcqRes::Err(KeyErr::ZeroLen), res);
+                assert_eq!(Err(KeyErr::ZeroLen), res);
             }
         }
 
         mod acq_mut {
 
-            use crate::{AcqMutRes, KeyErr, Trie};
+            use crate::{KeyErr, Trie};
 
             #[test]
             fn member() {
                 let key = || "Keyword".chars();
                 let mut trie = Trie::new();
-                trie.ins(27usize, key());
+                _ = trie.ins(27usize, key());
 
                 let res = trie.acq_mut(key());
-                assert_eq!(AcqMutRes::Ok(&mut 27), res);
+                assert_eq!(Ok(&mut 27), res);
             }
 
             #[test]
             fn not_member() {
                 let key = "Keyword";
                 let mut trie = Trie::new();
-                trie.ins(0usize, key.chars());
+                _ = trie.ins(0usize, key.chars());
 
                 for key in ["Key", "Opener"] {
                     let res = trie.acq_mut(key.chars());
-                    assert_eq!(AcqMutRes::Err(KeyErr::Unknown), res);
+                    assert_eq!(Err(KeyErr::Unknown), res);
                 }
             }
 
@@ -856,12 +873,12 @@ mod tests_of_units {
             fn zero_length_key() {
                 let mut trie = Trie::<usize>::new();
                 let res = trie.acq_mut("".chars());
-                assert_eq!(AcqMutRes::Err(KeyErr::ZeroLen), res);
+                assert_eq!(Err(KeyErr::ZeroLen), res);
             }
         }
 
         mod rem {
-            use crate::{AcqRes, KeyErr, RemRes, Trie};
+            use crate::{KeyErr, Trie};
 
             #[test]
             fn known_unknown() {
@@ -873,21 +890,21 @@ mod tests_of_units {
                 let known_entry = 13;
                 _ = trie.ins(known_entry, known());
 
-                assert_eq!(RemRes::Err(KeyErr::Unknown), trie.rem(unknown()));
+                assert_eq!(Err(KeyErr::Unknown), trie.rem(unknown()));
                 assert_eq!(0, trie.btr.len());
                 assert_eq!(1, trie.cnt);
 
-                assert_eq!(RemRes::Ok(known_entry), trie.rem(known()));
+                assert_eq!(Ok(known_entry), trie.rem(known()));
                 assert_eq!(0, trie.btr.len());
                 assert_eq!(0, trie.cnt);
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(known()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(known()));
             }
 
             #[test]
             fn zero_length_key() {
                 let mut trie = Trie::<usize>::new();
                 let res = trie.rem("".chars());
-                assert_eq!(RemRes::Err(KeyErr::ZeroLen), res);
+                assert_eq!(Err(KeyErr::ZeroLen), res);
             }
         }
 
@@ -896,7 +913,7 @@ mod tests_of_units {
         // path to another entry where path len varies 0…m
         mod rem_actual {
 
-            use crate::{AcqRes, KeyErr, TraStrain, Trie};
+            use crate::{KeyErr, TraStrain, Trie};
 
             #[test]
             fn basic_test() {
@@ -908,7 +925,7 @@ mod tests_of_units {
                 _ = trie.track(key(), TraStrain::TraEmp);
 
                 assert_eq!(entry, trie.rem_actual(&mut 0));
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(key()));
             }
 
             #[test]
@@ -922,7 +939,7 @@ mod tests_of_units {
 
                 let mut esc_code = 0;
                 assert_eq!(entry, trie.rem_actual(&mut esc_code));
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(key()));
                 assert_eq!(18, esc_code);
                 assert_eq!(false, trie.root.branches());
             }
@@ -941,8 +958,8 @@ mod tests_of_units {
 
                 let mut esc_code = 0;
                 assert_eq!(entry1, trie.rem_actual(&mut esc_code));
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key1()));
-                assert_eq!(AcqRes::Ok(&entry2), trie.acq(key2()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(key1()));
+                assert_eq!(Ok(&entry2), trie.acq(key2()));
                 assert_eq!(6, esc_code);
             }
 
@@ -962,8 +979,8 @@ mod tests_of_units {
 
                 let mut esc_code = 0;
                 assert_eq!(entry1, trie.rem_actual(&mut esc_code));
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key1()));
-                assert_eq!(AcqRes::Ok(&entry2), trie.acq(key2()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(key1()));
+                assert_eq!(Ok(&entry2), trie.acq(key2()));
                 assert_eq!(1, esc_code);
             }
 
@@ -972,10 +989,10 @@ mod tests_of_units {
                 let mut trie = Trie::new();
 
                 let outer = || "Keyword".chars();
-                trie.ins(0usize, outer());
+                _ = trie.ins(0usize, outer());
 
                 let inner = || "Key".chars();
-                trie.ins(1usize, inner());
+                _ = trie.ins(1usize, inner());
 
                 let mut esc_code = 0;
                 _ = trie.track(inner(), TraStrain::TraEmp);
@@ -983,7 +1000,7 @@ mod tests_of_units {
                 assert_eq!(1, trie.rem_actual(&mut esc_code));
                 assert_eq!(1, esc_code);
 
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(inner()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(inner()));
                 assert_eq!(true, trie.acq(outer()).is_ok());
             }
 
@@ -991,14 +1008,14 @@ mod tests_of_units {
             fn branches_removal() {
                 let key = || "Keyword".chars();
                 let mut trie = Trie::new();
-                trie.ins(1usize, key());
+                _ = trie.ins(1usize, key());
 
                 let mut esc_code = 0;
                 _ = trie.track(key(), TraStrain::TraEmp);
                 assert_eq!(1, trie.rem_actual(&mut esc_code));
                 assert_eq!(18, esc_code);
 
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(key()));
                 assert_eq!(None, trie.root.branches);
             }
 
@@ -1008,15 +1025,15 @@ mod tests_of_units {
                 let keyword = || "Keyword".chars();
 
                 let mut trie = Trie::new();
-                trie.ins(0usize, dissimilar());
-                trie.ins(1usize, keyword());
+                _ = trie.ins(0usize, dissimilar());
+                _ = trie.ins(1usize, keyword());
 
                 let mut esc_code = 0;
                 _ = trie.track(keyword(), TraStrain::TraEmp);
                 assert_eq!(1, trie.rem_actual(&mut esc_code));
                 assert_eq!(6, esc_code);
 
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(keyword()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(keyword()));
                 assert_eq!(true, trie.acq(dissimilar()).is_ok());
             }
 
@@ -1025,15 +1042,15 @@ mod tests_of_units {
                 let above = || "keyworder".chars();
                 let under = || "keyworders".chars();
                 let mut trie = Trie::new();
-                trie.ins(0usize, above());
-                trie.ins(1usize, under());
+                _ = trie.ins(0usize, above());
+                _ = trie.ins(1usize, under());
 
                 let mut esc_code = 0;
                 _ = trie.track(under(), TraStrain::TraEmp);
                 assert_eq!(1, trie.rem_actual(&mut esc_code));
                 assert_eq!(10, esc_code);
 
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(under()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(under()));
                 assert_eq!(true, trie.acq(above()).is_ok());
 
                 _ = trie.track(above(), TraStrain::TraEmp);
@@ -1055,7 +1072,7 @@ mod tests_of_units {
 
                 let duos = [("k", 12), ("key", 22), ("keyword", 45)];
                 for (k, e) in duos {
-                    trie.ins(e, k.chars());
+                    _ = trie.ins(e, k.chars());
                 }
 
                 let keyword_duo = duos[2];
@@ -1232,7 +1249,7 @@ mod tests_of_units {
             assert_eq!(cap, trie.acq_trace_cap());
         }
 
-        use crate::{AcqRes, KeyErr, Node};
+        use crate::{KeyErr, Node};
 
         #[test]
         fn clr() {
@@ -1246,7 +1263,7 @@ mod tests_of_units {
             cap = trie.put_trace_cap(cap);
 
             assert_eq!(1, trie.clr());
-            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key));
+            assert_eq!(Err(KeyErr::Unknown), trie.acq(key));
             assert_eq!(Node::empty(), trie.root);
             assert_eq!(0, trie.cnt);
 
@@ -1263,7 +1280,7 @@ mod tests_of_units {
         }
 
         mod ext {
-            use crate::{AcqRes, KeyErr, Trie};
+            use crate::{KeyErr, Trie};
 
             #[test]
             fn basic_test() {
@@ -1296,7 +1313,7 @@ mod tests_of_units {
                 assert_eq!(true, ext.capacity() >= 1000);
 
                 for p in proof.iter() {
-                    assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(p.0.chars()));
+                    assert_eq!(Err(KeyErr::Unknown), trie.acq(p.0.chars()));
                 }
             }
 
@@ -1311,7 +1328,7 @@ mod tests_of_units {
 
         mod view {
 
-            use crate::{AcqRes, Trie};
+            use crate::Trie;
 
             #[test]
             fn basic_test() {
@@ -1344,7 +1361,7 @@ mod tests_of_units {
                 assert_eq!(true, view.capacity() >= 1000);
 
                 for p in proof.iter() {
-                    assert_eq!(AcqRes::Ok(p.1), trie.acq(p.0.chars()));
+                    assert_eq!(Ok(p.1), trie.acq(p.0.chars()));
                 }
             }
 
@@ -1468,27 +1485,27 @@ mod tests_of_units {
     }
 
     mod readme {
-        use crate::{AcqMutRes, AcqRes, KeyErr, RemRes, Trie};
+        use crate::{KeyErr, Trie};
 
         #[test]
         fn test() {
             let mut trie = Trie::<char>::new();
 
             let some = "información meteorológica".chars();
-            trie.ins('🌩', some.clone());
+            _ = trie.ins('🌩', some.clone());
 
             let one_more = "alimentación RSS".chars();
-            trie.ins('😋', one_more.clone());
+            _ = trie.ins('😋', one_more.clone());
 
-            assert_eq!(RemRes::Ok('😋'), trie.rem(one_more.clone()));
-            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(one_more.clone()));
+            assert_eq!(Ok('😋'), trie.rem(one_more.clone()));
+            assert_eq!(Err(KeyErr::Unknown), trie.acq(one_more.clone()));
 
-            let mut res = trie.acq_mut(some.clone());
-            assert_eq!(AcqMutRes::Ok(&mut '🌩'), res);
-            let entry = res.uproot();
+            let res = trie.acq_mut(some.clone());
+            assert_eq!(Ok(&mut '🌩'), res);
+            let entry = res.unwrap();
             *entry = '🌞';
 
-            assert_eq!(AcqRes::Ok(&'🌞'), trie.acq(some.clone()));
+            assert_eq!(Ok(&'🌞'), trie.acq(some.clone()));
         }
     }
 }
