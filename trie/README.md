@@ -15,15 +15,15 @@ let val = 333;
 
 _ = trie.ins(key(), val);
 match trie.acq(key()) {
-    AcqRes::Ok(v) => assert_eq!(&val, v),
-    _ => panic!("Expected AcqRes::Ok(_).")
+    Ok(v) => assert_eq!(&val, v),
+    _ => panic!("Expected Ok(_).")
 }
 
 let val = 444;
 _ = trie.ins(key(), val);
 match trie.acq(key()) {
-    AcqRes::Ok(v) => assert_eq!(&val, v),
-    _ => panic!("Expected AcqRes::Ok(_).")
+    Ok(v) => assert_eq!(&val, v),
+    _ => panic!("Expected Ok(_).")
 }
 
 let catch = catch_unwind(move|| _ = trie.ins("A".chars(), 0));
@@ -37,7 +37,7 @@ assert!(catch.is_err());
 
 
 ```rust
-use plain_trie::{AcqRes, RemRes, Trie};
+use plain_trie::{RemRes, Trie};
 
 const ALPHABET_LEN: u32 = 52;
 
@@ -72,7 +72,7 @@ fn test() {
 
     for kv in [kv_1, kv_2] {
         let res = trie.acq(kv.0.chars());
-        assert_eq!(AcqRes::Ok(&kv.1), res);
+        assert_eq!(Ok(&kv.1), res);
     }
 
     for kv in [kv_1, kv_2] {

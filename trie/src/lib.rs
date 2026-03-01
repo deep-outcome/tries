@@ -3,7 +3,7 @@
 //! Maps any `T` using any `impl Iterator<Item = char>` type.
 
 mod res;
-pub use res::{AcqMutRes, AcqRes, InsRes, KeyErr, RemRes};
+pub use res::{AcqMutRes, InsRes, KeyErr, RemRes};
 
 mod uc;
 use uc::UC;
@@ -243,7 +243,7 @@ impl<'a, T> TraRes<'a, T> {
 /// OOB English small letters, a–z, support only.
 ///
 /// ```
-/// use plain_trie::{Trie, AcqRes};
+/// use plain_trie::Trie;
 /// use std::panic::catch_unwind;
 ///
 /// let mut trie = Trie::new();
@@ -252,15 +252,15 @@ impl<'a, T> TraRes<'a, T> {
 ///
 /// _ = trie.ins(key(), val);
 /// match trie.acq(key()) {
-///     AcqRes::Ok(v) => assert_eq!(&val, v),
-///     _ => panic!("Expected AcqRes::Ok(_).")
+///     Ok(v) => assert_eq!(&val, v),
+///     _ => panic!("Expected Ok(_).")
 /// }
 ///
 /// let val = 444;
 /// _ = trie.ins(key(), val);
 /// match trie.acq(key()) {
-///     AcqRes::Ok(v) => assert_eq!(&val, v),
-///     _ => panic!("Expected AcqRes::Ok(_).")
+///     Ok(v) => assert_eq!(&val, v),
+///     _ => panic!("Expected Ok(_).")
 /// }
 ///
 /// let catch = catch_unwind(move|| _ = trie.ins("A".chars(), 0));
@@ -335,8 +335,8 @@ impl<T> Trie<T> {
     /// _ = trie.ins(aba.chars(), 1);
     /// _ = trie.ins(bab.chars(), 2);
     ///
-    /// assert_eq!(&1, trie.acq(aba.chars()).uproot());
-    /// assert_eq!(&2, trie.acq(bab.chars()).uproot());
+    /// assert_eq!(&1, trie.acq(aba.chars()).unwrap());
+    /// assert_eq!(&2, trie.acq(bab.chars()).unwrap());
     pub fn new_with(ix: Ix, re: Option<Re>, ab_len: usize) -> Self {
         Self {
             rt: ab(ab_len),
@@ -430,13 +430,13 @@ impl<T> Trie<T> {
     }
 
     /// Used to acquire reference to entry of `key`.
-    pub fn acq(&self, key: impl Iterator<Item = char>) -> AcqRes<T> {
+    pub fn acq(&self, key: impl Iterator<Item = char>) -> Result<&T, KeyErr> {
         match self.track(key, TraStrain::NonRef) {
             TraRes::OkRef(l) => {
                 let en = l.en.as_ref();
-                AcqRes::Ok(unsafe { en.unwrap_unchecked() })
+                Ok(unsafe { en.unwrap_unchecked() })
             }
-            res => AcqRes::Err(res.key_err()),
+            res => Err(res.key_err()),
         }
     }
 
@@ -805,7 +805,7 @@ mod tests_of_units {
     mod ext {
 
         use crate::english_letters::re;
-        use crate::{ext, AcqRes, KeyErr, Trie};
+        use crate::{ext, KeyErr, Trie};
 
         #[test]
         fn basic_test() {
@@ -825,8 +825,8 @@ mod tests_of_units {
             let proof = vec![(String::from("a"), 1), (String::from("z"), 2)];
             assert_eq!(proof, test);
 
-            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(a()));
-            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(z()));
+            assert_eq!(Err(KeyErr::Unknown), trie.acq(a()));
+            assert_eq!(Err(KeyErr::Unknown), trie.acq(z()));
         }
 
         #[test]
@@ -1400,7 +1400,7 @@ mod tests_of_units {
         }
 
         mod acq {
-            use crate::{AcqRes, KeyErr, Trie};
+            use crate::{KeyErr, Trie};
 
             #[test]
             fn known_unknown() {
@@ -1411,15 +1411,15 @@ mod tests_of_units {
                 let mut trie = Trie::new();
                 _ = trie.ins(a(), v);
 
-                assert_eq!(AcqRes::Ok(&v), trie.acq(a()));
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(b()));
+                assert_eq!(Ok(&v), trie.acq(a()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(b()));
             }
 
             #[test]
             fn zero_key() {
                 let trie = Trie::<usize>::new();
                 let test = trie.acq("".chars());
-                let proof = AcqRes::Err(KeyErr::ZeroLen);
+                let proof = Err(KeyErr::ZeroLen);
                 assert_eq!(proof, test);
             }
         }
@@ -1450,7 +1450,7 @@ mod tests_of_units {
         }
 
         mod rem {
-            use crate::{AcqRes, KeyErr, RemRes, Trie};
+            use crate::{KeyErr, RemRes, Trie};
 
             #[test]
             fn known_unknown() {
@@ -1469,7 +1469,7 @@ mod tests_of_units {
                 assert_eq!(RemRes::Ok(known_entry), trie.rem(known()));
                 assert_eq!(0, trie.tr.len());
                 assert_eq!(0, trie.ct);
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(known()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(known()));
             }
 
             #[test]
@@ -1483,7 +1483,7 @@ mod tests_of_units {
 
         mod rem_actual {
             use crate::english_letters::ix;
-            use crate::{AcqRes, KeyErr, TraRes, TraStrain, Trie};
+            use crate::{KeyErr, TraRes, TraStrain, Trie};
 
             #[test]
             fn basic_test() {
@@ -1513,7 +1513,7 @@ mod tests_of_units {
 
                 let mut en_esc = false;
                 assert_eq!(entry, trie.rem_actual(&mut en_esc));
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(key()));
                 assert_eq!(false, en_esc);
             }
 
@@ -1532,8 +1532,8 @@ mod tests_of_units {
 
                 let mut en_esc = false;
                 assert_eq!(entry1, trie.rem_actual(&mut en_esc));
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key1()));
-                assert_eq!(AcqRes::Ok(&entry2), trie.acq(key2()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(key1()));
+                assert_eq!(Ok(&entry2), trie.acq(key2()));
                 assert_eq!(false, en_esc);
             }
 
@@ -1553,8 +1553,8 @@ mod tests_of_units {
 
                 let mut en_esc = false;
                 assert_eq!(entry1, trie.rem_actual(&mut en_esc));
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key1()));
-                assert_eq!(AcqRes::Ok(&entry2), trie.acq(key2()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(key1()));
+                assert_eq!(Ok(&entry2), trie.acq(key2()));
                 assert_eq!(false, en_esc);
             }
 
@@ -1599,8 +1599,8 @@ mod tests_of_units {
 
                 assert_eq!(inner_entry, trie.rem_actual(&mut false));
 
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(inner()));
-                assert_eq!(AcqRes::Ok(&outer_entry), trie.acq(outer()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(inner()));
+                assert_eq!(Ok(&outer_entry), trie.acq(outer()));
             }
 
             #[test]
@@ -1621,8 +1621,8 @@ mod tests_of_units {
                 assert_eq!(test_entry, trie.rem_actual(&mut en_esc));
                 assert_eq!(false, en_esc);
 
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(test()));
-                assert_eq!(AcqRes::Ok(&peer_entry), trie.acq(peer()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(test()));
+                assert_eq!(Ok(&peer_entry), trie.acq(peer()));
             }
 
             #[test]
@@ -1643,8 +1643,8 @@ mod tests_of_units {
                 assert_eq!(test_entry, trie.rem_actual(&mut en_esc));
                 assert_eq!(false, en_esc);
 
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(test()));
-                assert_eq!(AcqRes::Ok(&peer_entry), trie.acq(peer()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(test()));
+                assert_eq!(Ok(&peer_entry), trie.acq(peer()));
             }
 
             #[test]
@@ -1665,8 +1665,8 @@ mod tests_of_units {
                 assert_eq!(under_entry, trie.rem_actual(&mut en_esc));
                 assert_eq!(true, en_esc);
 
-                assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(under()));
-                assert_eq!(AcqRes::Ok(&above_entry), trie.acq(above()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(under()));
+                assert_eq!(Ok(&above_entry), trie.acq(above()));
 
                 let res = trie.track(above(), TraStrain::NonRef);
                 if let TraRes::OkRef(l) = res {
@@ -1814,7 +1814,7 @@ mod tests_of_units {
 
         mod ext {
             use crate::english_letters::ix;
-            use crate::{AcqRes, KeyErr, Trie};
+            use crate::{KeyErr, Trie};
 
             #[test]
             fn basic_test() {
@@ -1846,7 +1846,7 @@ mod tests_of_units {
                 assert_eq!(true, ext.capacity() >= p_len);
 
                 for p in proof.iter() {
-                    assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(p.0.chars()));
+                    assert_eq!(Err(KeyErr::Unknown), trie.acq(p.0.chars()));
                 }
             }
 
@@ -1866,7 +1866,7 @@ mod tests_of_units {
         }
 
         mod vals {
-            use crate::{AcqRes, Trie};
+            use crate::Trie;
 
             #[test]
             fn basic_test() {
@@ -1902,7 +1902,7 @@ mod tests_of_units {
                 assert_eq!(true, vals.capacity() >= p_len);
 
                 for p in proof.iter() {
-                    assert_eq!(AcqRes::Ok(&p.1), trie.acq(p.0.chars()));
+                    assert_eq!(Ok(&p.1), trie.acq(p.0.chars()));
                 }
             }
 
@@ -1915,7 +1915,7 @@ mod tests_of_units {
 
         mod keys {
             use crate::english_letters::ix;
-            use crate::{AcqRes, Trie};
+            use crate::Trie;
 
             #[test]
             fn basic_test() {
@@ -1951,7 +1951,7 @@ mod tests_of_units {
                 assert_eq!(true, keys.capacity() >= p_len);
 
                 for p in proof.iter() {
-                    assert_eq!(AcqRes::Ok(&p.1), trie.acq(p.0.chars()));
+                    assert_eq!(Ok(&p.1), trie.acq(p.0.chars()));
                 }
             }
 
@@ -1972,7 +1972,7 @@ mod tests_of_units {
 
         mod view {
             use crate::english_letters::ix;
-            use crate::{AcqRes, Trie};
+            use crate::Trie;
 
             #[test]
             fn basic_test() {
@@ -2004,7 +2004,7 @@ mod tests_of_units {
                 assert_eq!(true, view.capacity() >= p_len);
 
                 for p in proof.iter() {
-                    assert_eq!(AcqRes::Ok(p.1), trie.acq(p.0.chars()));
+                    assert_eq!(Ok(p.1), trie.acq(p.0.chars()));
                 }
             }
 
@@ -2023,7 +2023,7 @@ mod tests_of_units {
             }
         }
 
-        use crate::{AcqRes, KeyErr};
+        use crate::KeyErr;
 
         #[test]
         fn clr() {
@@ -2033,7 +2033,7 @@ mod tests_of_units {
             _ = trie.ins(key(), 99);
             assert_eq!(1, trie.clr());
 
-            assert_eq!(AcqRes::Err(KeyErr::Unknown), trie.acq(key()));
+            assert_eq!(Err(KeyErr::Unknown), trie.acq(key()));
             assert_eq!(ab(ALPHABET_LEN), trie.rt);
             assert_eq!(0, trie.ct);
         }

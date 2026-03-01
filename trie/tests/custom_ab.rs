@@ -1,4 +1,4 @@
-use plain_trie::{AcqRes, RemRes, Trie};
+use plain_trie::{RemRes, Trie};
 
 const ALPHABET_LEN: u32 = 52;
 
@@ -33,7 +33,7 @@ fn custom_ab() {
 
     for kv in [kv_1, kv_2] {
         let res = trie.acq(kv.0.chars());
-        assert_eq!(AcqRes::Ok(&kv.1), res);
+        assert_eq!(Ok(&kv.1), res);
     }
 
     for kv in [kv_1, kv_2] {
