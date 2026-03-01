@@ -3,7 +3,7 @@
 //! Maps any `T` using any `impl Iterator<Item = char>` type.
 
 mod res;
-pub use res::{InsRes, KeyErr};
+pub use res::{InsRes, InsResAide, KeyErr};
 
 mod uc;
 use uc::UC;
@@ -399,11 +399,28 @@ impl<T> Trie<T> {
     /// Only invalid key recognized is zero-length key.
     ///
     /// - SC: ϴ(q).
-    pub fn ins(&mut self, mut key: impl Iterator<Item = char>, entry: T) -> InsRes<T> {
+    ///
+    /// ```
+    /// use plain_trie::{Trie, InsResAide};
+    ///
+    /// let mut trie = Trie::new();
+    /// let mut key = || "abc".chars();
+    ///
+    /// let test = trie.ins(key(), 3);
+    /// assert!(test.is_ok());
+    ///
+    /// let test = trie.ins(key(), 4);
+    /// assert_eq!(3, test.unwrap().uproot_previous());
+    /// ```
+    pub fn ins(
+        &mut self,
+        mut key: impl Iterator<Item = char>,
+        entry: T,
+    ) -> Result<InsRes<'_, T>, KeyErr> {
         let c = key.next();
 
         if c.is_none() {
-            return InsRes::Err(KeyErr::ZeroLen);
+            return Err(KeyErr::ZeroLen);
         }
 
         let c = unsafe { c.unwrap_unchecked() };
@@ -426,7 +443,7 @@ impl<T> Trie<T> {
         }
 
         let curr = en.as_mut().unwrap();
-        InsRes::Ok((curr, prev))
+        Ok((curr, prev))
     }
 
     /// Used to acquire reference to entry of `key`.
@@ -1314,7 +1331,7 @@ mod tests_of_units {
 
         mod ins {
             use crate::english_letters::ix;
-            use crate::{InsRes, KeyErr, Trie};
+            use crate::{KeyErr, Trie};
 
             #[test]
             fn basic_test() {
@@ -1325,9 +1342,9 @@ mod tests_of_units {
 
                 let mut trie = Trie::new();
                 let ins_res = trie.ins(keyer(), entry);
-                assert_eq!(InsRes::Ok((&mut entry, None)), ins_res);
+                assert_eq!(Ok((&mut entry, None)), ins_res);
 
-                let entry_mut = ins_res.uproot_ok().0;
+                let entry_mut = ins_res.unwrap().0;
                 *entry_mut = update;
 
                 let last_ix = key.len() - 1;
@@ -1351,7 +1368,7 @@ mod tests_of_units {
             fn zero_key() {
                 let mut trie = Trie::new();
                 let test = trie.ins("".chars(), 3);
-                let proof = InsRes::Err(KeyErr::ZeroLen);
+                let proof = Err(KeyErr::ZeroLen);
                 assert_eq!(proof, test);
                 assert_eq!(0, trie.ct);
             }
@@ -1362,7 +1379,7 @@ mod tests_of_units {
 
                 let mut trie = Trie::new();
                 let ins_res = trie.ins("a".chars(), entry);
-                assert_eq!(InsRes::Ok((&mut entry, None)), ins_res);
+                assert_eq!(Ok((&mut entry, None)), ins_res);
                 assert_eq!(Some(entry), trie.rt[ix('a')].en);
                 assert_eq!(1, trie.ct);
             }
@@ -1376,11 +1393,11 @@ mod tests_of_units {
 
                 let mut trie = Trie::new();
                 let ins_res_e1 = trie.ins(keyer(), entry_1);
-                assert_eq!(InsRes::Ok((&mut entry_1, None)), ins_res_e1);
+                assert_eq!(Ok((&mut entry_1, None)), ins_res_e1);
                 assert_eq!(1, trie.ct);
 
                 let ins_res_e2 = trie.ins(keyer(), entry_2);
-                assert_eq!(InsRes::Ok((&mut entry_2, Some(entry_1))), ins_res_e2);
+                assert_eq!(Ok((&mut entry_2, Some(entry_1))), ins_res_e2);
                 assert_eq!(1, trie.ct);
 
                 let last_ix = key.len() - 1;
