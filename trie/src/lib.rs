@@ -3,7 +3,7 @@
 //! Maps any `T` using any `impl Iterator<Item = char>` type.
 
 mod res;
-pub use res::{InsRes, KeyErr, RemRes};
+pub use res::{InsRes, KeyErr};
 
 mod uc;
 use uc::UC;
@@ -457,7 +457,7 @@ impl<T> Trie<T> {
     /// - SC: ϴ(c).
     ///
     /// Check with [`Trie::put_trace_cap`] for details on backtracing.
-    pub fn rem(&mut self, key: impl Iterator<Item = char>) -> RemRes<T> {
+    pub fn rem(&mut self, key: impl Iterator<Item = char>) -> Result<T, KeyErr> {
         let res = match self.track(key, TraStrain::TraEmp) {
             TraRes::Ok => {
                 let en = self.rem_actual(
@@ -466,9 +466,9 @@ impl<T> Trie<T> {
                 );
 
                 self.ct -= 1;
-                RemRes::Ok(en)
+                Ok(en)
             }
-            res => RemRes::Err(res.key_err()),
+            res => Err(res.key_err()),
         };
 
         self.tr.get_mut().clear();
@@ -1450,7 +1450,7 @@ mod tests_of_units {
         }
 
         mod rem {
-            use crate::{KeyErr, RemRes, Trie};
+            use crate::{KeyErr, Trie};
 
             #[test]
             fn known_unknown() {
@@ -1462,11 +1462,11 @@ mod tests_of_units {
                 let known_entry = 13;
                 _ = trie.ins(known(), known_entry);
 
-                assert_eq!(RemRes::Err(KeyErr::Unknown), trie.rem(unknown()));
+                assert_eq!(Err(KeyErr::Unknown), trie.rem(unknown()));
                 assert_eq!(0, trie.tr.len());
                 assert_eq!(1, trie.ct);
 
-                assert_eq!(RemRes::Ok(known_entry), trie.rem(known()));
+                assert_eq!(Ok(known_entry), trie.rem(known()));
                 assert_eq!(0, trie.tr.len());
                 assert_eq!(0, trie.ct);
                 assert_eq!(Err(KeyErr::Unknown), trie.acq(known()));
@@ -1476,7 +1476,7 @@ mod tests_of_units {
             fn zero_key() {
                 let mut trie = Trie::<usize>::new();
                 let test = trie.rem("".chars());
-                let proof = RemRes::Err(KeyErr::ZeroLen);
+                let proof = Err(KeyErr::ZeroLen);
                 assert_eq!(proof, test);
             }
         }
