@@ -1,6 +1,3 @@
-- move uc to helpers
-- rework results so Result is returning them
-
 - poetrie
     - customs equalizer (e.g. t =d, s =z, [x =eks (?)])
 
