@@ -3,7 +3,7 @@
 //! Maps any `T` using any `impl Iterator<Item = char>` type.
 
 mod res;
-pub use res::{AcqMutRes, InsRes, KeyErr, RemRes};
+pub use res::{InsRes, KeyErr, RemRes};
 
 mod uc;
 use uc::UC;
@@ -441,13 +441,13 @@ impl<T> Trie<T> {
     }
 
     /// Used to acquire mutable reference to entry of `key`.
-    pub fn acq_mut(&mut self, key: impl Iterator<Item = char>) -> AcqMutRes<T> {
+    pub fn acq_mut(&mut self, key: impl Iterator<Item = char>) -> Result<&mut T, KeyErr> {
         match self.track(key, TraStrain::NonMut) {
             TraRes::OkMut(l) => {
                 let en = l.en.as_mut();
-                AcqMutRes::Ok(unsafe { en.unwrap_unchecked() })
+                Ok(unsafe { en.unwrap_unchecked() })
             }
-            res => AcqMutRes::Err(res.key_err()),
+            res => Err(res.key_err()),
         }
     }
 
@@ -1425,7 +1425,7 @@ mod tests_of_units {
         }
 
         mod acq_mut {
-            use crate::{AcqMutRes, KeyErr, Trie};
+            use crate::{KeyErr, Trie};
 
             #[test]
             fn known_unknown() {
@@ -1436,15 +1436,15 @@ mod tests_of_units {
                 let mut trie = Trie::new();
                 _ = trie.ins(a(), v);
 
-                assert_eq!(AcqMutRes::Ok(&mut v), trie.acq_mut(a()));
-                assert_eq!(AcqMutRes::Err(KeyErr::Unknown), trie.acq_mut(b()));
+                assert_eq!(Ok(&mut v), trie.acq_mut(a()));
+                assert_eq!(Err(KeyErr::Unknown), trie.acq_mut(b()));
             }
 
             #[test]
             fn zero_key() {
                 let mut trie = Trie::<usize>::new();
                 let test = trie.acq_mut("".chars());
-                let proof = AcqMutRes::Err(KeyErr::ZeroLen);
+                let proof = Err(KeyErr::ZeroLen);
                 assert_eq!(proof, test);
             }
         }
