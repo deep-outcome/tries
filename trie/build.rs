@@ -4,9 +4,9 @@ use std::path::Path;
 fn main() {
     cp("tra");
     cp("res");
-    cp("uc");
 
-    aides();
+    support("uc");
+    support("aide");
 }
 
 fn cp(load: &str) {
@@ -21,13 +21,14 @@ fn cp(load: &str) {
     _ = copy(src, dst);
 }
 
-fn aides() {
-    _ = std::fs::create_dir("./src/aide");
+fn support(supp: &str) {
+    let dir = format!("./src/{}", supp);
+    _ = std::fs::create_dir(dir);
 
-    let src = "../../rust-helpers/src/aide.rs";
-    let dst = "./src/aide/mod.rs";
+    let src = format!("../../rust-helpers/src/{}.rs", supp);
+    let dst = format!("./src/{}/mod.rs", supp);
 
-    let src = Path::new(src);
-    let dst = Path::new(dst);
+    let src = Path::new(src.as_str());
+    let dst = Path::new(dst.as_str());
     _ = copy(src, dst);
 }

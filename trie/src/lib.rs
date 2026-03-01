@@ -396,7 +396,7 @@ impl<T> Trie<T> {
 
     /// Used to insert entry into tree under key specified.
     ///
-    /// Only invalid key recognized is zero-length key.
+    /// Only invalid key classified is zero-length key.
     ///
     /// - SC: ϴ(q).
     ///
