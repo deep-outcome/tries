@@ -84,13 +84,13 @@ impl<T> Trie<T> {
     /// use dyn_trie::{Trie, InsResAide};
     ///
     /// let mut trie = Trie::new();
-    /// let mut key = || "abc".chars();
+    /// let key = || "abc".chars();
     ///
     /// let test = trie.ins(3, key());
-    /// assert!(test.is_ok());
+    /// assert!(!test.previous());
     ///
-    /// let test = trie.ins(4, key());
-    /// assert_eq!(3, test.unwrap().uproot_previous());
+    /// let mut test = trie.ins(4, key());
+    /// assert_eq!(3, test.uproot_previous());
     /// ```
     pub fn ins(
         &mut self,
@@ -1485,10 +1485,11 @@ mod tests_of_units {
     }
 
     mod readme {
-        use crate::{KeyErr, Trie};
 
         #[test]
         fn test() {
+            use crate::{KeyErr, Trie};
+
             let mut trie = Trie::<char>::new();
 
             let some = "información meteorológica".chars();
@@ -1506,6 +1507,20 @@ mod tests_of_units {
             *entry = '🌞';
 
             assert_eq!(Ok(&'🌞'), trie.acq(some.clone()));
+        }
+
+        #[test]
+        fn example_2() {
+            use crate::{InsResAide, Trie};
+
+            let mut trie = Trie::new();
+            let key = || "abc".chars();
+
+            let test = trie.ins(3, key());
+            assert!(!test.previous());
+
+            let mut test = trie.ins(4, key());
+            assert_eq!(3, test.uproot_previous());
         }
     }
 }

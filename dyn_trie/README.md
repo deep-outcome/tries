@@ -5,6 +5,8 @@ Dynamic trie is trie that allows mapping of any T to any char iterator with asym
 Node occurs for each `char` as defined by Rust language.
 
 ```rust
+use dyn_trie::{KeyErr, Trie};
+
 let mut trie = Trie::<char>::new();
 
 let some = "información meteorológica".chars();
@@ -22,4 +24,17 @@ let entry = res.unwrap();
 *entry = '🌞';
 
 assert_eq!(Ok(&'🌞'), trie.acq(some.clone()));
+```
+
+```rust
+use dyn_trie::{InsResAide, Trie};
+
+let mut trie = Trie::new();
+let key = || "abc".chars();
+
+let test = trie.ins(3, key());
+assert!(!test.previous());
+
+let mut test = trie.ins(4, key());
+assert_eq!(3, test.uproot_previous());
 ```
