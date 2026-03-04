@@ -404,13 +404,13 @@ impl<T> Trie<T> {
     /// use plain_trie::{Trie, InsResAide};
     ///
     /// let mut trie = Trie::new();
-    /// let mut key = || "abc".chars();
+    /// let key = || "abc".chars();
     ///
     /// let test = trie.ins(key(), 3);
-    /// assert!(test.is_ok());
+    /// assert!(!test.previous());
     ///
-    /// let test = trie.ins(key(), 4);
-    /// assert_eq!(3, test.unwrap().uproot_previous());
+    /// let mut test = trie.ins(key(), 4);
+    /// assert_eq!(3, test.uproot_previous());
     /// ```
     pub fn ins(
         &mut self,
@@ -2084,6 +2084,49 @@ mod tests_of_units {
             let proof = address(&trie.rt);
 
             assert_eq!(as_mut, proof);
+        }
+    }
+
+    mod readme {
+
+        #[test]
+        fn example_1() {
+            use crate::Trie;
+            use std::panic::catch_unwind;
+
+            let mut trie = Trie::new();
+            let key = || "oomph".chars();
+            let val = 333;
+
+            _ = trie.ins(key(), val);
+            match trie.acq(key()) {
+                Ok(v) => assert_eq!(&val, v),
+                _ => panic!("Expected Ok(_)."),
+            }
+
+            let val = 444;
+            _ = trie.ins(key(), val);
+            match trie.acq(key()) {
+                Ok(v) => assert_eq!(&val, v),
+                _ => panic!("Expected Ok(_)."),
+            }
+
+            let catch = catch_unwind(move || _ = trie.ins("A".chars(), 0));
+            assert!(catch.is_err());
+        }
+
+        #[test]
+        fn example_2() {
+            use crate::{InsResAide, Trie};
+
+            let mut trie = Trie::new();
+            let key = || "abc".chars();
+
+            let test = trie.ins(key(), 3);
+            assert!(!test.previous());
+
+            let mut test = trie.ins(key(), 4);
+            assert_eq!(3, test.uproot_previous());
         }
     }
 }

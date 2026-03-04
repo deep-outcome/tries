@@ -9,6 +9,9 @@
 ### basic usage
 
 ```rust
+use plain_trie::Trie;
+use std::panic::catch_unwind;
+
 let mut trie = Trie::new();
 let key = || "oomph".chars();
 let val = 333;
@@ -28,6 +31,19 @@ match trie.acq(key()) {
 
 let catch = catch_unwind(move|| _ = trie.ins("A".chars(), 0));
 assert!(catch.is_err());
+```
+
+```rust
+use plain_trie::{InsResAide, Trie};
+
+let mut trie = Trie::new();
+let key = || "abc".chars();
+
+let test = trie.ins(key(), 3);
+assert!(!test.previous());
+
+let mut test = trie.ins(key(), 4);
+assert_eq!(3, test.uproot_previous());
 ```
 
 ### custom alphabet implementation
