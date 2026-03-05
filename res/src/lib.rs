@@ -79,8 +79,7 @@ impl<'a, T> InsResAide<T> for Result<InsRes<'a, T>, KeyErr> {
     ///
     ///_Panics_ if [`Err`].
     ///
-    /// In moderation, hybridized method as in fact [`Result`] is checked. Only [`InsRes`] is _'unchecked'_.
-    /// It is reasonably unfeasible to avoid checking, unless `InsRes.0` would be thrown away.
+    /// In moderation, hybridized method as in fact [`Result`] is checked. Only [`InsRes`] is _'unchecked'_.    
     unsafe fn uproot_previous_unchecked(&mut self) -> T {
         return if let Ok(r) = self.as_mut() {
             r.uproot_previous_unchecked()
