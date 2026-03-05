@@ -6,7 +6,7 @@ use core::panic;
 use std::collections::hash_map::HashMap;
 
 mod res;
-pub use res::{InsRes, InsResAide, KeyErr};
+pub use res::{InsRes, InsResAide, InsResAideEx, KeyErr};
 
 mod tra;
 use tra::{tsdv, TraStrain};

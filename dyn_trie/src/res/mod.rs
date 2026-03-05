@@ -20,6 +20,12 @@ pub trait InsResAide<T> {
     fn previous(&self) -> bool;
     /// Uproots `T` of [`InsRes`] `Some(T)`.
     fn uproot_previous(&mut self) -> T;
+}
+
+/// Extension trait to [`InsResAide`] trait.
+///
+/// Check with implementations for details.
+pub trait InsResAideEx<T>: InsResAide<T> {
     /// Uproots `T` of [`InsRes`] `Some(T)` in unsafe manner.
     unsafe fn uproot_previous_unchecked(&mut self) -> T;
 }
@@ -40,7 +46,9 @@ impl<'a, T> InsResAide<T> for InsRes<'a, T> {
             panic!("InsRes previous entry was `None`");
         }
     }
+}
 
+impl<'a, T> InsResAideEx<T> for InsRes<'a, T> {
     /// Returns `T` of [`InsRes`] `Some(T)` leaving [`None`] in its place.
     ///
     /// Produces _undefined behavior_ if [`None`].
@@ -74,26 +82,13 @@ impl<'a, T> InsResAide<T> for Result<InsRes<'a, T>, KeyErr> {
             panic!("`Err` variant was supplied.");
         };
     }
-
-    /// Wraps call to [`InsResAide::uproot_previous_unchecked`] of [`InsRes`].
-    ///
-    ///_Panics_ if [`Err`].
-    ///
-    /// In moderation, hybridized method as in fact [`Result`] is checked. Only [`InsRes`] is _'unchecked'_.    
-    unsafe fn uproot_previous_unchecked(&mut self) -> T {
-        return if let Ok(r) = self.as_mut() {
-            r.uproot_previous_unchecked()
-        } else {
-            panic!("`Err` variant was supplied.");
-        };
-    }
 }
 
 #[cfg(test)]
 mod tests_of_units {
 
     mod ins_res {
-        use super::super::{InsRes, InsResAide};
+        use super::super::{InsRes, InsResAide, InsResAideEx};
 
         #[test]
         fn previous() {
@@ -153,20 +148,6 @@ mod tests_of_units {
         fn uproot_previous_err() {
             let mut res: Result<InsRes<usize>, KeyErr> = Err(KeyErr::ZeroLen);
             _ = res.uproot_previous();
-        }
-
-        #[test]
-        fn uproot_previous_unchecked_ok() {
-            let ins_res = (&mut 3, Some(4));
-            let mut res = Ok(ins_res);
-            assert_eq!(4, unsafe { res.uproot_previous_unchecked() });
-        }
-
-        #[test]
-        #[should_panic(expected = "`Err` variant was supplied.")]
-        fn uproot_previous_unchecked_err() {
-            let mut res: Result<InsRes<usize>, KeyErr> = Err(KeyErr::ZeroLen);
-            _ = unsafe { res.uproot_previous_unchecked() };
         }
     }
 }
