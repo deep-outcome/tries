@@ -3,7 +3,7 @@
 //! Maps any `T` using any `impl Iterator<Item = char>` type.
 
 mod res;
-pub use res::{InsRes, InsResAide, KeyErr};
+pub use res::{InsRes, InsResAide, InsResAideEx, KeyErr};
 
 mod uc;
 use uc::UC;
