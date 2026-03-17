@@ -87,12 +87,10 @@ fn ab<T>(len: usize) -> Alphabet<T> {
 // to lower estimation add most notably unpredictable count of string clonings
 // and buffers capacity-reallocations
 fn ext<T>(ab: &mut Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(String, T)>) {
-    let len = ab.len();
     let mut ix = 0;
-    while ix < len {
+    for letter in ab.iter_mut() {
         buff.push(re(ix));
 
-        let letter = &mut ab[ix];
         ix += 1;
 
         if let Some(e) = letter.en.take() {
@@ -116,12 +114,7 @@ fn vals<T>(ab: &Alphabet<T>, o: &mut Vec<T>)
 where
     T: Clone,
 {
-    let len = ab.len();
-    let mut ix = 0;
-    while ix < len {
-        let letter = &ab[ix];
-        ix += 1;
-
+    for letter in ab.iter() {
         if let Some(e) = letter.en.as_ref() {
             let c = e.clone();
             o.push(c);
@@ -138,12 +131,9 @@ where
 // to lower estimation add most notably unpredictable count of string clonings
 // and buffer capacity-reallocations
 fn keys<T>(ab: &Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<String>) {
-    let len = ab.len();
     let mut ix = 0;
-    while ix < len {
+    for letter in ab.iter() {
         buff.push(re(ix));
-
-        let letter = &ab[ix];
         ix += 1;
 
         if letter.en.is_some() {
@@ -164,12 +154,9 @@ fn keys<T>(ab: &Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<String>) {
 // to lower estimation add most notably unpredictable count of string clonings
 // and buffers capacity-reallocations
 fn view<'a, T>(ab: &'a Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(String, &'a T)>) {
-    let len = ab.len();
     let mut ix = 0;
-    while ix < len {
+    for letter in ab.iter() {
         buff.push(re(ix));
-
-        let letter = &ab[ix];
         ix += 1;
 
         if let Some(r) = letter.en.as_ref() {
@@ -185,6 +172,33 @@ fn view<'a, T>(ab: &'a Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(Stri
     }
 }
 
+// TC: Ω(n ⋅alphabet size) ⇒ Ω(n), n = nodes count
+// SC: ϴ(s), s = key lengths sum
+// to lower estimation add most notably unpredictable count of string clonings
+// and buffers capacity-reallocations
+fn view_mut<'a, T>(
+    ab: &'a mut Alphabet<T>,
+    buff: &mut String,
+    re: Re,
+    o: &mut Vec<(String, &'a mut T)>,
+) {
+    let mut ix = 0;
+    for letter in ab.iter_mut() {
+        buff.push(re(ix));
+        ix += 1;
+
+        if let Some(r) = letter.en.as_mut() {
+            let key = buff.clone();
+            o.push((key, r));
+        }
+
+        if let Some(ab) = letter.ab.as_mut() {
+            view_mut(ab, buff, re, o);
+        }
+
+        _ = buff.pop();
+    }
+}
 /// Module for working with English alphabet small letters, a-z.
 ///
 /// Check with [`Trie::new_with()`] for more.
@@ -697,6 +711,34 @@ impl<T> Trie<T> {
         }
     }
 
+    /// Used to get mutable view onto key-entry duos in tree.
+    ///
+    /// View is alphabetically ordered, exactly according to [`Re`] function.
+    ///
+    /// Return value is [`None`] for empty [`Trie<T>`].
+    ///
+    /// - TC: Ω(n).
+    /// - SC: ϴ(s).
+    pub fn view_mut(&mut self) -> Option<Vec<(String, &mut T)>> {
+        if let Some(re) = self.re {
+            let ct = self.ct;
+            if ct == 0 {
+                return None;
+            }
+
+            // capacity is prebuffered to 1000
+            let mut buff = String::with_capacity(1000);
+
+            let mut res = Vec::new();
+            res.reserve_exact(ct);
+
+            view_mut(&mut self.rt, &mut buff, re, &mut res);
+            Some(res)
+        } else {
+            panic!("{}", RE_MISS);
+        }
+    }
+
     /// Used to clear tree.
     ///
     /// Return value is count of entries before clearing.
@@ -1152,6 +1194,102 @@ mod tests_of_units {
             view(&trie.rt, &mut buff, re, &mut test);
 
             assert_eq!(paths, test);
+        }
+    }
+
+    mod view_mut {
+
+        use crate::english_letters::re;
+        use crate::{view_mut, Trie};
+
+        #[test]
+        fn basic_test() {
+            let mut trie = Trie::new();
+
+            let a = || "a".chars();
+            let z = || "z".chars();
+
+            let mut a_entry = 1usize;
+            let mut z_entry = 2;
+
+            _ = trie.ins(a(), a_entry);
+            _ = trie.ins(z(), z_entry);
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            view_mut(&mut trie.rt, &mut buff, re, &mut test);
+
+            let proof = vec![
+                (String::from("a"), &mut a_entry),
+                (String::from("z"), &mut z_entry),
+            ];
+            assert_eq!(proof, test);
+        }
+
+        #[test]
+        fn nesting() {
+            let mut trie = Trie::new();
+
+            let mut entries = vec![
+                (String::from("a"), 3),
+                (String::from("az"), 5),
+                (String::from("b"), 5),
+                (String::from("by"), 8),
+                (String::from("y"), 10),
+                (String::from("yb"), 12),
+                (String::from("z"), 99),
+                (String::from("za"), 103),
+            ];
+
+            for e in entries.iter() {
+                _ = trie.ins(e.0.chars(), e.1);
+            }
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            view_mut(&mut trie.rt, &mut buff, re, &mut test);
+
+            assert_eq!(entries.len(), test.len());
+            for (ix, e) in entries.iter_mut().enumerate() {
+                let t = &test[ix];
+                assert_eq!(e.0, t.0);
+                assert_eq!(&mut e.1, t.1);
+            }
+        }
+
+        #[test]
+        fn in_depth_recursion() {
+            let mut trie = Trie::new();
+
+            let mut paths = vec![
+                (String::from("aa"), 13),
+                (String::from("azbq"), 11),
+                (String::from("by"), 329),
+                (String::from("ybc"), 7),
+                (String::from("ybcrqutmop"), 33),
+                (String::from("ybcrqutmopfvb"), 99),
+                (String::from("ybcrqutmoprfg"), 80),
+                (String::from("ybxr"), 53),
+                (String::from("zazazazazabyyb"), 55),
+            ];
+
+            for p in paths.iter() {
+                _ = trie.ins(p.0.chars(), p.1);
+            }
+
+            let mut buff = String::new();
+            let mut test = Vec::new();
+
+            view_mut(&mut trie.rt, &mut buff, re, &mut test);
+
+            assert_eq!(paths.len(), test.len());
+            for (ix, p) in paths.iter_mut().enumerate() {
+                let t = &test[ix];
+                assert_eq!(p.0, t.0);
+                assert_eq!(&mut p.1, t.1);
+            }
         }
     }
 
@@ -2037,6 +2175,65 @@ mod tests_of_units {
             fn empty_tree() {
                 let trie = Trie::<usize>::new();
                 assert_eq!(None, trie.view());
+            }
+        }
+
+        mod view_mut {
+            use crate::english_letters::ix;
+            use crate::Trie;
+
+            #[test]
+            fn basic_test() {
+                let mut proof = vec![
+                    (String::from("aa"), 13),
+                    (String::from("azbq"), 11),
+                    (String::from("by"), 329),
+                    (String::from("ybc"), 7),
+                    (String::from("ybxr"), 53),
+                    (String::from("ybxrqutmop"), 33),
+                    (String::from("ybxrqutmopfvb"), 99),
+                    (String::from("ybxrqutmoprfg"), 80),
+                    (String::from("zazazazazabyyb"), 55),
+                ];
+
+                let p_len = proof.len();
+
+                let mut trie = Trie::new();
+                for p in proof.iter() {
+                    _ = trie.ins(p.0.chars(), p.1);
+                }
+
+                let view = trie.view_mut();
+                assert_eq!(true, view.is_some());
+                let view = view.unwrap();
+
+                assert_eq!(p_len, view.len());
+
+                for (ix, p) in proof.iter_mut().enumerate() {
+                    let t = &view[ix];
+                    assert_eq!(p.0, t.0);
+                    assert_eq!(&mut p.1, t.1);
+                }
+
+                assert_eq!(true, view.capacity() >= p_len);
+
+                for p in proof.iter() {
+                    assert_eq!(Ok(&p.1), trie.acq(p.0.chars()));
+                }
+            }
+
+            #[test]
+            #[should_panic(
+                expected = "This method is unsupported when `new_with` `re` parameter is provided with `None`."
+            )]
+            fn re_not_provided() {
+                _ = Trie::<usize>::new_with(ix, None, 0).view_mut()
+            }
+
+            #[test]
+            fn empty_tree() {
+                let mut trie = Trie::<usize>::new();
+                assert_eq!(None, trie.view_mut());
             }
         }
 
