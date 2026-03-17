@@ -262,14 +262,13 @@ fn delete_entry_side(key_side_entry_n: &Node) {
     }
 }
 
-fn set_cap<T>(buf: &UC<Vec<T>>, approx_cap: usize) -> usize {
-    let buf = buf.get_mut();
+fn set_cap<T>(buf: &mut UC<Vec<T>>, approx_cap: usize) -> usize {
     let cp = buf.capacity();
 
     if cp < approx_cap {
         buf.reserve(approx_cap);
     } else if cp > approx_cap {
-        *buf = Vec::with_capacity(approx_cap);
+        *buf.promote() = Vec::with_capacity(approx_cap);
     }
 
     buf.capacity()
@@ -398,7 +397,7 @@ impl LrTrie {
 
     fn track(&self, key: &Key, lr: LeftRight, ts: TraStrain) -> TraRes {
         let root = self.root(lr);
-        let trace = self.trace.get_mut();
+        let trace = self.trace.promote();
 
         let tracing = TraStrain::has(ts.clone(), tsdv::TRA);
         if tracing {
@@ -440,7 +439,7 @@ impl LrTrie {
         let res = self.track(key, lr, TraStrain::NonRef);
 
         if let TraRes::OkRef(en) = res {
-            let entry = self.entry.get_mut();
+            let entry = self.entry.promote();
 
             let ret = construct_e(en.lrref, entry);
             Some(ret)
@@ -465,7 +464,7 @@ impl LrTrie {
     /// Returns `Err` when key is not associated with entry.
     pub fn delete(&mut self, key: &Key, lr: LeftRight) -> Result<(), ()> {
         let res = self.delete_crux(key, lr, true);
-        self.trace.get_mut().clear();
+        self.trace.clear();
 
         if res.is_ok() {
             self.count -= 1;
@@ -525,12 +524,12 @@ impl LrTrie {
     /// ```
     pub fn put_buf_cap(&mut self, approx_cap: usize, buf: Buffer) -> usize {
         if buf == Buffer::Delete {
-            set_cap(&self.trace, approx_cap)
+            set_cap(&mut self.trace, approx_cap)
         } else {
             #[cfg(test)]
             assert_eq!(Buffer::Member, buf);
 
-            set_cap(&self.entry, approx_cap)
+            set_cap(&mut self.entry, approx_cap)
         }
     }
 
@@ -656,7 +655,7 @@ mod tests_of_units {
     use crate::NodeTrace;
     impl LrTrie {
         fn cc_trace(&mut self) -> NodeTrace {
-            let trace = self.trace.get_mut();
+            let trace = &mut self.trace;
             let clone = trace.clone();
             trace.clear();
             clone
@@ -674,7 +673,7 @@ mod tests_of_units {
             let n2 = NonNull::<Node>::dangling().as_ptr();
 
             let mut trie = LrTrie::new();
-            let trace = trie.trace.get_mut();
+            let trace = &mut trie.trace;
             trace.push(PathNode(usize::MIN, n1));
             trace.push(PathNode(usize::MAX, n2));
 
@@ -1185,10 +1184,10 @@ mod tests_of_units {
         fn extend() {
             let new_cap = 10;
 
-            let buf = UC::new(Vec::<usize>::new());
+            let mut buf = UC::new(Vec::<usize>::new());
             assert!(buf.capacity() < new_cap);
 
-            let size = set_cap(&buf, new_cap);
+            let size = set_cap(&mut buf, new_cap);
             assert!(size >= new_cap);
             assert!(buf.capacity() >= new_cap);
         }
@@ -1198,9 +1197,9 @@ mod tests_of_units {
             let new_cap = 10;
             let old_cap = 50;
 
-            let buf = UC::new(Vec::<usize>::with_capacity(old_cap));
+            let mut buf = UC::new(Vec::<usize>::with_capacity(old_cap));
 
-            let size = set_cap(&buf, new_cap);
+            let size = set_cap(&mut buf, new_cap);
             assert!(size >= new_cap && size < old_cap);
             let cap = buf.capacity();
             assert!(cap >= new_cap && cap < old_cap);
@@ -1209,13 +1208,13 @@ mod tests_of_units {
         #[test]
         fn same() {
             let cap = 10;
-            let buf = UC::new(Vec::<usize>::new());
+            let mut buf = UC::new(Vec::<usize>::new());
 
             assert!(buf.capacity() < cap);
-            buf.get_mut().reserve_exact(cap);
+            buf.reserve_exact(cap);
             let cap = buf.capacity();
 
-            let size = set_cap(&buf, cap);
+            let size = set_cap(&mut buf, cap);
             assert_eq!(cap, size);
             assert_eq!(cap, buf.capacity());
         }
@@ -1335,7 +1334,7 @@ mod tests_of_units {
 
     mod trie {
 
-        use crate::{uc::UC, LeftRight, LrTrie, Node};
+        use crate::{LeftRight, LrTrie, Node};
 
         #[test]
         fn new() {
@@ -1344,8 +1343,8 @@ mod tests_of_units {
 
             assert_eq!(empty, trie.left);
             assert_eq!(empty, trie.right);
-            assert_eq!(UC::new(Vec::new()), trie.trace);
-            assert_eq!(UC::new(Vec::new()), trie.entry);
+            assert_eq!(0, trie.trace.len());
+            assert_eq!(0, trie.entry.len());
             assert_eq!(0, trie.count);
         }
 
@@ -1936,8 +1935,8 @@ mod tests_of_units {
             #[test]
             fn trace() {
                 let cap = 10;
-                let trie = LrTrie::new();
-                let buf = trie.trace.get_mut();
+                let mut trie = LrTrie::new();
+                let buf = &mut trie.trace;
 
                 assert!(buf.capacity() < cap);
                 buf.reserve_exact(cap);
@@ -1949,8 +1948,8 @@ mod tests_of_units {
             #[test]
             fn entry() {
                 let cap = 10;
-                let trie = LrTrie::new();
-                let buf = trie.entry.get_mut();
+                let mut trie = LrTrie::new();
+                let buf = &mut trie.entry;
 
                 assert!(buf.capacity() < cap);
                 buf.reserve_exact(cap);
@@ -1973,7 +1972,6 @@ mod tests_of_units {
 
         assert_eq!(trie.left, Node::empty());
         assert_eq!(trie.right, Node::empty());
-        assert_eq!(trie, LrTrie::new());
     }
 
     #[test]
