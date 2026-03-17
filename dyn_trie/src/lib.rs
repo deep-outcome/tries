@@ -162,7 +162,7 @@ impl<T> Trie<T> {
             Err(tra_res.key_err())
         };
 
-        self.btr.get_mut().clear();
+        self.btr.clear();
         res
     }
 
@@ -232,7 +232,7 @@ impl<T> Trie<T> {
         }
 
         let mut node = &self.root;
-        let tr = self.btr.get_mut();
+        let tr = self.btr.promote();
 
         let tracing = TraStrain::has(ts.clone(), tsdv::TRA);
         if tracing {
@@ -303,7 +303,7 @@ impl<T> Trie<T> {
         let cp = tr.capacity();
 
         if cp < approx_cap {
-            tr.get_mut().reserve(approx_cap);
+            tr.reserve(approx_cap);
         } else if cp > approx_cap {
             *tr = UC::new(Vec::with_capacity(approx_cap));
         }
@@ -1227,7 +1227,7 @@ mod tests_of_units {
                 let b_tr = &mut trie.btr;
 
                 assert!(b_tr.capacity() < approx_cap);
-                b_tr.get_mut().reserve_exact(approx_cap);
+                b_tr.reserve_exact(approx_cap);
                 let cap = b_tr.capacity();
 
                 let size = trie.put_trace_cap(cap);
@@ -1243,7 +1243,7 @@ mod tests_of_units {
             let b_tr = &mut trie.btr;
 
             assert!(b_tr.capacity() < cap);
-            b_tr.get_mut().reserve_exact(cap);
+            b_tr.reserve_exact(cap);
             let cap = b_tr.capacity();
 
             assert_eq!(cap, trie.acq_trace_cap());
