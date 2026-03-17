@@ -393,7 +393,7 @@ impl<T> Trie<T> {
         let cp = tr.capacity();
 
         if cp < approx_cap {
-            tr.get_mut().reserve(approx_cap);
+            tr.reserve(approx_cap);
         } else if cp > approx_cap {
             *tr = UC::new(Vec::with_capacity(approx_cap));
         }
@@ -502,16 +502,12 @@ impl<T> Trie<T> {
             res => Err(res.key_err()),
         };
 
-        self.tr.get_mut().clear();
+        self.tr.clear();
         res
     }
 
     fn rem_actual(&mut self, #[cfg(test)] en_esc: &mut bool) -> T {
-        let mut trace = self
-            .tr
-            .get_ref()
-            .iter()
-            .map(|x| unsafe { x.as_mut() }.unwrap());
+        let mut trace = self.tr.iter().map(|x| unsafe { x.as_mut() }.unwrap());
         let entry = unsafe { trace.next_back().unwrap_unchecked() };
 
         let en = entry.en.take();
@@ -563,7 +559,7 @@ impl<T> Trie<T> {
         let c = unsafe { c.unwrap_unchecked() };
 
         let ix = &self.ix;
-        let tr = self.tr.get_mut();
+        let tr = self.tr.promote();
 
         let mut letter = &self.rt[ix(c)];
 
@@ -1445,7 +1441,7 @@ mod tests_of_units {
                 let tr = &mut trie.tr;
 
                 assert!(tr.capacity() < cap);
-                tr.get_mut().reserve_exact(cap);
+                tr.reserve_exact(cap);
                 let cap = tr.capacity();
 
                 let size = trie.put_trace_cap(cap);
@@ -1461,7 +1457,7 @@ mod tests_of_units {
             let tr = &mut trie.tr;
 
             assert!(tr.capacity() < cap);
-            tr.get_mut().reserve_exact(cap);
+            tr.reserve_exact(cap);
             let cap = tr.capacity();
 
             assert_eq!(cap, trie.acq_trace_cap());
