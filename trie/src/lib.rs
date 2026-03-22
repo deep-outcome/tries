@@ -11,7 +11,7 @@ use uc::UC;
 mod tra;
 use tra::{tsdv, TraStrain};
 
-use std::vec::Vec;
+use std::{marker::PhantomData, vec::Vec};
 /// [`Letter`] is [`Alphabet`] element, represents tree node.
 #[cfg_attr(test, derive(PartialEq))]
 pub struct Letter<T> {
@@ -199,6 +199,92 @@ fn view_mut<'a, T>(
         _ = buff.pop();
     }
 }
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+struct IterMut<'a, T> {
+    ab: *mut Letter<T>,
+    ab_len: usize,
+    buff: *mut String,
+    re: Re,
+    ix: isize,
+    sub: Option<Box<IterMut<'a, T>>>,
+    pd: PhantomData<&'a mut T>,
+}
+
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = (String, &'a mut T);
+
+    fn next(&mut self) -> Option<(String, &'a mut T)> {
+        let buff = unsafe { self.buff.as_mut().unwrap() };
+        if let Some(s) = self.sub.as_mut() {
+            let res = s.next();
+            if res.is_some() {
+                return res;
+            } else {
+                self.sub = None;
+                _ = buff.pop();
+            }
+        }
+
+        let re = self.re;
+        let ab_len = self.ab_len;
+        let ab = self.ab;
+
+        loop {
+            let ix = self.ix;
+            if ix == ab_len as isize {
+                break;
+            }
+
+            self.ix = ix + 1;
+            buff.push(re(ix as usize));
+
+            let letter = unsafe { ab.offset(ix).as_mut().unwrap_unchecked() };
+
+            let res = if let Some(r) = letter.en.as_mut() {
+                let key = buff.clone();
+                Some((key, r))
+            } else {
+                None
+            };
+
+            // branching node
+            let mut bn = false;
+            if let Some(ab) = letter.ab.as_mut() {
+                let sub = IterMut {
+                    ab: ab.as_mut_ptr(),
+                    ab_len,
+                    buff,
+                    re,
+                    ix: 0,
+                    sub: None,
+                    pd: PhantomData,
+                };
+
+                self.sub = Some(Box::new(sub));
+                bn = true;
+            }
+
+            if res.is_some() {
+                if !bn {
+                    _ = buff.pop();
+                }
+
+                return res;
+            } else if bn {
+                #[cfg(test)]
+                assert_eq!(true, self.sub.is_some());
+                let sub = unsafe { self.sub.as_mut().unwrap_unchecked() };
+                return sub.next();
+            }
+
+            _ = buff.pop();
+        }
+
+        return None;
+    }
+}
+
 /// Module for working with English alphabet small letters, a-z.
 ///
 /// Check with [`Trie::new_with()`] for more.
@@ -869,8 +955,8 @@ mod tests_of_units {
             let a = || "a".chars();
             let z = || "z".chars();
 
-            _ = trie.ins(a(), 1usize);
-            _ = trie.ins(z(), 2usize);
+            _ = trie.ins(a(), 1);
+            _ = trie.ins(z(), 2);
 
             let mut buff = String::new();
             let mut test = Vec::new();
@@ -951,8 +1037,8 @@ mod tests_of_units {
             let a = || "a".chars();
             let z = || "z".chars();
 
-            _ = trie.ins(a(), 1usize);
-            _ = trie.ins(z(), 2usize);
+            _ = trie.ins(a(), 1);
+            _ = trie.ins(z(), 2);
 
             let mut test = Vec::new();
 
@@ -987,6 +1073,7 @@ mod tests_of_units {
             let mut test = Vec::new();
 
             vals(&mut trie.rt, &mut test);
+            assert_eq!(entries.len(), test.len());
 
             for zip in entries.iter().zip(test.iter()) {
                 assert_eq!(zip.0 .1, *zip.1);
@@ -1016,6 +1103,7 @@ mod tests_of_units {
             let mut test = Vec::new();
 
             vals(&mut trie.rt, &mut test);
+            assert_eq!(paths.len(), test.len());
 
             for zip in paths.iter().zip(test.iter()) {
                 assert_eq!(zip.0 .1, *zip.1);
@@ -1035,7 +1123,7 @@ mod tests_of_units {
             let a = || "a".chars();
             let z = || "z".chars();
 
-            let a_entry = 1usize;
+            let a_entry = 1;
             let z_entry = 2;
 
             _ = trie.ins(a(), a_entry);
@@ -1073,7 +1161,8 @@ mod tests_of_units {
             let mut test = Vec::new();
 
             keys(&trie.rt, &mut buff, re, &mut test);
-
+            assert_eq!(entries.len(), test.len());
+            
             for zip in entries.iter().zip(test.iter()) {
                 assert_eq!(zip.0 .0, *zip.1);
             }
@@ -1103,7 +1192,8 @@ mod tests_of_units {
             let mut test = Vec::new();
 
             keys(&trie.rt, &mut buff, re, &mut test);
-
+            assert_eq!(paths.len(), test.len());
+            
             for zip in paths.iter().zip(test.iter()) {
                 assert_eq!(zip.0 .0, *zip.1);
             }
@@ -1122,7 +1212,7 @@ mod tests_of_units {
             let a = || "a".chars();
             let z = || "z".chars();
 
-            let a_entry = 1usize;
+            let a_entry = 1;
             let z_entry = 2;
 
             _ = trie.ins(a(), a_entry);
@@ -1205,7 +1295,7 @@ mod tests_of_units {
             let a = || "a".chars();
             let z = || "z".chars();
 
-            let mut a_entry = 1usize;
+            let mut a_entry = 1;
             let mut z_entry = 2;
 
             _ = trie.ins(a(), a_entry);
@@ -1281,6 +1371,141 @@ mod tests_of_units {
             view_mut(&mut trie.rt, &mut buff, re, &mut test);
 
             assert_eq!(paths.len(), test.len());
+            for (ix, p) in paths.iter_mut().enumerate() {
+                let t = &test[ix];
+                assert_eq!(p.0, t.0);
+                assert_eq!(&mut p.1, t.1);
+            }
+        }
+    }
+
+    mod iter_mut {
+        use std::marker::PhantomData;
+
+        use crate::english_letters::re;
+        use crate::{IterMut, Trie};
+
+        #[test]
+        fn basic_test() {
+            let mut trie = Trie::new();
+
+            let a = || "a".chars();
+            let z = || "z".chars();
+
+            let mut a_entry = 1;
+            let mut z_entry = 2;
+
+            _ = trie.ins(a(), a_entry);
+            _ = trie.ins(z(), z_entry);
+
+            let mut buff = String::new();
+            let iter = IterMut {
+                ab: trie.rt.as_mut_ptr(),
+                ab_len: trie.rt.len(),
+                buff: &mut buff,
+                re,
+                ix: 0,
+                sub: None,
+                pd: PhantomData,
+            };
+
+            let test = iter.collect::<Vec<(String, &mut isize)>>();
+
+            let proof = vec![
+                (String::from("a"), &mut a_entry),
+                (String::from("z"), &mut z_entry),
+            ];
+            assert_eq!(proof, test);
+        }
+
+        #[test]
+        fn specific_traits() {
+            let mut trie = Trie::new();
+
+            let mut entries = vec![
+                // has entry and branch
+                (String::from("a"), 10),
+                (String::from("az"), 20),
+                (String::from("azqq"), 30),
+                (String::from("aa"), 40),
+                (String::from("aaz"), 50),
+                (String::from("aazqq"), 60),
+                // has entry
+                (String::from("b"), 70),
+                (String::from("cc"), 80),
+                (String::from("ddd"), 90),
+                // has branch
+                (String::from("e"), 100),
+                (String::from("eee"), 110),
+                (String::from("eff"), 120),
+                (String::from("effee"), 125),
+                (String::from("eeeff"), 130),
+                (String::from("effeee"), 140),
+                (String::from("eefffff"), 150),
+            ];
+
+            for e in entries.iter() {
+                _ = trie.ins(e.0.chars(), e.1);
+            }
+
+            let mut buff = String::new();
+            let iter = IterMut {
+                ab: trie.rt.as_mut_ptr(),
+                ab_len: trie.rt.len(),
+                buff: &mut buff,
+                re,
+                ix: 0,
+                sub: None,
+                pd: PhantomData,
+            };
+
+            let test = iter.collect::<Vec<(String, &mut isize)>>();
+            assert_eq!(entries.len(), test.len());
+
+            entries.sort_by_key(|x| x.0.clone());
+
+            for (ix, e) in entries.iter_mut().enumerate() {
+                let t = &test[ix];
+                assert_eq!(e.0, t.0);
+                assert_eq!(&mut e.1, t.1);
+            }
+        }
+
+        #[test]
+        fn in_depth_recursion() {
+            let mut trie = Trie::new();
+
+            let mut paths = vec![
+                (String::from("aa"), 13),
+                (String::from("azbq"), 11),
+                (String::from("by"), 329),
+                (String::from("ybc"), 7),
+                (String::from("ybcrqutmop"), 33),
+                (String::from("ybcrqutmopfvb"), 99),
+                (String::from("ybcrqutmoprfg"), 80),
+                (String::from("ybxr"), 53),
+                (String::from("zazazazazabyyb"), 55),
+            ];
+
+            for p in paths.iter() {
+                _ = trie.ins(p.0.chars(), p.1);
+            }
+
+            let mut buff = String::new();
+
+            let iter = IterMut {
+                ab: trie.rt.as_mut_ptr(),
+                ab_len: trie.rt.len(),
+                buff: &mut buff,
+                re,
+                ix: 0,
+                sub: None,
+                pd: PhantomData,
+            };
+
+            let test = iter.collect::<Vec<(String, &mut isize)>>();
+            assert_eq!(paths.len(), test.len());
+            
             for (ix, p) in paths.iter_mut().enumerate() {
                 let t = &test[ix];
                 assert_eq!(p.0, t.0);
