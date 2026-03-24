@@ -13,7 +13,7 @@ use tra::{tsdv, TraStrain};
 
 use std::{marker::PhantomData, vec::Vec};
 /// [`Letter`] is [`Alphabet`] element, represents tree node.
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Letter<T> {
     #[cfg(test)]
     val: char,
@@ -58,6 +58,9 @@ pub type Ix = fn(char) -> usize;
 ///
 /// Check with [`english_letters::re`] for lodestar.
 pub type Re = fn(usize) -> char;
+
+/// Mutable key-entry duo type.
+pub type SightMut<'a, T> = (String, &'a mut T);
 
 /// Alphabet function, tree arms generation of length specified.
 fn ab<T>(len: usize) -> Alphabet<T> {
@@ -200,11 +203,12 @@ fn view_mut<'a, T>(
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
-struct IterMut<'a, T> {
+/// Mutable iterator for key-entry duos in tree.
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct IterMut<'a, T> {
     ab: *mut Letter<T>,
     ab_len: usize,
-    buff: *mut String,
+    buff: Option<String>,
     re: Re,
     ix: isize,
     sub: Option<Box<IterMut<'a, T>>>,
@@ -212,17 +216,23 @@ struct IterMut<'a, T> {
 }
 
 impl<'a, T> Iterator for IterMut<'a, T> {
-    type Item = (String, &'a mut T);
-
-    fn next(&mut self) -> Option<(String, &'a mut T)> {
-        let buff = unsafe { self.buff.as_mut().unwrap() };
+    type Item = SightMut<'a, T>;
+    
+    /// Returns [`SightMut`] one by one in alphabetic order given by [`Re`] function.    
+    /// 
+    /// Returns [`None`] when exahusted and for empty [`Trie`].
+    fn next(&mut self) -> Option<SightMut<'a, T>> {
         if let Some(s) = self.sub.as_mut() {
             let res = s.next();
             if res.is_some() {
                 return res;
             } else {
-                self.sub = None;
+                assert_eq!(true, s.buff.is_some());
+                let mut buff = unsafe { s.buff.take().unwrap_unchecked() };
                 _ = buff.pop();
+
+                self.sub = None;
+                self.buff = Some(buff);
             }
         }
 
@@ -237,6 +247,10 @@ impl<'a, T> Iterator for IterMut<'a, T> {
             }
 
             self.ix = ix + 1;
+
+            #[cfg(test)]
+            assert_eq!(true, self.buff.is_some());
+            let buff = unsafe { self.buff.as_mut().unwrap_unchecked() };
             buff.push(re(ix as usize));
 
             let letter = unsafe { ab.offset(ix).as_mut().unwrap_unchecked() };
@@ -251,10 +265,13 @@ impl<'a, T> Iterator for IterMut<'a, T> {
             // branching node
             let mut bn = false;
             if let Some(ab) = letter.ab.as_mut() {
+                #[cfg(test)]
+                assert_eq!(true, self.buff.is_some());
+                let buff = unsafe { self.buff.take().unwrap_unchecked() };
                 let sub = IterMut {
                     ab: ab.as_mut_ptr(),
                     ab_len,
-                    buff,
+                    buff: Some(buff),
                     re,
                     ix: 0,
                     sub: None,
@@ -263,13 +280,11 @@ impl<'a, T> Iterator for IterMut<'a, T> {
 
                 self.sub = Some(Box::new(sub));
                 bn = true;
+            } else {
+                _ = buff.pop();
             }
 
             if res.is_some() {
-                if !bn {
-                    _ = buff.pop();
-                }
-
                 return res;
             } else if bn {
                 #[cfg(test)]
@@ -277,8 +292,6 @@ impl<'a, T> Iterator for IterMut<'a, T> {
                 let sub = unsafe { self.sub.as_mut().unwrap_unchecked() };
                 return sub.next();
             }
-
-            _ = buff.pop();
         }
 
         return None;
@@ -801,7 +814,7 @@ impl<T> Trie<T> {
     ///
     /// - TC: Ω(n).
     /// - SC: ϴ(s).
-    pub fn view_mut(&mut self) -> Option<Vec<(String, &mut T)>> {
+    pub fn view_mut(&mut self) -> Option<Vec<SightMut<'_, T>>> {
         if let Some(re) = self.re {
             let ct = self.ct;
             if ct == 0 {
@@ -816,6 +829,31 @@ impl<T> Trie<T> {
 
             view_mut(&mut self.rt, &mut buff, re, &mut res);
             Some(res)
+        } else {
+            panic!("{}", RE_MISS);
+        }
+    }
+
+    /// Used to get mutable iterator of key-entry duos in tree.
+    ///
+    /// Check with [`IterMut::next`] for details.
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+        if let Some(re) = self.re {
+            let rt = &mut self.rt;
+            let rt_len = rt.len();
+
+            // capacity is prebuffered to 1000
+            let buff = String::with_capacity(1000);
+
+            IterMut {
+                ab: rt.as_mut_ptr(),
+                ab_len: rt_len,
+                buff: Some(buff),
+                re,
+                ix: 0,
+                sub: None,
+                pd: PhantomData,
+            }
         } else {
             panic!("{}", RE_MISS);
         }
@@ -853,34 +891,43 @@ impl<T> Trie<T> {
     }
 }
 
+use std::fmt::{Debug, Formatter};
+impl<T> Debug for Letter<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let ab = some_none(self.ab.as_ref());
+        let en = some_none(self.en.as_ref());
+
+        let mut fields = Vec::with_capacity(3);
+        fields.push(("ab", ab));
+        fields.push(("en", en));
+        #[cfg(test)]
+        {
+            fields.insert(0, ("val", self.val.to_string()));
+        }
+
+        let mut body = String::with_capacity(50);
+        for f in fields {
+            let val = format!("\n  {}: {}", f.0, f.1);
+            body.push_str(val.as_str());
+        }
+
+        return f.write_fmt(format_args!("Letter {{{}\n}}", body));
+
+        fn some_none<T>(val: Option<&T>) -> String {
+            if val.is_some() {
+                String::from("Some")
+            } else {
+                String::from("None")
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod aide;
 
 #[cfg(test)]
 mod tests_of_units {
-
-    use crate::Letter;
-    use std::fmt::{Debug, Formatter};
-
-    impl<T> Debug for Letter<T> {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            let ab = some_none(self.ab.as_ref());
-            let en = some_none(self.en.as_ref());
-
-            return f.write_fmt(format_args!(
-                "Letter {{\n  val: {}\n  ab: {}\n  en: {}\n}}",
-                self.val, ab, en
-            ));
-
-            fn some_none<T>(val: Option<&T>) -> &'static str {
-                if val.is_some() {
-                    "Some"
-                } else {
-                    "None"
-                }
-            }
-        }
-    }
 
     mod letter {
 
@@ -1085,6 +1132,7 @@ mod tests_of_units {
             let mut trie = Trie::new();
 
             let paths = [
+                ("a", 9),
                 ("aa", 13),
                 ("azbq", 11),
                 ("by", 329),
@@ -1162,7 +1210,7 @@ mod tests_of_units {
 
             keys(&trie.rt, &mut buff, re, &mut test);
             assert_eq!(entries.len(), test.len());
-            
+
             for zip in entries.iter().zip(test.iter()) {
                 assert_eq!(zip.0 .0, *zip.1);
             }
@@ -1173,6 +1221,7 @@ mod tests_of_units {
             let mut trie = Trie::new();
 
             let paths = vec![
+                (String::from("a"), 9),
                 (String::from("aa"), 13),
                 (String::from("azbq"), 11),
                 (String::from("by"), 329),
@@ -1193,7 +1242,7 @@ mod tests_of_units {
 
             keys(&trie.rt, &mut buff, re, &mut test);
             assert_eq!(paths.len(), test.len());
-            
+
             for zip in paths.iter().zip(test.iter()) {
                 assert_eq!(zip.0 .0, *zip.1);
             }
@@ -1259,6 +1308,7 @@ mod tests_of_units {
             let mut trie = Trie::new();
 
             let paths = vec![
+                (String::from("a"), &9),
                 (String::from("aa"), &13),
                 (String::from("azbq"), &11),
                 (String::from("by"), &329),
@@ -1350,6 +1400,7 @@ mod tests_of_units {
             let mut trie = Trie::new();
 
             let mut paths = vec![
+                (String::from("a"), 9),
                 (String::from("aa"), 13),
                 (String::from("azbq"), 11),
                 (String::from("by"), 329),
@@ -1398,11 +1449,13 @@ mod tests_of_units {
             _ = trie.ins(a(), a_entry);
             _ = trie.ins(z(), z_entry);
 
-            let mut buff = String::new();
+            let buff = String::new();
+            let rt = &mut trie.rt;
+
             let iter = IterMut {
-                ab: trie.rt.as_mut_ptr(),
-                ab_len: trie.rt.len(),
-                buff: &mut buff,
+                ab: rt.as_mut_ptr(),
+                ab_len: rt.len(),
+                buff: Some(buff),
                 re,
                 ix: 0,
                 sub: None,
@@ -1448,11 +1501,13 @@ mod tests_of_units {
                 _ = trie.ins(e.0.chars(), e.1);
             }
 
-            let mut buff = String::new();
+            let buff = String::new();
+            let rt = &mut trie.rt;
+
             let iter = IterMut {
-                ab: trie.rt.as_mut_ptr(),
-                ab_len: trie.rt.len(),
-                buff: &mut buff,
+                ab: rt.as_mut_ptr(),
+                ab_len: rt.len(),
+                buff: Some(buff),
                 re,
                 ix: 0,
                 sub: None,
@@ -1476,6 +1531,7 @@ mod tests_of_units {
             let mut trie = Trie::new();
 
             let mut paths = vec![
+                (String::from("a"), 9),
                 (String::from("aa"), 13),
                 (String::from("azbq"), 11),
                 (String::from("by"), 329),
@@ -1491,12 +1547,14 @@ mod tests_of_units {
                 _ = trie.ins(p.0.chars(), p.1);
             }
 
-            let mut buff = String::new();
+            let buff = String::new();
+
+            let rt = &mut trie.rt;
 
             let iter = IterMut {
-                ab: trie.rt.as_mut_ptr(),
-                ab_len: trie.rt.len(),
-                buff: &mut buff,
+                ab: rt.as_mut_ptr(),
+                ab_len: rt.len(),
+                buff: Some(buff),
                 re,
                 ix: 0,
                 sub: None,
@@ -1505,7 +1563,7 @@ mod tests_of_units {
 
             let test = iter.collect::<Vec<(String, &mut isize)>>();
             assert_eq!(paths.len(), test.len());
-            
+
             for (ix, p) in paths.iter_mut().enumerate() {
                 let t = &test[ix];
                 assert_eq!(p.0, t.0);
@@ -2455,6 +2513,56 @@ mod tests_of_units {
             fn empty_tree() {
                 let mut trie = Trie::<usize>::new();
                 assert_eq!(None, trie.view_mut());
+            }
+        }
+
+        mod iter_mut {
+            use crate::english_letters::ix;
+            use crate::Trie;
+
+            #[test]
+            fn basic_test() {
+                let mut proof = vec![
+                    (String::from("a"), 13),
+                    (String::from("aa"), 13),
+                    (String::from("azbq"), 11),
+                    (String::from("by"), 329),
+                    (String::from("ybc"), 7),
+                    (String::from("ybxr"), 53),
+                    (String::from("ybxrqutmop"), 33),
+                    (String::from("ybxrqutmopfvb"), 99),
+                    (String::from("ybxrqutmoprfg"), 80),
+                    (String::from("zazazazazabyyb"), 55),
+                ];
+
+                let mut trie = Trie::new();
+                for p in proof.iter() {
+                    _ = trie.ins(p.0.chars(), p.1);
+                }
+
+                let iter = trie.iter_mut();
+                let test = iter.collect::<Vec<(String, &mut isize)>>();
+
+                assert_eq!(proof.len(), test.len());
+                for (ix, p) in proof.iter_mut().enumerate() {
+                    let t = &test[ix];
+                    assert_eq!(p.0, t.0);
+                    assert_eq!(&mut p.1, t.1);
+                }
+            }
+
+            #[test]
+            #[should_panic(
+                expected = "This method is unsupported when `new_with` `re` parameter is provided with `None`."
+            )]
+            fn re_not_provided() {
+                _ = Trie::<usize>::new_with(ix, None, 0).iter_mut()
+            }
+
+            #[test]
+            fn empty_tree() {
+                let mut trie = Trie::<usize>::new();
+                assert_eq!(None, trie.iter_mut().next());
             }
         }
 
