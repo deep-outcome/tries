@@ -217,7 +217,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
     /// Returns [`Sight`] one by one in alphabetic order given by [`Re`] function.    
     ///
-    /// Returns [`None`] when exahusted and for empty [`Trie`].
+    /// Returns [`None`] when exhausted and for empty [`Trie`].
     fn next(&mut self) -> Option<Sight<'a, T>> {
         return if let Some(s) = self.iter.next() {
             Some((s.0, s.1))
@@ -244,7 +244,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
 
     /// Returns [`SightMut`] one by one in alphabetic order given by [`Re`] function.    
     ///
-    /// Returns [`None`] when exahusted and for empty [`Trie`].
+    /// Returns [`None`] when exhausted and for empty [`Trie`].
     fn next(&mut self) -> Option<SightMut<'a, T>> {
         if let Some(s) = self.sub.as_mut() {
             let res = s.next();
