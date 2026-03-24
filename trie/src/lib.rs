@@ -59,8 +59,11 @@ pub type Ix = fn(char) -> usize;
 /// Check with [`english_letters::re`] for lodestar.
 pub type Re = fn(usize) -> char;
 
-/// Mutable key-entry duo type.
+/// 'Viewable' mutable key-entry duo type.
 pub type SightMut<'a, T> = (String, &'a mut T);
+
+/// 'Viewable' key-entry duo type.
+pub type Sight<'a, T> = (String, &'a T);
 
 /// Alphabet function, tree arms generation of length specified.
 fn ab<T>(len: usize) -> Alphabet<T> {
@@ -203,6 +206,27 @@ fn view_mut<'a, T>(
     }
 }
 
+/// Iterator for key-entry duos in tree.
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct Iter<'a, T> {
+    iter: IterMut<'a, T>,
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = Sight<'a, T>;
+
+    /// Returns [`Sight`] one by one in alphabetic order given by [`Re`] function.    
+    ///
+    /// Returns [`None`] when exahusted and for empty [`Trie`].
+    fn next(&mut self) -> Option<Sight<'a, T>> {
+        return if let Some(s) = self.iter.next() {
+            Some((s.0, s.1))
+        } else {
+            None
+        };
+    }
+}
+
 /// Mutable iterator for key-entry duos in tree.
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct IterMut<'a, T> {
@@ -217,9 +241,9 @@ pub struct IterMut<'a, T> {
 
 impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = SightMut<'a, T>;
-    
+
     /// Returns [`SightMut`] one by one in alphabetic order given by [`Re`] function.    
-    /// 
+    ///
     /// Returns [`None`] when exahusted and for empty [`Trie`].
     fn next(&mut self) -> Option<SightMut<'a, T>> {
         if let Some(s) = self.sub.as_mut() {
@@ -391,11 +415,11 @@ impl<'a, T> TraRes<'a, T> {
 /// - s — string lengths summation
 pub struct Trie<T> {
     // tree root
-    rt: Alphabet<T>,
+    rt: UC<Alphabet<T>>,
     // index fn
     ix: Ix,
     // rev index fn
-    re: Option<Re>,
+    re: Re,
     // alphabet len
     al: usize,
     // backtrace buff
@@ -404,15 +428,13 @@ pub struct Trie<T> {
     ct: usize,
 }
 
-const RE_MISS: &str =
-    "This method is unsupported when `new_with` `re` parameter is provided with `None`.";
 impl<T> Trie<T> {
     /// Constructs default version of [`Trie`], i.e. via
     /// [`Trie::new_with()`] with [`english_letters`]`::{ix, re, ALPHABET_LEN}`.
     pub fn new() -> Self {
         Self::new_with(
             english_letters::ix,
-            Some(english_letters::re),
+            english_letters::re,
             english_letters::ALPHABET_LEN,
         )
     }
@@ -430,8 +452,7 @@ impl<T> Trie<T> {
     ///    }
     /// }
     ///
-    ///
-    /// // if `fn Trie::ext` or `fn Trie::view` will not be used, pass `None` for `re`
+    ///   
     /// fn re(i: usize) -> char {
     ///     match i {
     ///         0 => '&',
@@ -442,7 +463,7 @@ impl<T> Trie<T> {
     ///
     /// let ab_len = 2;
     ///
-    /// let mut trie = Trie::new_with(ix, Some(re), ab_len);
+    /// let mut trie = Trie::new_with(ix, re, ab_len);
     /// let aba = "&|&";
     /// let bab = "|&|";
     /// _ = trie.ins(aba.chars(), 1);
@@ -450,9 +471,9 @@ impl<T> Trie<T> {
     ///
     /// assert_eq!(&1, trie.acq(aba.chars()).unwrap());
     /// assert_eq!(&2, trie.acq(bab.chars()).unwrap());
-    pub fn new_with(ix: Ix, re: Option<Re>, ab_len: usize) -> Self {
+    pub fn new_with(ix: Ix, re: Re, ab_len: usize) -> Self {
         Self {
-            rt: ab(ab_len),
+            rt: UC::new(ab(ab_len)),
             ix,
             re,
             al: ab_len,
@@ -703,25 +724,21 @@ impl<T> Trie<T> {
     /// - TC: Ω(n).
     /// - SC: ϴ(s) for small sized Ts or ϴ(s +n).
     pub fn ext(&mut self) -> Option<Vec<(String, T)>> {
-        if let Some(re) = self.re {
-            let ct = self.ct;
-            if ct == 0 {
-                return None;
-            }
-
-            // capacity is prebuffered to 1000
-            let mut buff = String::with_capacity(1000);
-
-            let mut res = Vec::new();
-            res.reserve_exact(ct);
-
-            ext(&mut self.rt, &mut buff, re, &mut res);
-            _ = self.clr();
-
-            Some(res)
-        } else {
-            panic!("{}", RE_MISS);
+        let ct = self.ct;
+        if ct == 0 {
+            return None;
         }
+
+        // capacity is prebuffered to 1000
+        let mut buff = String::with_capacity(1000);
+
+        let mut res = Vec::new();
+        res.reserve_exact(ct);
+
+        ext(&mut self.rt, &mut buff, self.re, &mut res);
+        _ = self.clr();
+
+        Some(res)
     }
 
     /// Used to acquire cloned values from tree.
@@ -758,24 +775,20 @@ impl<T> Trie<T> {
     /// - TC: Ω(n).
     /// - SC: ϴ(s).
     pub fn keys(&self) -> Option<Vec<String>> {
-        if let Some(re) = self.re {
-            let ct = self.ct;
-            if ct == 0 {
-                return None;
-            }
-
-            // capacity is prebuffered to 1000
-            let mut buff = String::with_capacity(1000);
-
-            let mut res = Vec::new();
-            res.reserve_exact(ct);
-
-            keys(&self.rt, &mut buff, re, &mut res);
-
-            Some(res)
-        } else {
-            panic!("{}", RE_MISS);
+        let ct = self.ct;
+        if ct == 0 {
+            return None;
         }
+
+        // capacity is prebuffered to 1000
+        let mut buff = String::with_capacity(1000);
+
+        let mut res = Vec::new();
+        res.reserve_exact(ct);
+
+        keys(&self.rt, &mut buff, self.re, &mut res);
+
+        Some(res)
     }
 
     /// Used to get view onto key-entry duos in tree.
@@ -786,24 +799,20 @@ impl<T> Trie<T> {
     ///
     /// - TC: Ω(n).
     /// - SC: ϴ(s).
-    pub fn view(&self) -> Option<Vec<(String, &T)>> {
-        if let Some(re) = self.re {
-            let ct = self.ct;
-            if ct == 0 {
-                return None;
-            }
-
-            // capacity is prebuffered to 1000
-            let mut buff = String::with_capacity(1000);
-
-            let mut res = Vec::new();
-            res.reserve_exact(ct);
-
-            view(&self.rt, &mut buff, re, &mut res);
-            Some(res)
-        } else {
-            panic!("{}", RE_MISS);
+    pub fn view(&self) -> Option<Vec<Sight<'_, T>>> {
+        let ct = self.ct;
+        if ct == 0 {
+            return None;
         }
+
+        // capacity is prebuffered to 1000
+        let mut buff = String::with_capacity(1000);
+
+        let mut res = Vec::new();
+        res.reserve_exact(ct);
+
+        view(&self.rt, &mut buff, self.re, &mut res);
+        Some(res)
     }
 
     /// Used to get mutable view onto key-entry duos in tree.
@@ -815,47 +824,62 @@ impl<T> Trie<T> {
     /// - TC: Ω(n).
     /// - SC: ϴ(s).
     pub fn view_mut(&mut self) -> Option<Vec<SightMut<'_, T>>> {
-        if let Some(re) = self.re {
-            let ct = self.ct;
-            if ct == 0 {
-                return None;
-            }
-
-            // capacity is prebuffered to 1000
-            let mut buff = String::with_capacity(1000);
-
-            let mut res = Vec::new();
-            res.reserve_exact(ct);
-
-            view_mut(&mut self.rt, &mut buff, re, &mut res);
-            Some(res)
-        } else {
-            panic!("{}", RE_MISS);
+        let ct = self.ct;
+        if ct == 0 {
+            return None;
         }
+
+        // capacity is prebuffered to 1000
+        let mut buff = String::with_capacity(1000);
+
+        let mut res = Vec::new();
+        res.reserve_exact(ct);
+
+        view_mut(&mut self.rt, &mut buff, self.re, &mut res);
+        Some(res)
+    }
+
+    /// Used to get iterator of key-entry duos in tree.
+    ///
+    /// Check with [`Iter::next`] for details.
+    pub fn iter(&self) -> Iter<'_, T> {
+        let rt = self.rt.promote();
+        let rt_len = rt.len();
+
+        // capacity is prebuffered to 1000
+        let buff = String::with_capacity(1000);
+
+        let iter = IterMut {
+            ab: rt.as_mut_ptr(),
+            ab_len: rt_len,
+            buff: Some(buff),
+            re: self.re,
+            ix: 0,
+            sub: None,
+            pd: PhantomData,
+        };
+
+        Iter { iter }
     }
 
     /// Used to get mutable iterator of key-entry duos in tree.
     ///
     /// Check with [`IterMut::next`] for details.
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
-        if let Some(re) = self.re {
-            let rt = &mut self.rt;
-            let rt_len = rt.len();
+        let rt = &mut self.rt;
+        let rt_len = rt.len();
 
-            // capacity is prebuffered to 1000
-            let buff = String::with_capacity(1000);
+        // capacity is prebuffered to 1000
+        let buff = String::with_capacity(1000);
 
-            IterMut {
-                ab: rt.as_mut_ptr(),
-                ab_len: rt_len,
-                buff: Some(buff),
-                re,
-                ix: 0,
-                sub: None,
-                pd: PhantomData,
-            }
-        } else {
-            panic!("{}", RE_MISS);
+        IterMut {
+            ab: rt.as_mut_ptr(),
+            ab_len: rt_len,
+            buff: Some(buff),
+            re: self.re,
+            ix: 0,
+            sub: None,
+            pd: PhantomData,
         }
     }
 
@@ -865,7 +889,7 @@ impl<T> Trie<T> {
     ///
     /// TC: ϴ(n).
     pub fn clr(&mut self) -> usize {
-        self.rt = ab(self.al);
+        self.rt = UC::new(ab(self.al));
         let ct = self.ct;
         self.ct = 0;
         ct
@@ -1664,7 +1688,7 @@ mod tests_of_units {
             let trie = Trie::<usize>::new();
             assert_eq!(ALPHABET_LEN, trie.al);
             assert_eq!(ix as usize, trie.ix as usize);
-            assert_eq!(re as usize, trie.re.unwrap() as usize);
+            assert_eq!(re as usize, trie.re as usize);
         }
 
         #[test]
@@ -1678,12 +1702,12 @@ mod tests_of_units {
             }
 
             let ab_len = 9;
-            let trie = Trie::<usize>::new_with(test_ix, Some(test_re), ab_len);
+            let trie = Trie::<usize>::new_with(test_ix, test_re, ab_len);
 
-            assert_eq!(ab(ab_len), trie.rt);
+            assert_eq!(&ab(ab_len), trie.rt.aq_ref());
             assert_eq!(ab_len, trie.al);
             assert_eq!(test_ix as usize, trie.ix as usize);
-            assert_eq!(test_re as usize, trie.re.unwrap() as usize);
+            assert_eq!(test_re as usize, trie.re as usize);
             assert_eq!(0, trie.tr.capacity());
             assert_eq!(0, trie.ct);
         }
@@ -1765,7 +1789,7 @@ mod tests_of_units {
                 *entry_mut = update;
 
                 let last_ix = key.len() - 1;
-                let mut albet = &trie.rt;
+                let mut albet = trie.rt.aq_ref();
                 for (it_ix, c) in keyer().enumerate() {
                     let l = &albet[ix(c)];
 
@@ -1818,7 +1842,7 @@ mod tests_of_units {
                 assert_eq!(1, trie.ct);
 
                 let last_ix = key.len() - 1;
-                let mut albet = &trie.rt;
+                let mut albet = trie.rt.aq_ref();
                 for (it_ix, c) in keyer().enumerate() {
                     let l = &albet[ix(c)];
 
@@ -1916,7 +1940,7 @@ mod tests_of_units {
         }
 
         mod rem_actual {
-            use crate::english_letters::ix;
+            use crate::english_letters::{ix, re};
             use crate::{KeyErr, TraRes, TraStrain, Trie};
 
             #[test]
@@ -2006,7 +2030,7 @@ mod tests_of_units {
                 let key_1_val = 50;
                 let key_2_val = 60;
 
-                let mut trie = Trie::new_with(ix, None, 100);
+                let mut trie = Trie::new_with(ix, re, 100);
                 _ = trie.ins(key_1(), key_1_val);
                 _ = trie.ins(key_2(), key_2_val);
 
@@ -2247,7 +2271,6 @@ mod tests_of_units {
         }
 
         mod ext {
-            use crate::english_letters::ix;
             use crate::{KeyErr, Trie};
 
             #[test]
@@ -2282,14 +2305,6 @@ mod tests_of_units {
                 for p in proof.iter() {
                     assert_eq!(Err(KeyErr::Unknown), trie.acq(p.0.chars()));
                 }
-            }
-
-            #[test]
-            #[should_panic(
-                expected = "This method is unsupported when `new_with` `re` parameter is provided with `None`."
-            )]
-            fn re_not_provided() {
-                _ = Trie::<usize>::new_with(ix, None, 0).ext()
             }
 
             #[test]
@@ -2348,7 +2363,6 @@ mod tests_of_units {
         }
 
         mod keys {
-            use crate::english_letters::ix;
             use crate::Trie;
 
             #[test]
@@ -2390,14 +2404,6 @@ mod tests_of_units {
             }
 
             #[test]
-            #[should_panic(
-                expected = "This method is unsupported when `new_with` `re` parameter is provided with `None`."
-            )]
-            fn re_not_provided() {
-                _ = Trie::<usize>::new_with(ix, None, 0).keys()
-            }
-
-            #[test]
             fn empty_tree() {
                 let trie = Trie::<usize>::new();
                 assert_eq!(None, trie.keys());
@@ -2405,7 +2411,6 @@ mod tests_of_units {
         }
 
         mod view {
-            use crate::english_letters::ix;
             use crate::Trie;
 
             #[test]
@@ -2443,14 +2448,6 @@ mod tests_of_units {
             }
 
             #[test]
-            #[should_panic(
-                expected = "This method is unsupported when `new_with` `re` parameter is provided with `None`."
-            )]
-            fn re_not_provided() {
-                _ = Trie::<usize>::new_with(ix, None, 0).view()
-            }
-
-            #[test]
             fn empty_tree() {
                 let trie = Trie::<usize>::new();
                 assert_eq!(None, trie.view());
@@ -2458,7 +2455,6 @@ mod tests_of_units {
         }
 
         mod view_mut {
-            use crate::english_letters::ix;
             use crate::Trie;
 
             #[test]
@@ -2502,22 +2498,54 @@ mod tests_of_units {
             }
 
             #[test]
-            #[should_panic(
-                expected = "This method is unsupported when `new_with` `re` parameter is provided with `None`."
-            )]
-            fn re_not_provided() {
-                _ = Trie::<usize>::new_with(ix, None, 0).view_mut()
-            }
-
-            #[test]
             fn empty_tree() {
                 let mut trie = Trie::<usize>::new();
                 assert_eq!(None, trie.view_mut());
             }
         }
 
+        mod iter {
+            use crate::Trie;
+
+            #[test]
+            fn basic_test() {
+                let proof = vec![
+                    (String::from("a"), 13),
+                    (String::from("aa"), 13),
+                    (String::from("azbq"), 11),
+                    (String::from("by"), 329),
+                    (String::from("ybc"), 7),
+                    (String::from("ybxr"), 53),
+                    (String::from("ybxrqutmop"), 33),
+                    (String::from("ybxrqutmopfvb"), 99),
+                    (String::from("ybxrqutmoprfg"), 80),
+                    (String::from("zazazazazabyyb"), 55),
+                ];
+
+                let mut trie = Trie::new();
+                for p in proof.iter() {
+                    _ = trie.ins(p.0.chars(), p.1);
+                }
+
+                let iter = trie.iter();
+                let test = iter.collect::<Vec<(String, &isize)>>();
+
+                assert_eq!(proof.len(), test.len());
+                for (ix, p) in proof.iter().enumerate() {
+                    let t = &test[ix];
+                    assert_eq!(p.0, t.0);
+                    assert_eq!(&p.1, t.1);
+                }
+            }
+
+            #[test]
+            fn empty_tree() {
+                let trie = Trie::<usize>::new();
+                assert_eq!(None, trie.iter().next());
+            }
+        }
+
         mod iter_mut {
-            use crate::english_letters::ix;
             use crate::Trie;
 
             #[test]
@@ -2552,14 +2580,6 @@ mod tests_of_units {
             }
 
             #[test]
-            #[should_panic(
-                expected = "This method is unsupported when `new_with` `re` parameter is provided with `None`."
-            )]
-            fn re_not_provided() {
-                _ = Trie::<usize>::new_with(ix, None, 0).iter_mut()
-            }
-
-            #[test]
             fn empty_tree() {
                 let mut trie = Trie::<usize>::new();
                 assert_eq!(None, trie.iter_mut().next());
@@ -2577,7 +2597,7 @@ mod tests_of_units {
             assert_eq!(1, trie.clr());
 
             assert_eq!(Err(KeyErr::Unknown), trie.acq(key()));
-            assert_eq!(ab(ALPHABET_LEN), trie.rt);
+            assert_eq!(&ab(ALPHABET_LEN), trie.rt.aq_ref());
             assert_eq!(0, trie.ct);
         }
 
