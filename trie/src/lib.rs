@@ -735,7 +735,7 @@ impl<T> Trie<T> {
         let mut res = Vec::new();
         res.reserve_exact(ct);
 
-        ext(&mut self.rt, &mut buff, self.re, &mut res);
+        ext(self.rt.aq_mut(), &mut buff, self.re, &mut res);
         _ = self.clr();
 
         Some(res)
@@ -761,7 +761,7 @@ impl<T> Trie<T> {
         let mut res = Vec::new();
         res.reserve_exact(ct);
 
-        vals(&self.rt, &mut res);
+        vals(self.rt.aq_ref(), &mut res);
 
         Some(res)
     }
@@ -786,7 +786,7 @@ impl<T> Trie<T> {
         let mut res = Vec::new();
         res.reserve_exact(ct);
 
-        keys(&self.rt, &mut buff, self.re, &mut res);
+        keys(self.rt.aq_ref(), &mut buff, self.re, &mut res);
 
         Some(res)
     }
@@ -811,7 +811,7 @@ impl<T> Trie<T> {
         let mut res = Vec::new();
         res.reserve_exact(ct);
 
-        view(&self.rt, &mut buff, self.re, &mut res);
+        view(self.rt.aq_ref(), &mut buff, self.re, &mut res);
         Some(res)
     }
 
@@ -835,7 +835,7 @@ impl<T> Trie<T> {
         let mut res = Vec::new();
         res.reserve_exact(ct);
 
-        view_mut(&mut self.rt, &mut buff, self.re, &mut res);
+        view_mut(self.rt.aq_mut(), &mut buff, self.re, &mut res);
         Some(res)
     }
 
@@ -866,7 +866,7 @@ impl<T> Trie<T> {
     ///
     /// Check with [`IterMut::next`] for details.
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
-        let rt = &mut self.rt;
+        let rt = self.rt.aq_mut();
         let rt_len = rt.len();
 
         // capacity is prebuffered to 1000
@@ -904,14 +904,14 @@ impl<T> Trie<T> {
     ///
     /// Intended for functional extension of trie.
     pub fn as_ref(&self) -> &Alphabet<T> {
-        &self.rt
+        self.rt.aq_ref()
     }
 
     /// Provides mutable reference access to tree root arms.
     ///
     /// Intended for functional extension of trie.
     pub fn as_mut(&mut self) -> &mut Alphabet<T> {
-        &mut self.rt
+        self.rt.aq_mut()
     }
 }
 
@@ -1032,7 +1032,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            ext(&mut trie.rt, &mut buff, re, &mut test);
+            ext(trie.rt.aq_mut(), &mut buff, re, &mut test);
 
             let proof = vec![(String::from("a"), 1), (String::from("z"), 2)];
             assert_eq!(proof, test);
@@ -1063,7 +1063,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            ext(&mut trie.rt, &mut buff, re, &mut test);
+            ext(trie.rt.aq_mut(), &mut buff, re, &mut test);
 
             assert_eq!(entries, test);
         }
@@ -1091,7 +1091,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            ext(&mut trie.rt, &mut buff, re, &mut test);
+            ext(trie.rt.aq_mut(), &mut buff, re, &mut test);
 
             assert_eq!(paths, test);
         }
@@ -1113,7 +1113,7 @@ mod tests_of_units {
 
             let mut test = Vec::new();
 
-            vals(&mut trie.rt, &mut test);
+            vals(trie.rt.aq_mut(), &mut test);
 
             let proof = vec![1, 2];
             assert_eq!(proof, test);
@@ -1143,7 +1143,7 @@ mod tests_of_units {
 
             let mut test = Vec::new();
 
-            vals(&mut trie.rt, &mut test);
+            vals(trie.rt.aq_mut(), &mut test);
             assert_eq!(entries.len(), test.len());
 
             for zip in entries.iter().zip(test.iter()) {
@@ -1174,7 +1174,7 @@ mod tests_of_units {
 
             let mut test = Vec::new();
 
-            vals(&mut trie.rt, &mut test);
+            vals(trie.rt.aq_mut(), &mut test);
             assert_eq!(paths.len(), test.len());
 
             for zip in paths.iter().zip(test.iter()) {
@@ -1204,7 +1204,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            keys(&trie.rt, &mut buff, re, &mut test);
+            keys(trie.rt.aq_ref(), &mut buff, re, &mut test);
 
             let proof = vec![String::from("a"), String::from("z")];
             assert_eq!(proof, test);
@@ -1232,7 +1232,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            keys(&trie.rt, &mut buff, re, &mut test);
+            keys(trie.rt.aq_ref(), &mut buff, re, &mut test);
             assert_eq!(entries.len(), test.len());
 
             for zip in entries.iter().zip(test.iter()) {
@@ -1264,7 +1264,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            keys(&trie.rt, &mut buff, re, &mut test);
+            keys(trie.rt.aq_ref(), &mut buff, re, &mut test);
             assert_eq!(paths.len(), test.len());
 
             for zip in paths.iter().zip(test.iter()) {
@@ -1294,7 +1294,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            view(&trie.rt, &mut buff, re, &mut test);
+            view(trie.rt.aq_ref(), &mut buff, re, &mut test);
 
             let proof = vec![(String::from("a"), &a_entry), (String::from("z"), &z_entry)];
             assert_eq!(proof, test);
@@ -1322,7 +1322,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            view(&trie.rt, &mut buff, re, &mut test);
+            view(trie.rt.aq_ref(), &mut buff, re, &mut test);
 
             assert_eq!(entries, test);
         }
@@ -1351,7 +1351,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            view(&trie.rt, &mut buff, re, &mut test);
+            view(trie.rt.aq_ref(), &mut buff, re, &mut test);
 
             assert_eq!(paths, test);
         }
@@ -1378,7 +1378,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            view_mut(&mut trie.rt, &mut buff, re, &mut test);
+            view_mut(trie.rt.aq_mut(), &mut buff, re, &mut test);
 
             let proof = vec![
                 (String::from("a"), &mut a_entry),
@@ -1409,7 +1409,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            view_mut(&mut trie.rt, &mut buff, re, &mut test);
+            view_mut(trie.rt.aq_mut(), &mut buff, re, &mut test);
 
             assert_eq!(entries.len(), test.len());
             for (ix, e) in entries.iter_mut().enumerate() {
@@ -1443,7 +1443,7 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            view_mut(&mut trie.rt, &mut buff, re, &mut test);
+            view_mut(trie.rt.aq_mut(), &mut buff, re, &mut test);
 
             assert_eq!(paths.len(), test.len());
             for (ix, p) in paths.iter_mut().enumerate() {
@@ -1474,7 +1474,7 @@ mod tests_of_units {
             _ = trie.ins(z(), z_entry);
 
             let buff = String::new();
-            let rt = &mut trie.rt;
+            let rt = trie.rt.aq_mut();
 
             let iter = IterMut {
                 ab: rt.as_mut_ptr(),
@@ -1526,7 +1526,7 @@ mod tests_of_units {
             }
 
             let buff = String::new();
-            let rt = &mut trie.rt;
+            let rt = trie.rt.aq_mut();
 
             let iter = IterMut {
                 ab: rt.as_mut_ptr(),
@@ -1573,7 +1573,7 @@ mod tests_of_units {
 
             let buff = String::new();
 
-            let rt = &mut trie.rt;
+            let rt = trie.rt.aq_mut();
 
             let iter = IterMut {
                 ab: rt.as_mut_ptr(),
@@ -2617,7 +2617,7 @@ mod tests_of_units {
             let trie = Trie::<usize>::new();
 
             let as_ref = address(trie.as_ref());
-            let proof = address(&trie.rt);
+            let proof = address(trie.rt.aq_ref());
 
             assert_eq!(as_ref, proof);
         }
@@ -2627,7 +2627,7 @@ mod tests_of_units {
             let mut trie = Trie::<usize>::new();
 
             let as_mut = address(trie.as_mut());
-            let proof = address(&trie.rt);
+            let proof = address(trie.rt.aq_ref());
 
             assert_eq!(as_mut, proof);
         }
