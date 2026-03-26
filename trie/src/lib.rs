@@ -337,6 +337,7 @@ pub struct Toter<T> {
 }
 
 impl<T> Iterator for Toter<T> {
+    /// [`Take`] extraction.
     type Item = Take<T>;
 
     /// Returns [`Take`] one by one in alphabetic order given by [`Re`] function.
@@ -422,9 +423,12 @@ impl<T> Iterator for Toter<T> {
 const KEY_BUFF_CAP: usize = 1000;
 
 impl<T> IntoIterator for Trie<T> {
+    /// [`Take`] extraction.
     type Item = Take<T>;
+    /// [`Toter`] extracting iterator.
     type IntoIter = Toter<T>;
 
+    /// Consumes [`Trie`] and creates [`Toter`] extracting iterator.
     fn into_iter(self) -> Toter<T> {
         let rt = self.rt.0.into_inner();
         let rt_len = rt.len();
