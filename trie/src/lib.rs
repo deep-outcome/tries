@@ -65,6 +65,9 @@ pub type SightMut<'a, T> = (String, &'a mut T);
 /// 'Viewable' key-entry duo type.
 pub type Sight<'a, T> = (String, &'a T);
 
+/// Key-entry duo type.
+pub type Take<T> = (String, T);
+
 /// Alphabet function, tree arms generation of length specified.
 fn ab<T>(len: usize) -> Alphabet<T> {
     let mut ab = Vec::new();
@@ -92,7 +95,7 @@ fn ab<T>(len: usize) -> Alphabet<T> {
 // SC: ϴ(s) for small sized Ts or ϴ(s +n ⋅`size_of<T>`) ⇒ ϴ(s +n), n = nodes count, s = key lengths sum
 // to lower estimation add most notably unpredictable count of string clonings
 // and buffers capacity-reallocations
-fn ext<T>(ab: &mut Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<(String, T)>) {
+fn ext<T>(ab: &mut Alphabet<T>, buff: &mut String, re: Re, o: &mut Vec<Take<T>>) {
     let mut ix = 0;
     for letter in ab.iter_mut() {
         buff.push(re(ix));
@@ -215,7 +218,7 @@ pub struct Iter<'a, T> {
 impl<'a, T> Iterator for Iter<'a, T> {
     type Item = Sight<'a, T>;
 
-    /// Returns [`Sight`] one by one in alphabetic order given by [`Re`] function.    
+    /// Returns [`Sight`] one by one in alphabetic order given by [`Re`] function.
     ///
     /// Returns [`None`] when exhausted and for empty [`Trie`].
     fn next(&mut self) -> Option<Sight<'a, T>> {
@@ -242,7 +245,7 @@ pub struct IterMut<'a, T> {
 impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = SightMut<'a, T>;
 
-    /// Returns [`SightMut`] one by one in alphabetic order given by [`Re`] function.    
+    /// Returns [`SightMut`] one by one in alphabetic order given by [`Re`] function.
     ///
     /// Returns [`None`] when exhausted and for empty [`Trie`].
     fn next(&mut self) -> Option<SightMut<'a, T>> {
@@ -319,6 +322,124 @@ impl<'a, T> Iterator for IterMut<'a, T> {
         }
 
         return None;
+    }
+}
+
+/// Extracting iterator of key-entry duos of tree.
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct Toter<T> {
+    ab: Alphabet<T>,
+    ab_len: usize,
+    buff: Option<String>,
+    re: Re,
+    ix: usize,
+    sub: Option<Box<Toter<T>>>,
+}
+
+impl<T> Iterator for Toter<T> {
+    type Item = Take<T>;
+
+    /// Returns [`Take`] one by one in alphabetic order given by [`Re`] function.
+    ///
+    /// Returns [`None`] when exhausted and for empty [`Trie`].
+    fn next(&mut self) -> Option<Take<T>> {
+        if let Some(s) = self.sub.as_mut() {
+            let res = s.next();
+            if res.is_some() {
+                return res;
+            } else {
+                assert_eq!(true, s.buff.is_some());
+                let mut buff = unsafe { s.buff.take().unwrap_unchecked() };
+                _ = buff.pop();
+
+                self.sub = None;
+                self.buff = Some(buff);
+            }
+        }
+
+        let re = self.re;
+        let ab_len = self.ab_len;
+        let ab = &mut self.ab;
+
+        loop {
+            let ix = self.ix;
+            if ix == ab_len {
+                break;
+            }
+
+            self.ix = ix + 1;
+
+            #[cfg(test)]
+            assert_eq!(true, self.buff.is_some());
+            let buff = unsafe { self.buff.as_mut().unwrap_unchecked() };
+            buff.push(re(ix as usize));
+
+            let letter = &mut ab[ix];
+
+            let res = if let Some(r) = letter.en.take() {
+                let key = buff.clone();
+                Some((key, r))
+            } else {
+                None
+            };
+
+            // branching node
+            let mut bn = false;
+            if let Some(ab) = letter.ab.take() {
+                #[cfg(test)]
+                assert_eq!(true, self.buff.is_some());
+                let buff = unsafe { self.buff.take().unwrap_unchecked() };
+                let sub = Toter {
+                    ab,
+                    ab_len,
+                    buff: Some(buff),
+                    re,
+                    ix: 0,
+                    sub: None,
+                };
+
+                self.sub = Some(Box::new(sub));
+                bn = true;
+            } else {
+                _ = buff.pop();
+            }
+
+            if res.is_some() {
+                return res;
+            } else if bn {
+                #[cfg(test)]
+                assert_eq!(true, self.sub.is_some());
+                let sub = unsafe { self.sub.as_mut().unwrap_unchecked() };
+                return sub.next();
+            }
+        }
+
+        return None;
+    }
+}
+
+// capacity is prebuffered to 1000
+const KEY_BUFF_CAP: usize = 1000;
+
+impl<T> IntoIterator for Trie<T> {
+    type Item = Take<T>;
+    type IntoIter = Toter<T>;
+
+    fn into_iter(self) -> Toter<T> {
+        let rt = self.rt.0.into_inner();
+        let rt_len = rt.len();
+
+        // capacity is prebuffered
+        let buff = String::with_capacity(KEY_BUFF_CAP);
+
+        Toter {
+            ab: rt,
+            ab_len: rt_len,
+            buff: Some(buff),
+            re: self.re,
+            ix: 0,
+            sub: None,
+        }
     }
 }
 
@@ -452,7 +573,7 @@ impl<T> Trie<T> {
     ///    }
     /// }
     ///
-    ///   
+    ///
     /// fn re(i: usize) -> char {
     ///     match i {
     ///         0 => '&',
@@ -723,14 +844,14 @@ impl<T> Trie<T> {
     ///
     /// - TC: Ω(n).
     /// - SC: ϴ(s) for small sized Ts or ϴ(s +n).
-    pub fn ext(&mut self) -> Option<Vec<(String, T)>> {
+    pub fn ext(&mut self) -> Option<Vec<Take<T>>> {
         let ct = self.ct;
         if ct == 0 {
             return None;
         }
 
-        // capacity is prebuffered to 1000
-        let mut buff = String::with_capacity(1000);
+        // capacity is prebuffered
+        let mut buff = String::with_capacity(KEY_BUFF_CAP);
 
         let mut res = Vec::new();
         res.reserve_exact(ct);
@@ -780,8 +901,8 @@ impl<T> Trie<T> {
             return None;
         }
 
-        // capacity is prebuffered to 1000
-        let mut buff = String::with_capacity(1000);
+        // capacity is prebuffered
+        let mut buff = String::with_capacity(KEY_BUFF_CAP);
 
         let mut res = Vec::new();
         res.reserve_exact(ct);
@@ -805,8 +926,8 @@ impl<T> Trie<T> {
             return None;
         }
 
-        // capacity is prebuffered to 1000
-        let mut buff = String::with_capacity(1000);
+        // capacity is prebuffered
+        let mut buff = String::with_capacity(KEY_BUFF_CAP);
 
         let mut res = Vec::new();
         res.reserve_exact(ct);
@@ -829,8 +950,8 @@ impl<T> Trie<T> {
             return None;
         }
 
-        // capacity is prebuffered to 1000
-        let mut buff = String::with_capacity(1000);
+        // capacity is prebuffered
+        let mut buff = String::with_capacity(KEY_BUFF_CAP);
 
         let mut res = Vec::new();
         res.reserve_exact(ct);
@@ -846,8 +967,8 @@ impl<T> Trie<T> {
         let rt = self.rt.promote();
         let rt_len = rt.len();
 
-        // capacity is prebuffered to 1000
-        let buff = String::with_capacity(1000);
+        // capacity is prebuffered
+        let buff = String::with_capacity(KEY_BUFF_CAP);
 
         let iter = IterMut {
             ab: rt.as_mut_ptr(),
@@ -869,8 +990,8 @@ impl<T> Trie<T> {
         let rt = self.rt.aq_mut();
         let rt_len = rt.len();
 
-        // capacity is prebuffered to 1000
-        let buff = String::with_capacity(1000);
+        // capacity is prebuffered
+        let buff = String::with_capacity(KEY_BUFF_CAP);
 
         IterMut {
             ab: rt.as_mut_ptr(),
@@ -1593,6 +1714,170 @@ mod tests_of_units {
                 assert_eq!(p.0, t.0);
                 assert_eq!(&mut p.1, t.1);
             }
+        }
+    }
+
+    mod into_iter {
+        use crate::english_letters::re;
+        use crate::{Take, Toter, Trie};
+        use std::iter::IntoIterator;
+
+        #[test]
+        fn basic_test() {
+            let mut trie = Trie::new();
+
+            let a = || "a".chars();
+            let z = || "z".chars();
+
+            let a_entry = 1;
+            let z_entry = 2;
+
+            _ = trie.ins(a(), a_entry);
+            _ = trie.ins(z(), z_entry);
+
+            let buff = String::new();
+            let rt = trie.rt.0.into_inner();
+            let rt_len = rt.len();
+
+            let iter = Toter {
+                ab: rt,
+                ab_len: rt_len,
+                buff: Some(buff),
+                re,
+                ix: 0,
+                sub: None,
+            };
+
+            let test = iter.collect::<Vec<Take<isize>>>();
+
+            let proof = vec![(String::from("a"), a_entry), (String::from("z"), z_entry)];
+            assert_eq!(proof, test);
+        }
+
+        #[test]
+        fn specific_traits() {
+            let mut trie = Trie::new();
+
+            let mut entries = vec![
+                // has entry and branch
+                (String::from("a"), 10),
+                (String::from("az"), 20),
+                (String::from("azqq"), 30),
+                (String::from("aa"), 40),
+                (String::from("aaz"), 50),
+                (String::from("aazqq"), 60),
+                // has entry
+                (String::from("b"), 70),
+                (String::from("cc"), 80),
+                (String::from("ddd"), 90),
+                // has branch
+                (String::from("e"), 100),
+                (String::from("eee"), 110),
+                (String::from("eff"), 120),
+                (String::from("effee"), 125),
+                (String::from("eeeff"), 130),
+                (String::from("effeee"), 140),
+                (String::from("eefffff"), 150),
+            ];
+
+            for e in entries.iter() {
+                _ = trie.ins(e.0.chars(), e.1);
+            }
+
+            let buff = String::new();
+            let rt = trie.rt.0.into_inner();
+            let rt_len = rt.len();
+
+            let iter = Toter {
+                ab: rt,
+                ab_len: rt_len,
+                buff: Some(buff),
+                re,
+                ix: 0,
+                sub: None,
+            };
+
+            let test = iter.collect::<Vec<Take<isize>>>();
+            assert_eq!(entries.len(), test.len());
+
+            entries.sort_by_key(|x| x.0.clone());
+
+            for (ix, e) in entries.iter_mut().enumerate() {
+                let t = &test[ix];
+                assert_eq!(e.0, t.0);
+                assert_eq!(e.1, t.1);
+            }
+        }
+
+        #[test]
+        fn in_depth_recursion() {
+            let mut trie = Trie::new();
+
+            let mut paths = vec![
+                (String::from("a"), 9),
+                (String::from("aa"), 13),
+                (String::from("azbq"), 11),
+                (String::from("by"), 329),
+                (String::from("ybc"), 7),
+                (String::from("ybcrqutmop"), 33),
+                (String::from("ybcrqutmopfvb"), 99),
+                (String::from("ybcrqutmoprfg"), 80),
+                (String::from("ybxr"), 53),
+                (String::from("zazazazazabyyb"), 55),
+            ];
+
+            for p in paths.iter() {
+                _ = trie.ins(p.0.chars(), p.1);
+            }
+
+            let buff = String::new();
+
+            let rt = trie.rt.0.into_inner();
+            let rt_len = rt.len();
+
+            let iter = Toter {
+                ab: rt,
+                ab_len: rt_len,
+                buff: Some(buff),
+                re,
+                ix: 0,
+                sub: None,
+            };
+
+            let test = iter.collect::<Vec<Take<isize>>>();
+            assert_eq!(paths.len(), test.len());
+
+            for (ix, p) in paths.iter_mut().enumerate() {
+                let t = &test[ix];
+                assert_eq!(p.0, t.0);
+                assert_eq!(p.1, t.1);
+            }
+        }
+
+        #[test]
+        fn into_iter() {
+            let mut trie = Trie::new();
+
+            let a = || "a".chars();
+            let z = || "z".chars();
+
+            let a_entry = 1;
+            let z_entry = 2;
+
+            _ = trie.ins(a(), a_entry);
+            _ = trie.ins(z(), z_entry);
+
+            let iter = trie.into_iter();
+            let test = iter.collect::<Vec<Take<isize>>>();
+
+            let proof = vec![(String::from("a"), a_entry), (String::from("z"), z_entry)];
+            assert_eq!(proof, test);
+        }
+
+        #[test]
+        fn empty_tree() {
+            let trie = Trie::<usize>::new();
+            assert_eq!(None, trie.into_iter().next());
         }
     }
 
