@@ -4,6 +4,7 @@
 
 use std::{cmp::min, collections::hash_map::HashMap, ops::Deref};
 
+mod aide;
 mod uc;
 use uc::UC;
 
@@ -459,8 +460,8 @@ impl Poetrie {
     }
 
     fn clr_f_buffs(&self) {
-        self.bra.get_mut().clear();
-        self.buf.get_mut().clear();
+        self.bra.promote().clear();
+        self.buf.promote().clear();
     }
 
     /// Use to remove entry from tree.
@@ -480,7 +481,7 @@ impl Poetrie {
             false
         };
 
-        self.btr.get_mut().clear();
+        self.btr.clear();
         res
     }
 
@@ -571,12 +572,12 @@ impl Poetrie {
 
         let sub_e = mc.sub_e;
 
-        let branching = self.bra.get_mut();
+        let branching = self.bra.promote();
         let mut disjunct_hit = false;
 
         let mut find = Vec::with_capacity(100);
 
-        let buff = self.buf.get_mut();
+        let buff = self.buf.promote();
         let mut buf_l;
         let mut max_l_accord;
 
@@ -750,7 +751,7 @@ impl Poetrie {
 
     fn track(&self, entry: &Key, trace: bool) -> TraRes {
         let mut node = &self.root;
-        let btr = self.btr.get_mut();
+        let btr = self.btr.promote();
 
         if trace {
             btr.push((NULL, node.to_mut_ptr()));
@@ -1904,8 +1905,8 @@ mod tests_of_units {
         fn clr_f_buffers() {
             let poetrie = Poetrie::nw();
 
-            let bra = poetrie.bra.get_mut();
-            let buf = poetrie.buf.get_mut();
+            let bra = poetrie.bra.promote();
+            let buf = poetrie.buf.promote();
 
             bra.push((ptr::null(), 0, ptr::null()));
             buf.push('\0');
@@ -4739,7 +4740,7 @@ mod tests_of_units {
                 let keyword_e = &entries[2].entry();
                 _ = poetrie.track(keyword_e, true);
 
-                let trace = &poetrie.btr;
+                let trace = poetrie.btr.promote();
                 let proof = format!("{}{}", NULL, keyword);
                 for (ix, c) in proof.chars().enumerate() {
                     let duo = trace[ix];
@@ -4752,7 +4753,7 @@ mod tests_of_units {
                     assert_eq!(true, node.entry, "c: {c}, e: {}", **e);
                 }
 
-                poetrie.btr.get_mut().clear();
+                trace.clear();
                 _ = poetrie.track(keyword_e, false);
                 assert_eq!(0, trace.len());
             }
@@ -4813,8 +4814,8 @@ mod tests_of_units {
 
             _ = poetrie.it(&keyentry);
             let cap = 50;
-            poetrie.btr.get_mut().reserve(cap);
-            poetrie.buf.get_mut().reserve(cap);
+            poetrie.btr.reserve(cap);
+            poetrie.buf.reserve(cap);
 
             assert_eq!(1, poetrie.cr());
             assert_eq!(false, poetrie.ey(&keyentry));
