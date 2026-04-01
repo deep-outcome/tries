@@ -1,4 +1,5 @@
 - pay attention to hidden relations
+- validate readme
 - check whether is possible to merge extending into branching
 - add full case-insensitive support to find 
     - 9d0b9fbfc74aee6aed1fc4af9b5982107695ddaa

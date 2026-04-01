@@ -9,7 +9,7 @@ Poetrie means poetic trie. Poetrie is designated for searching common suffixes o
 Note configuration to match behavior communicated via `MatchConduct` structure.
 
 ```rust
-let mut poetrie = Poetrie::nw();
+ let mut poetrie = Poetrie::nw();
 let words = [
     "analytics",
     "metrics",
@@ -26,11 +26,11 @@ for w in words {
     poetrie.it(&w);
 }
 
-let mc = MatchConductWith::init()
-    .with_max_n(usize::MAX) // unlimited matches count
-    .with_max_sl(3) // only 'ics' or less but not '…rics'
-    .with_max_ml(8) // only 8 or less length matches
-    .with()
+let mc = MatchConductShaper::init()
+    .max_n(usize::MAX) // unlimited matches count
+    .max_sl(3) // only 'ics' or less but not '…rics'
+    .max_ml(8) // only 8 or less length matches
+    .sculpt()
     .unwrap();
 
 let probe = Entry::new_from_str("lyrics").unwrap();

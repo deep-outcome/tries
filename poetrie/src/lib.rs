@@ -81,17 +81,17 @@ fn push_match(c: &[char], f: &mut Find, l: usize) -> bool {
     f.len() == l
 }
 
-/// `Entry` alias for using in key role.
+/// [`Entry`] alias for using in key role.
 pub type Key<'a> = Entry<'a>;
 
-/// `&str` validated for usage with `Poetrie`.
+/// [`&str`] validated for usage with [`Poetrie`].
 #[derive(Clone, PartialEq, Debug)]
 pub struct Entry<'a>(&'a str);
 
 impl<'a> Entry<'a> {
-    /// Constructor for `Entry<'a>`.
+    /// Constructor for `Entry`.
     ///
-    /// Return value is `None` for 0-length `str`.
+    /// Return value is [`None`] for 0-length [`str`].
     pub const fn new_from_str(entry: &'a str) -> Option<Self> {
         if entry.len() == 0 {
             None
@@ -114,7 +114,7 @@ impl<'a> Deref for Entry<'a> {
 pub enum ReqErr {
     /// Matches can be limited to one at least.
     ZeroMaxMatches,
-    /// Suffix match is posed by at least one `char` match.
+    /// Suffix match is posed by at least one [`char`] match.
     ZeroMinSufLen,
     /// Maximal suffix match length cannot be less than minimal.
     SufLenMaxLessThanMin,
@@ -166,7 +166,7 @@ impl MatchConduct {
     /// - `max_ml` – maximal match length.
     /// - `sub_e` – sub-entries inclusion flag.
     ///
-    /// Every parameter provided with `None` will use default as expressed at [`MatchConduct::default`].
+    /// Every parameter provided with [`None`] will use default as expressed at [`MatchConduct::default`].
     ///
     /// Inputs are validated for various conditions in non-exhaustive plan, first
     /// error encountered is returned. See [`ReqErr`] for details.
@@ -255,74 +255,74 @@ impl MatchConduct {
     }
 }
 
-/// Chain-of-adjustments refining type.
+/// Chain-of-adjustments refining type, [`MatchConduct`] configurator.
 ///
-/// Use various _with_ methods to adjust [`MatchConduct`]
+/// Use various methods provided to adjust [`MatchConduct`]
 /// values as desired.
 ///
 /// Check with [`MatchConduct::new`] for detailed explanation.
 ///
 /// ```
-/// use poetrie::{MatchConductWith, MatchConduct};
+/// use poetrie::{MatchConductShaper, MatchConduct};
 ///
-/// let mut chain = MatchConductWith::init();
-/// _ = chain.with_max_n(10).with_max_ml(8);
+/// let mut chain = MatchConductShaper::init();
+/// _ = chain.max_n(10).max_ml(8);
 ///
-/// let mc: MatchConduct = chain.with().unwrap();
+/// let mc: MatchConduct = chain.sculpt().unwrap();
 #[derive(Debug, Clone, PartialEq)]
-pub struct MatchConductWith(MatchConduct);
+pub struct MatchConductShaper(MatchConduct);
 
-impl MatchConductWith {
-    /// Use to construct new `MatchConductWith` instance.
+impl MatchConductShaper {
+    /// Use to construct new `MatchConductShaper` instance.
     ///
     /// Constructed with [`MatchConduct::default()`] as initial value.
     ///
-    /// Check with [`MatchConductWith::with`] for more details.
-    pub fn init() -> MatchConductWith {
+    /// Check with [`MatchConductShaper::sculpt`] for more details.
+    pub fn init() -> MatchConductShaper {
         Self(MatchConduct::default())
     }
 
     /// Use to adjust matches limit.
-    pub fn with_max_n(&mut self, max_n: usize) -> &mut Self {
+    pub fn max_n(&mut self, max_n: usize) -> &mut Self {
         self.0.max_n = max_n;
         self
     }
 
     /// Use to adjust minimal suffix match length.
-    pub fn with_min_sl(&mut self, min_sl: usize) -> &mut Self {
+    pub fn min_sl(&mut self, min_sl: usize) -> &mut Self {
         self.0.min_sl = min_sl;
         self
     }
 
     /// Use to adjust maximal suffix match length.
-    pub fn with_max_sl(&mut self, max_sl: usize) -> &mut Self {
+    pub fn max_sl(&mut self, max_sl: usize) -> &mut Self {
         self.0.max_sl = max_sl;
         self
     }
 
     /// Use to adjust extra match length requirement.
-    pub fn with_ext_ml(&mut self, ext_ml: usize) -> &mut Self {
+    pub fn ext_ml(&mut self, ext_ml: usize) -> &mut Self {
         self.0.ext_ml = ext_ml;
         self
     }
 
     /// Use to adjust maximal match length.
-    pub fn with_max_ml(&mut self, max_ml: usize) -> &mut Self {
+    pub fn max_ml(&mut self, max_ml: usize) -> &mut Self {
         self.0.max_ml = max_ml;
         self
     }
 
     /// Use to adjust sub-entries inclusion flag.
-    pub fn with_sub_e(&mut self, sub_e: bool) -> &mut Self {
+    pub fn sub_e(&mut self, sub_e: bool) -> &mut Self {
         self.0.sub_e = sub_e;
         self
     }
 
-    /// Use to validate `MatchConduct` instance.
+    /// Use to validate and obtain [`MatchConduct`] instance.
     ///
-    /// Return value is `Result` with either valid `MatchConduct`
+    /// Return value is [`Result`] with either valid [`MatchConduct`]
     /// instance or with [`ReqErr`] error information.
-    pub fn with(&self) -> Result<MatchConduct, ReqErr> {
+    pub fn sculpt(&self) -> Result<MatchConduct, ReqErr> {
         if let Some(e) = MatchConduct::val(&self.0) {
             Err(e)
         } else {
@@ -365,8 +365,8 @@ impl Poetrie {
 
     /// Use for entry insertions into tree.
     ///
-    /// Return value is `true` if entry was inserted into tree,
-    /// `false` if it was present already.
+    /// Return value is [`true`] if entry was inserted into tree,
+    /// [`false`] if it was present already.
     pub fn it(&mut self, entry: &Entry) -> bool {
         let mut node = &mut self.root;
         let mut chars = entry.chars();
@@ -392,7 +392,7 @@ impl Poetrie {
 
     /// Use to verify entry presence in tree.
     ///
-    /// Return value is `true` if entry is present in tree, `false` otherwise.
+    /// Return value is [`true`] if entry is present in tree, [`false`] otherwise.
     pub fn ey(&self, key: &Key) -> bool {
         let res = self.track(key, false);
 
@@ -412,10 +412,10 @@ impl Poetrie {
     /// - Key shares partially its suffix with other word, like _parade_ with _charade_.
     /// - Key itself is suffix to some entry, like _ant_ to _blatant_.
     ///
-    /// By obvious means minimal suffix match length is 1 `char`.
+    /// By obvious means minimal suffix match length is 1 [`char`].
     ///
     /// Use `mc` to express matching behavior adjustments. Check with [`MatchConduct::new()`]
-    /// or [`MatchConductWith`] for details.
+    /// or [`MatchConductShaper`] for details.
     ///
     /// For instance, having _password_ as key, _word_ sounds weird as rhyme, so
     /// subentries should be avoided. However, similar applies to other words, e.g.
@@ -437,14 +437,14 @@ impl Poetrie {
     /// rhyming only because _e_ ending. Use minimal suffix match length to overcome unsound match.
     ///
     /// ```
-    /// use poetrie::{MatchConductWith, MatchConduct};
+    /// use poetrie::{MatchConductShaper, MatchConduct};
     ///
-    /// let mut with = MatchConductWith::init();
-    /// with
-    ///    .with_min_sl(3).with_max_sl(5).with_ext_ml(1)
-    ///    .with_max_ml(10).with_sub_e(false).with_max_n(15);
+    /// let mut shaper = MatchConductShaper::init();
+    /// shaper
+    ///    .min_sl(3).max_sl(5).ext_ml(1)
+    ///    .max_ml(10).sub_e(false).max_n(15);
     ///
-    /// let mc: MatchConduct = with.with().unwrap();
+    /// let mc: MatchConduct = shaper.sculpt().unwrap();
     /// ```
     pub fn sx(&self, key: &Key, mc: &MatchConduct) -> Result<Vec<String>, FindErr> {
         let res = self.find(
@@ -466,7 +466,7 @@ impl Poetrie {
 
     /// Use to remove entry from tree.
     ///
-    /// Return value is `true` if entry was removed, `false` if it was not present.
+    /// Return value is [`true`] if entry was removed, [`false`] if it was not present.
     pub fn re(&mut self, entry: &Entry) -> bool {
         let tra_res = self.track(entry, true);
         let res = if let TraRes::Ok = tra_res {
@@ -801,7 +801,7 @@ impl Poetrie {
     ///
     /// Extraction is alphabetically unordered. Leaves tree intact.
     ///
-    /// Return value is `None` for empty `Poetrie`.
+    /// Return value is [`None`] for empty `Poetrie`.
     pub fn et(&mut self) -> Option<Vec<String>> {
         if self.cnt == 0 {
             return None;
@@ -1651,20 +1651,20 @@ mod tests_of_units {
         }
     }
 
-    mod with_match_conduct {
-        use crate::{MatchConduct, MatchConductWith, mc_defaults};
+    mod match_conduct_shaper {
+        use crate::{MatchConduct, MatchConductShaper, mc_defaults};
 
         #[test]
         fn basic_test() {
-            let mut with = MatchConductWith::init();
-            let test = with
-                .with_max_n(11)
-                .with_min_sl(33)
-                .with_max_sl(55)
-                .with_ext_ml(22)
-                .with_max_ml(77)
-                .with_sub_e(true)
-                .with();
+            let mut shaper = MatchConductShaper::init();
+            let test = shaper
+                .max_n(11)
+                .min_sl(33)
+                .max_sl(55)
+                .ext_ml(22)
+                .max_ml(77)
+                .sub_e(true)
+                .sculpt();
 
             let proof = MatchConduct {
                 max_n: 11,
@@ -1681,15 +1681,15 @@ mod tests_of_units {
 
         #[test]
         fn default() {
-            let with = MatchConductWith::init();
+            let shaper = MatchConductShaper::init();
 
-            assert_eq!(MatchConduct::default(), with.0);
+            assert_eq!(MatchConduct::default(), shaper.0);
         }
 
         #[test]
         fn validation() {
-            let mut with = MatchConductWith::init();
-            let err = with.with_max_n(0).with();
+            let mut shaper = MatchConductShaper::init();
+            let err = shaper.max_n(0).sculpt();
 
             assert_eq!(true, err.is_err());
         }
@@ -4922,7 +4922,7 @@ mod tests_of_units {
     }
 
     mod readme {
-        use crate::{Entry, FindErr, MatchConduct, MatchConductWith, Poetrie};
+        use crate::{Entry, FindErr, MatchConduct, MatchConductShaper, Poetrie};
         use std::collections::HashSet;
 
         #[test]
@@ -4944,11 +4944,11 @@ mod tests_of_units {
                 poetrie.it(&w);
             }
 
-            let mc = MatchConductWith::init()
-                .with_max_n(usize::MAX) // unlimited matches count
-                .with_max_sl(3) // only 'ics' or less but not '…rics'
-                .with_max_ml(8) // only 8 or less length matches
-                .with()
+            let mc = MatchConductShaper::init()
+                .max_n(usize::MAX) // unlimited matches count
+                .max_sl(3) // only 'ics' or less but not '…rics'
+                .max_ml(8) // only 8 or less length matches
+                .sculpt()
                 .unwrap();
 
             let probe = Entry::new_from_str("lyrics").unwrap();
