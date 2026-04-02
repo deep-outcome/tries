@@ -347,15 +347,16 @@ impl<T> Trie<T> {
     /// Returned set can be overcapacitated, i.e. its capacity
     /// will not be shrunken according to its length.
     pub fn ext(&mut self) -> Option<Vec<(String, T)>> {
-        if self.cnt == 0 {
+        let cnt = self.cnt;
+        if cnt == 0 {
             return None;
         }
 
         // capacity is prebuffered to 1000
         let mut buff = String::with_capacity(1000);
 
-        // capacity is prebuffered to 1000
-        let mut res = Vec::with_capacity(1000);
+        let mut res = Vec::new();
+        res.reserve_exact(cnt);
 
         let rl = unsafe { self.root.branches.as_mut().unwrap_unchecked() };
         ext(rl, &mut buff, &mut res);
@@ -375,15 +376,16 @@ impl<T> Trie<T> {
     /// Returned set can be overcapacitated, i.e. its capacity
     /// will not be shrunken according to its length.
     pub fn view(&self) -> Option<Vec<(String, &T)>> {
-        if self.cnt == 0 {
+        let cnt = self.cnt;
+        if cnt == 0 {
             return None;
         }
 
         // capacity is prebuffered to 1000
         let mut buff = String::with_capacity(1000);
 
-        // capacity is prebuffered to 1000
-        let mut res = Vec::with_capacity(1000);
+        let mut res = Vec::new();
+        res.reserve_exact(cnt);
 
         let rl = unsafe { self.root.branches.as_ref().unwrap_unchecked() };
         view(rl, &mut buff, &mut res);
@@ -1305,12 +1307,13 @@ mod tests_of_units {
                 assert_eq!(true, ext.is_some());
                 let mut ext = ext.unwrap();
 
-                assert_eq!(proof.len(), ext.len());
+                let proof_len = proof.len();
+                assert_eq!(proof_len, ext.len());
 
                 ext.sort_by_key(|x| x.0.clone());
                 assert_eq!(proof, ext);
 
-                assert_eq!(true, ext.capacity() >= 1000);
+                assert_eq!(true, ext.capacity() >= proof_len);
 
                 for p in proof.iter() {
                     assert_eq!(Err(KeyErr::Unknown), trie.acq(p.0.chars()));
@@ -1353,12 +1356,13 @@ mod tests_of_units {
                 assert_eq!(true, view.is_some());
                 let mut view = view.unwrap();
 
-                assert_eq!(proof.len(), view.len());
+                let proof_len = proof.len();
+                assert_eq!(proof_len, view.len());
 
                 view.sort_by_key(|x| x.0.clone());
                 assert_eq!(proof, view);
 
-                assert_eq!(true, view.capacity() >= 1000);
+                assert_eq!(true, view.capacity() >= proof_len);
 
                 for p in proof.iter() {
                     assert_eq!(Ok(p.1), trie.acq(p.0.chars()));
