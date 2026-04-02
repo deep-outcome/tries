@@ -7,6 +7,8 @@
 - check with poetries' general note
 - check with devnotes (devnote:)
 - merge key into match conduct (idea: do not make search if is not possible to satisfy mc with key)
+- expose internal buffers (?: as ptr, raw, mut/ref)
+- iter +IntoIter
 
 
 👍 custom letter equalizer; develop as separate "amplifier":

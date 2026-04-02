@@ -1,8 +1,5 @@
-- easy
-    ▪ expose internal buffers (?: as ptr, raw, mut/ref)
-
 - poetrie
-    ▪ customs equalizer (e.g. t =d, s =z, [x =eks (?)])
+    ▪ customs equalizer (e.g. t =d, s =z, [x =eks (?)]), the pamp
     ▪ update readme with pamp info
 
 - opts
@@ -12,4 +9,6 @@
     - lr_trie
         ▪ ext_side method
         ▪ iter +into iter
-    ▪ reduce memory demands by raw pointers (fruitfull?)
+    ▪ reduce memory demands:
+        - by layouting (archicture penalization!, complicated)
+        - arms reduction
