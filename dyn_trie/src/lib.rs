@@ -65,6 +65,9 @@ pub struct Trie<T> {
     cnt: usize,
 }
 
+// capacity is prebuffered to 1000
+const KEY_BUFF_CAP: usize = 1000;
+
 const NULL: char = '\0';
 impl<T> Trie<T> {
     /// Ctor.
@@ -352,8 +355,7 @@ impl<T> Trie<T> {
             return None;
         }
 
-        // capacity is prebuffered to 1000
-        let mut buff = String::with_capacity(1000);
+        let mut buff = String::with_capacity(KEY_BUFF_CAP);
 
         let mut res = Vec::new();
         res.reserve_exact(cnt);
@@ -381,8 +383,7 @@ impl<T> Trie<T> {
             return None;
         }
 
-        // capacity is prebuffered to 1000
-        let mut buff = String::with_capacity(1000);
+        let mut buff = String::with_capacity(KEY_BUFF_CAP);
 
         let mut res = Vec::new();
         res.reserve_exact(cnt);
