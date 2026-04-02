@@ -9,7 +9,7 @@ Poetrie means poetic trie. Poetrie is designated for searching common suffixes o
 Note configuration to match behavior communicated via `MatchConduct` structure.
 
 ```rust
- let mut poetrie = Poetrie::nw();
+let mut poetrie = Poetrie::nw();
 let words = [
     "analytics",
     "metrics",
