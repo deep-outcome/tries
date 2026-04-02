@@ -3,9 +3,9 @@
 
 - opts
     - dyn+trie
-        ▪ keys and values (complement to ext method)
-        ▪ view_mut methods
+        ▪ keys, values, view_mut methods
+        ▪ iter, iter_mut, IntoIter
     - lr_trie
         ▪ ext_side method
+        ▪ iter +into iter
     ▪ reduce memory demands by raw pointers (fruitfull?)
-    ▪ ext & view methods consumes capacity specifiers or put_trace_cap transforms to put_cap consuming enum denoting buff in question

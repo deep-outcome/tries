@@ -274,8 +274,8 @@ fn set_cap<T>(buf: &mut UC<Vec<T>>, approx_cap: usize) -> usize {
     buf.capacity()
 }
 
-fn ext(l: &Branches, k_buf: &mut String, e_buf: &mut Vec<char>, o: &mut Vec<(String, String)>) {
-    for n in l {
+fn ext(b: &Branches, k_buf: &mut String, e_buf: &mut Vec<char>, o: &mut Vec<(String, String)>) {
+    for n in b {
         k_buf.push(n.c);
 
         let lrref = n.lrref;
@@ -285,8 +285,8 @@ fn ext(l: &Branches, k_buf: &mut String, e_buf: &mut Vec<char>, o: &mut Vec<(Str
             o.push((k, e));
         }
 
-        if let Some(l) = n.branches.as_ref() {
-            ext(l, k_buf, e_buf, o);
+        if let Some(b) = n.branches.as_ref() {
+            ext(b, k_buf, e_buf, o);
         }
 
         _ = k_buf.pop();
@@ -353,6 +353,9 @@ enum TraRes<'a> {
     UnknownForAbsentPathNode,
 }
 
+// capacity is prebuffered to 1000
+const KEY_BUFF_CAP: usize = 1000;
+
 impl LrTrie {
     /// Ctor.
     pub const fn new() -> Self {
@@ -407,9 +410,9 @@ impl LrTrie {
         let mut key = key.chars();
         let mut node = Node::as_ref(root);
         while let Some(c) = key.next() {
-            if let Some(l) = &node.branches {
-                if let Some(ix) = index_of_c(l, c) {
-                    node = &l[ix];
+            if let Some(b) = &node.branches {
+                if let Some(ix) = index_of_c(b, c) {
+                    node = &b[ix];
                     if tracing {
                         trace.push(PathNode(ix, node.to_mut_ptr()));
                     }
@@ -579,16 +582,22 @@ impl LrTrie {
     /// Returned set can be overcapacitated, i.e. its capacity will not
     /// be shrunken according to its length.
     pub fn extract(&self, lr: LeftRight) -> Option<Vec<(String, String)>> {
-        if let Some(l) = self.branches(lr) {
-            let mut o = Vec::with_capacity(1000);
-            let mut e_buf = Vec::with_capacity(1000);
-            let mut k_buf = String::with_capacity(1000);
+        let c = self.count;
+        if c == 0 {
+            None
+        } else {
+            let b = self.branches(lr);
+            #[cfg(test)]
+            assert_eq!(true, b.is_some());
+            let b = unsafe { b.unwrap_unchecked() };
 
-            ext(l, &mut k_buf, &mut e_buf, &mut o);
+            let mut o = Vec::with_capacity(c);
+            let mut e_buf = Vec::with_capacity(KEY_BUFF_CAP);
+            let mut k_buf = String::with_capacity(KEY_BUFF_CAP);
+
+            ext(b, &mut k_buf, &mut e_buf, &mut o);
 
             Some(o)
-        } else {
-            None
         }
     }
 
@@ -596,9 +605,9 @@ impl LrTrie {
     ///
     /// Intended for functional extension of trie.
     pub fn as_ref(&self) -> Option<(&LeftBranches, &RightBranches)> {
-        return if let Some(l) = self.left.branches.as_ref() {
+        return if let Some(b) = self.left.branches.as_ref() {
             let r = unsafe { self.right.branches.as_ref().unwrap_unchecked() };
-            Some((l, r))
+            Some((b, r))
         } else {
             None
         };
@@ -608,9 +617,9 @@ impl LrTrie {
     ///
     /// Intended for functional extension of trie.
     pub fn as_mut(&mut self) -> Option<(&mut LeftBranches, &mut RightBranches)> {
-        return if let Some(l) = self.left.branches.as_mut() {
+        return if let Some(b) = self.left.branches.as_mut() {
             let r = unsafe { self.right.branches.as_mut().unwrap_unchecked() };
-            Some((l, r))
+            Some((b, r))
         } else {
             None
         };
@@ -1357,8 +1366,8 @@ mod tests_of_units {
                 assert!(node.is_some());
 
                 let mut node = node.unwrap();
-                while let Some(l) = node.branches.as_ref() {
-                    let n = l.get(0);
+                while let Some(b) = node.branches.as_ref() {
+                    let n = b.get(0);
                     assert!(n.is_some());
 
                     node = n.as_ref().unwrap();
@@ -2008,7 +2017,9 @@ mod tests_of_units {
             assert_eq!(true, ext.is_some());
             let ext = ext.unwrap();
 
-            assert_eq!(proof.len(), ext.len());
+            let proof_len = proof.len();
+            assert_eq!(proof_len, ext.len());
+            assert_eq!(true, ext.capacity() >= proof_len);
 
             for z in proof.iter().zip(ext.iter()) {
                 let p = z.0;
@@ -2040,7 +2051,9 @@ mod tests_of_units {
             assert_eq!(true, ext.is_some());
             let ext = ext.unwrap();
 
-            assert_eq!(proof.len(), ext.len());
+            let proof_len = proof.len();
+            assert_eq!(proof_len, ext.len());
+            assert_eq!(true, ext.capacity() >= proof_len);
 
             for z in proof.iter().zip(ext.iter()) {
                 let p = z.0;
