@@ -9,17 +9,21 @@ mod uc;
 use uc::UC;
 
 type Links = HashMap<char, Node>;
-type Find = Vec<String>;
-type WordBuf = Vec<char>;
-// branching information
+
+/// Actual matches found type.
+pub type Find = Vec<String>;
+
+/// `char` buffer
+type CharBuf = String;
+/// branching information
 type BraInf = Vec<(*const HashMap<char, Node>, usize, *const Node)>;
 
-fn extract(l: &Links, buff: &mut WordBuf, o: &mut Vec<String>) {
+fn extract(l: &Links, buff: &mut CharBuf, o: &mut Vec<String>) {
     for (k, n) in l.iter() {
         buff.push(*k);
 
         if n.entry {
-            let entry = buff.iter().rev().collect();
+            let entry = buff.chars().rev().collect();
             o.push(entry);
         }
 
@@ -32,7 +36,7 @@ fn extract(l: &Links, buff: &mut WordBuf, o: &mut Vec<String>) {
 }
 
 struct Extender<'a> {
-    b: &'a mut WordBuf,
+    b: &'a mut CharBuf,
     f: &'a mut Find,
     n: usize,
     // max length
@@ -74,8 +78,8 @@ impl<'a> Extender<'a> {
     }
 }
 
-fn push_match(c: &[char], f: &mut Find, l: usize) -> bool {
-    let e = c.iter().rev().collect();
+fn push_match(c: &CharBuf, f: &mut Find, l: usize) -> bool {
+    let e = c.chars().rev().collect();
 
     f.push(e);
     f.len() == l
@@ -118,7 +122,7 @@ pub enum ReqErr {
     ZeroMinSufLen,
     /// Maximal suffix match length cannot be less than minimal.
     SufLenMaxLessThanMin,
-    /// Maximal match length cannot be less than minimal.    
+    /// Maximal match length cannot be less than minimal.
     MatchLenMaxLessThanMin,
 }
 
@@ -339,8 +343,8 @@ pub struct Poetrie {
     root: Node,
     // backtrace buff
     btr: UC<Vec<(char, *mut Node)>>,
-    // sufix-word buffer
-    buf: UC<WordBuf>,
+    // character buffer
+    buf: UC<CharBuf>,
     // branching information
     bra: UC<BraInf>,
     // entries count
@@ -357,7 +361,7 @@ impl Poetrie {
         Poetrie {
             root: Node::empty(),
             btr: UC::new(Vec::new()),
-            buf: UC::new(Vec::new()),
+            buf: UC::new(String::new()),
             bra: UC::new(Vec::new()),
             cnt: 0,
         }
@@ -446,7 +450,7 @@ impl Poetrie {
     ///
     /// let mc: MatchConduct = shaper.sculpt().unwrap();
     /// ```
-    pub fn sx(&self, key: &Key, mc: &MatchConduct) -> Result<Vec<String>, FindErr> {
+    pub fn sx(&self, key: &Key, mc: &MatchConduct) -> Result<Find, FindErr> {
         let res = self.find(
             key,
             mc,
@@ -803,18 +807,16 @@ impl Poetrie {
     ///
     /// Return value is [`None`] for empty `Poetrie`.
     pub fn et(&mut self) -> Option<Vec<String>> {
-        if self.cnt == 0 {
+        let cnt = self.cnt;
+        if cnt == 0 {
             return None;
         }
 
-        // capacity is prebuffered to 1000
-        let mut buff = Vec::with_capacity(1000);
-
-        // capacity is prebuffered to 5000
-        let mut res = Vec::with_capacity(5000);
+        let buff = self.buf.aq_mut();
+        let mut res = Vec::with_capacity(cnt);
 
         let rl = unsafe { self.root.links.as_ref().unwrap_unchecked() };
-        extract(rl, &mut buff, &mut res);
+        extract(rl, buff, &mut res);
 
         Some(res)
     }
@@ -982,7 +984,7 @@ mod tests_of_units {
             _ = poetrie.it(a);
             _ = poetrie.it(z);
 
-            let mut buff = Vec::new();
+            let mut buff = String::new();
             let mut test = Vec::new();
 
             let links = poetrie.root.links.as_mut().unwrap();
@@ -1017,7 +1019,7 @@ mod tests_of_units {
                 _ = poetrie.it(&Entry(e.as_str()));
             }
 
-            let mut buff = Vec::new();
+            let mut buff = String::new();
             let mut test = Vec::new();
 
             let links = poetrie.root.links.as_mut().unwrap();
@@ -1037,6 +1039,11 @@ mod tests_of_units {
                 String::from("aa"),
                 String::from("azbq"),
                 String::from("by"),
+                String::from("bycd"),
+                String::from("bycdefgh"),
+                String::from("byceff"),
+                String::from("byceffgq"),
+                String::from("bycqff"),
                 String::from("ybc"),
                 String::from("ybcrqutmop"),
                 String::from("ybcrqutmopfvb"),
@@ -1049,7 +1056,7 @@ mod tests_of_units {
                 _ = poetrie.it(&Entry(p.as_str()));
             }
 
-            let mut buff = Vec::new();
+            let mut buff = String::new();
             let mut test = Vec::new();
 
             let links = poetrie.root.links.as_mut().unwrap();
@@ -1185,9 +1192,9 @@ mod tests_of_units {
         use seg::*;
         use std::collections::HashSet;
 
-        use crate::{Extender, Find, Node, WordBuf, tests_of_units::rev_entry::rev};
+        use crate::{CharBuf, Extender, Find, Node, tests_of_units::rev_entry::rev};
 
-        fn basic_ext<'a>(b: &'a mut WordBuf, f: &'a mut Find, n: usize) -> Extender<'a> {
+        fn basic_ext<'a>(b: &'a mut CharBuf, f: &'a mut Find, n: usize) -> Extender<'a> {
             Extender {
                 b,
                 f,
@@ -1200,7 +1207,7 @@ mod tests_of_units {
         #[test]
         fn basic_test() {
             let mut f = Vec::new();
-            let mut b: WordBuf = "end".chars().collect();
+            let mut b: CharBuf = String::from("end");
 
             let mut n = Node::empty();
             add_linked(&mut n, &["rse", "ment"]);
@@ -1218,7 +1225,7 @@ mod tests_of_units {
         #[test]
         fn immediate_saturation() {
             let mut f = Vec::new();
-            let mut b = Vec::new();
+            let mut b = String::new();
 
             let mut n = Node::empty();
             n.entry = true;
@@ -1227,16 +1234,17 @@ mod tests_of_units {
 
             _ = extender.e(&n, 'o');
 
+            let proof = String::from('o');
             assert_eq!(1, f.len());
-            assert_eq!(String::from('o'), f[0]);
-            assert_eq!(vec!['o'], b);
+            assert_eq!(proof, f[0]);
+            assert_eq!(proof, b);
         }
 
         #[test]
         #[should_panic(expected = "Caller disobeys precondition.")]
         fn invalid_buffer_length() {
             let mut f = Vec::new();
-            let mut b = Vec::new();
+            let mut b = String::new();
 
             let mut extender = basic_ext(&mut b, &mut f, usize::MAX);
             extender.xl = 0;
@@ -1247,7 +1255,7 @@ mod tests_of_units {
         #[test]
         fn match_limit_a() {
             let mut f = Vec::new();
-            let mut b = "en".chars().collect();
+            let mut b = String::from("en");
 
             let mut n = Node::empty();
             n.entry = true;
@@ -1266,7 +1274,7 @@ mod tests_of_units {
             assert_eq!(p[0], f[0]);
             assert_eq!(p[1], f[1]);
 
-            assert_eq!(pb, b.iter().collect::<String>().as_str());
+            assert_eq!(pb, b.chars().as_str());
         }
 
         #[test]
@@ -1274,7 +1282,7 @@ mod tests_of_units {
             let outset = "en";
 
             let mut f = Vec::new();
-            let mut b = outset.chars().collect();
+            let mut b = String::from(outset);
 
             let mut n = Node::empty();
             n.entry = true;
@@ -1289,7 +1297,7 @@ mod tests_of_units {
             assert_eq!(p[0], f[0]);
             assert_eq!(p[1], f[1]);
 
-            assert_eq!(outset, b.iter().collect::<String>().as_str());
+            assert_eq!(outset, b.as_str());
         }
 
         #[test]
@@ -1407,12 +1415,12 @@ mod tests_of_units {
     }
 
     mod push_match {
-        use crate::{WordBuf, push_match};
+        use crate::{CharBuf, push_match};
 
         #[test]
         fn limit_hit_a() {
             let proof = "poetship";
-            let cs = proof.chars().rev().collect::<WordBuf>();
+            let cs = proof.chars().rev().collect::<CharBuf>();
             let mut f = Vec::new();
 
             let lim = push_match(&cs, &mut f, 2);
@@ -1424,7 +1432,7 @@ mod tests_of_units {
         #[test]
         fn limit_hit_b() {
             let proof = "poet-cruiser";
-            let cs = proof.chars().rev().collect::<WordBuf>();
+            let cs = proof.chars().rev().collect::<CharBuf>();
             let mut f = Vec::new();
             f.push(String::with_capacity(0));
 
@@ -1705,11 +1713,14 @@ mod tests_of_units {
             assert_eq!(Node::empty(), poetrie.root);
             assert_eq!(0, poetrie.cnt);
 
-            test(&poetrie.btr);
-            test(&poetrie.buf);
-            test(&poetrie.bra);
+            test_vec(&poetrie.btr);
+            test_vec(&poetrie.bra);
 
-            fn test<T>(buf: &Vec<T>) {
+            let buf = poetrie.buf.aq_ref();
+            assert_eq!(0, buf.len());
+            assert_eq!(0, buf.capacity());
+
+            fn test_vec<T>(buf: &Vec<T>) {
                 assert_eq!(0, buf.len());
                 assert_eq!(0, buf.capacity());
             }
@@ -4865,16 +4876,16 @@ mod tests_of_units {
                 assert_eq!(true, ext.is_some());
                 let mut ext = ext.unwrap();
 
-                assert_eq!(proof.len(), ext.len());
+                let proof_len = proof.len();
+                assert_eq!(proof_len, ext.len());
 
                 ext.sort();
                 assert_eq!(proof, ext);
 
-                const CAP: usize = 5000;
                 let cap = ext.capacity();
 
-                assert_eq!(true, cap >= CAP);
-                assert_eq!(true, cap < CAP * 2);
+                assert_eq!(true, cap >= proof_len);
+                assert_eq!(true, cap < proof_len * 2);
 
                 for e in entries.clone() {
                     assert_eq!(true, poetrie.ey(&e));
