@@ -38,10 +38,11 @@ fn extract(l: &Links, buff: &mut CharBuf, o: &mut Vec<String>) {
 struct Extender<'a> {
     b: &'a mut CharBuf,
     f: &'a mut Find,
+    /// matches limit
     n: usize,
-    // max length
+    /// max length
     xl: usize,
-    // min length
+    /// min length
     nl: usize,
 }
 
@@ -1104,15 +1105,12 @@ mod tests_of_units {
             mod tests_of_units {
                 use super::*;
                 use crate::Node;
-
-                fn as_usize(n: &Node) -> usize {
-                    n as *const Node as usize
-                }
+                use crate::aide::address;
 
                 #[test]
                 fn _add_linked() {
                     let mut n = Node::empty();
-                    let res = as_usize(add_linked(&mut n, &["a", "b"]));
+                    let res = address(add_linked(&mut n, &["a", "b"]));
 
                     let mut n = &n;
                     for c in "ab".chars() {
@@ -1122,7 +1120,7 @@ mod tests_of_units {
                         assert_eq!(true, n.entry);
                     }
 
-                    assert_eq!(as_usize(n), res);
+                    assert_eq!(address(n), res);
                 }
 
                 #[test]
@@ -1141,12 +1139,12 @@ mod tests_of_units {
                 fn _add_one_a() {
                     let n = &mut Node::empty();
 
-                    let a1 = as_usize(add_one(n, "a", true));
+                    let a1 = address(add_one(n, "a", true));
                     let l = n.links.as_ref().unwrap();
 
                     one_test(a1, l, 'a', true);
 
-                    let b1 = as_usize(add_one(n, "b", false));
+                    let b1 = address(add_one(n, "b", false));
                     let l = n.links.as_ref().unwrap();
 
                     one_test(b1, l, 'b', false);
@@ -1157,7 +1155,7 @@ mod tests_of_units {
                         let test = l.get(&key).unwrap();
                         assert_eq!(e, test.entry);
                         assert_eq!(false, test.links());
-                        assert_eq!(res, as_usize(test));
+                        assert_eq!(res, address(test));
                     }
                 }
 
@@ -1166,7 +1164,7 @@ mod tests_of_units {
                     let mut root = Node::empty();
 
                     let seg = "ab";
-                    let b = as_usize(add_one(&mut root, seg, true));
+                    let b = address(add_one(&mut root, seg, true));
 
                     let mut n = &root;
                     for c in seg.chars() {
@@ -1174,17 +1172,17 @@ mod tests_of_units {
                         n = l.get(&c).unwrap();
                     }
 
-                    assert_eq!(b, as_usize(n));
+                    assert_eq!(b, address(n));
 
                     let seg = "ac";
-                    let c = as_usize(add_one(&mut root, seg, true));
+                    let c = address(add_one(&mut root, seg, true));
 
                     let mut l = root.links.as_ref().unwrap();
                     let a = l.get(&'a').unwrap();
                     assert_eq!(false, a.entry);
                     l = a.links.as_ref().unwrap();
                     assert_eq!(true, l.get(&'b').is_some());
-                    assert_eq!(c, as_usize(l.get(&'c').unwrap()));
+                    assert_eq!(c, address(l.get(&'c').unwrap()));
                 }
             }
         }
@@ -1229,6 +1227,7 @@ mod tests_of_units {
 
             let mut n = Node::empty();
             n.entry = true;
+            _ = add_one(&mut n, "leaster", true);
 
             let mut extender = basic_ext(&mut b, &mut f, 1);
 
@@ -1274,7 +1273,7 @@ mod tests_of_units {
             assert_eq!(p[0], f[0]);
             assert_eq!(p[1], f[1]);
 
-            assert_eq!(pb, b.chars().as_str());
+            assert_eq!(pb, b.as_str());
         }
 
         #[test]
@@ -1305,7 +1304,7 @@ mod tests_of_units {
             let outset = "do";
 
             let mut f = Vec::new();
-            let mut b = outset.chars().collect();
+            let mut b = String::from(outset);
 
             let mut n = Node::empty();
 
@@ -1313,18 +1312,19 @@ mod tests_of_units {
             let mut documental = add_one(&mut document, "al", true);
             _ = add_one(&mut documental, "ist", true);
             _ = add_one(&mut document, "able", true);
+            _ = add_one(&mut document, "s", true);
 
             let mut extender = Extender {
                 b: &mut b,
                 f: &mut f,
-                n: 4,
+                n: 5,
                 nl: "document".len() + 1,
                 xl: "documentalist".len() - 1,
             };
 
             let res = extender.e(&mut n, 'c');
             assert_eq!(false, res);
-            let mut proof = vec![rev("documental"), rev("documentable")];
+            let mut proof = vec![rev("documental"), rev("documentable"), rev("documents")];
             proof.sort();
             f.sort();
             assert_eq!(proof, f);
@@ -1365,7 +1365,7 @@ mod tests_of_units {
         #[test]
         fn load_bearing_a() {
             let mut f = Vec::new();
-            let mut b = "ser".chars().collect();
+            let mut b = String::from("ser");
 
             let (n, p) = load_setup();
 
@@ -1381,7 +1381,7 @@ mod tests_of_units {
         #[test]
         fn load_bearing_b() {
             let mut f = Vec::new();
-            let mut b = "ser".chars().collect();
+            let mut b = String::from("ser");
 
             let (n, p) = load_setup();
 
