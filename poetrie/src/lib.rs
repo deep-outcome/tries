@@ -47,7 +47,7 @@ struct Extender<'a> {
 }
 
 impl<'a> Extender<'a> {
-    pub fn e(&mut self, n: &Node, c: char) -> bool {
+    fn e(&mut self, n: &Node, c: char) -> bool {
         let b = &mut self.b;
         b.push(c);
 
@@ -94,7 +94,7 @@ pub type Key<'a> = Entry<'a>;
 pub struct Entry<'a>(&'a str);
 
 impl<'a> Entry<'a> {
-    /// Constructor for `Entry`.
+    /// Use to construct new `Entry` instance.
     ///
     /// Return value is [`None`] for 0-length [`str`].
     pub const fn new_from_str(entry: &'a str) -> Option<Self> {
@@ -251,7 +251,8 @@ impl MatchConduct {
         Some(err)
     }
 
-    fn max_l(&self) -> usize {
+    /// max operative suffix length
+    fn max_o_sl(&self) -> usize {
         min(self.max_ml, self.max_sl)
     }
 
@@ -274,6 +275,7 @@ impl MatchConduct {
 /// _ = chain.max_n(10).max_ml(8);
 ///
 /// let mc: MatchConduct = chain.sculpt().unwrap();
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchConductShaper(MatchConduct);
 
@@ -569,7 +571,7 @@ impl Poetrie {
         }
 
         let max_n = mc.max_n;
-        let max_l = mc.max_l();
+        let max_o_sl = mc.max_o_sl();
 
         let min_sl = mc.min_sl;
         let min_ml = mc.min_ml();
@@ -595,7 +597,7 @@ impl Poetrie {
 
             // unwinding key, instead of short-cutting,
             // is necessary for disjunct conduct determination
-            max_l_accord = buf_l <= max_l;
+            max_l_accord = buf_l <= max_o_sl;
 
             let next_c = chars.next_back();
             if next_c.is_none() {
@@ -1498,7 +1500,7 @@ mod tests_of_units {
                 assert_eq!(10, mc.max_n);
                 assert_eq!(11, mc.min_sl);
                 assert_eq!(12, mc.max_sl);
-                assert_eq!(13, mc.min_ml());
+                assert_eq!(2, mc.ext_ml);
                 assert_eq!(14, mc.max_ml);
                 assert_eq!(true, mc.sub_e);
                 assert_ne!(mc_defaults::SUB_E, mc.sub_e);
@@ -1636,7 +1638,7 @@ mod tests_of_units {
         }
 
         #[test]
-        fn max_l() {
+        fn max_o_sl() {
             let three_3 = 333;
             let three_7 = 777;
 
@@ -1645,7 +1647,7 @@ mod tests_of_units {
                 mc.max_sl = duo.0;
                 mc.max_ml = duo.1;
 
-                assert_eq!(three_3, mc.max_l());
+                assert_eq!(three_3, mc.max_o_sl());
             }
         }
 
