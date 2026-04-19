@@ -268,7 +268,7 @@ fn set_cap<T>(buf: &mut UC<Vec<T>>, approx_cap: usize) -> usize {
     if cp < approx_cap {
         buf.reserve(approx_cap);
     } else if cp > approx_cap {
-        *buf.promote() = Vec::with_capacity(approx_cap);
+        *buf.uplift() = Vec::with_capacity(approx_cap);
     }
 
     buf.capacity()
@@ -400,7 +400,7 @@ impl LrTrie {
 
     fn track(&self, key: &Key, lr: LeftRight, ts: TraStrain) -> TraRes {
         let root = self.root(lr);
-        let trace = self.trace.promote();
+        let trace = self.trace.uplift();
 
         let tracing = TraStrain::has(ts.clone(), tsdv::TRA);
         if tracing {
@@ -442,7 +442,7 @@ impl LrTrie {
         let res = self.track(key, lr, TraStrain::NonRef);
 
         if let TraRes::OkRef(en) = res {
-            let entry = self.entry.promote();
+            let entry = self.entry.uplift();
 
             let ret = construct_e(en.lrref, entry);
             Some(ret)
