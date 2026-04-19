@@ -17,6 +17,8 @@ pub type Find = Vec<String>;
 type CharBuf = String;
 /// branching information
 type BraInf = Vec<(*const HashMap<char, Node>, usize, *const Node)>;
+/// backtrace buffer
+type BtrBuf = Vec<(char, *mut Node)>;
 
 fn extract(l: &Links, buff: &mut CharBuf, o: &mut Vec<String>) {
     for (k, n) in l.iter() {
@@ -274,7 +276,7 @@ impl MatchConduct {
 /// let mut chain = MatchConductShaper::init();
 /// _ = chain.max_n(10).max_ml(8);
 ///
-/// let mc: MatchConduct = chain.sculpt().unwrap();
+/// let mc: MatchConduct = chain.form().unwrap();
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchConductShaper(MatchConduct);
@@ -284,7 +286,8 @@ impl MatchConductShaper {
     ///
     /// Constructed with [`MatchConduct::default()`] as initial value.
     ///
-    /// Check with [`MatchConductShaper::sculpt`] for more details.
+    /// Check with [`MatchConductShaper::form`] or [`MatchConductShaper::transform`]
+    /// for more details.
     pub fn init() -> MatchConductShaper {
         Self(MatchConduct::default())
     }
@@ -329,11 +332,23 @@ impl MatchConductShaper {
     ///
     /// Return value is [`Result`] with either valid [`MatchConduct`]
     /// instance or with [`ReqErr`] error information.
-    pub fn sculpt(&self) -> Result<MatchConduct, ReqErr> {
+    pub fn form(&self) -> Result<MatchConduct, ReqErr> {
         if let Some(e) = MatchConduct::val(&self.0) {
             Err(e)
         } else {
             Ok(self.0.clone())
+        }
+    }
+
+    /// Use to validate and obtain [`MatchConduct`] instance.
+    ///
+    /// Return value is [`Result`] with either valid [`MatchConduct`]
+    /// instance or with [`ReqErr`] error information.
+    pub fn transform(self) -> Result<MatchConduct, (ReqErr, Self)> {
+        if let Some(e) = MatchConduct::val(&self.0) {
+            Err((e, self))
+        } else {
+            Ok(self.0)
         }
     }
 }
@@ -345,7 +360,7 @@ impl MatchConductShaper {
 pub struct Poetrie {
     root: Node,
     // backtrace buff
-    btr: UC<Vec<(char, *mut Node)>>,
+    btr: UC<BtrBuf>,
     // character buffer
     buf: UC<CharBuf>,
     // branching information
@@ -363,9 +378,9 @@ impl Poetrie {
     pub fn nw() -> Poetrie {
         Poetrie {
             root: Node::empty(),
-            btr: UC::new(Vec::new()),
-            buf: UC::new(String::new()),
-            bra: UC::new(Vec::new()),
+            btr: UC::new(BtrBuf::new()),
+            buf: UC::new(CharBuf::new()),
+            bra: UC::new(BraInf::new()),
             cnt: 0,
         }
     }
@@ -451,7 +466,7 @@ impl Poetrie {
     ///    .min_sl(3).max_sl(5).ext_ml(1)
     ///    .max_ml(10).sub_e(false).max_n(15);
     ///
-    /// let mc: MatchConduct = shaper.sculpt().unwrap();
+    /// let mc: MatchConduct = shaper.form().unwrap();
     /// ```
     pub fn sx(&self, key: &Key, mc: &MatchConduct) -> Result<Find, FindErr> {
         let res = self.find(
@@ -1674,7 +1689,7 @@ mod tests_of_units {
                 .ext_ml(22)
                 .max_ml(77)
                 .sub_e(true)
-                .sculpt();
+                .form();
 
             let proof = MatchConduct {
                 max_n: 11,
@@ -1686,6 +1701,10 @@ mod tests_of_units {
             };
 
             assert_ne!(mc_defaults::SUB_E, proof.sub_e);
+
+            assert_eq!(Ok(proof.clone()), test);
+
+            let test = shaper.transform();
             assert_eq!(Ok(proof), test);
         }
 
@@ -1697,11 +1716,24 @@ mod tests_of_units {
         }
 
         #[test]
-        fn validation() {
+        fn validation_form() {
             let mut shaper = MatchConductShaper::init();
-            let err = shaper.max_n(0).sculpt();
+            let err = shaper.max_n(0).form();
 
             assert_eq!(true, err.is_err());
+        }
+
+        #[test]
+        fn validation_transform() {
+            let mut shaper = MatchConductShaper::init();
+            _ = shaper.max_n(0);
+            let err = shaper.transform();
+            assert_eq!(true, err.is_err());
+
+            let (_, test) = err.unwrap_err();
+            let mut proof = MatchConductShaper::init();
+            _ = proof.max_n(0);
+            assert_eq!(proof, test);
         }
     }
 
@@ -1745,9 +1777,9 @@ mod tests_of_units {
 
                 let last_node_ix = entry.len() - 1;
                 for (ix, c) in entry.chars().rev().enumerate() {
-                    let node = &links.get(&c);
+                    let node = links.get(&c);
 
-                    assert!(node.is_some());
+                    assert_eq!(true, node.is_some());
                     let node = node.unwrap();
 
                     if ix == last_node_ix {
@@ -4961,7 +4993,7 @@ mod tests_of_units {
                 .max_n(usize::MAX) // unlimited matches count
                 .max_sl(3) // only 'ics' or less but not '…rics'
                 .max_ml(8) // only 8 or less length matches
-                .sculpt()
+                .form()
                 .unwrap();
 
             let probe = Entry::new_from_str("lyrics").unwrap();

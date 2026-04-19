@@ -30,7 +30,7 @@ let mc = MatchConductShaper::init()
     .max_n(usize::MAX) // unlimited matches count
     .max_sl(3) // only 'ics' or less but not '…rics'
     .max_ml(8) // only 8 or less length matches
-    .sculpt()
+    .form()
     .unwrap();
 
 let probe = Entry::new_from_str("lyrics").unwrap();
