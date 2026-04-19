@@ -358,7 +358,7 @@ impl MatchConductShaper {
 /// Inputs are validated only for 0 length thus is up to consumer code
 /// to allow population with sensible values only.
 pub struct Poetrie {
-    root: Node,
+    root: UC<Node>,
     // backtrace buff
     btr: UC<BtrBuf>,
     // character buffer
@@ -377,7 +377,7 @@ impl Poetrie {
     /// Use for `Poetrie` construction.
     pub fn nw() -> Poetrie {
         Poetrie {
-            root: Node::empty(),
+            root: UC::new(Node::empty()),
             btr: UC::new(BtrBuf::new()),
             buf: UC::new(CharBuf::new()),
             bra: UC::new(BraInf::new()),
@@ -390,7 +390,7 @@ impl Poetrie {
     /// Return value is [`true`] if entry was inserted into tree,
     /// [`false`] if it was present already.
     pub fn it(&mut self, entry: &Entry) -> bool {
-        let mut node = &mut self.root;
+        let mut node = self.root.promote();
         let mut chars = entry.chars();
         while let Some(c) = chars.next_back() {
             let links = node.links.get_or_insert_with(|| Links::new());
@@ -570,7 +570,7 @@ impl Poetrie {
         assert_eq!(true, MatchConduct::val(mc).is_none());
 
         // operative node
-        let mut op_node = &self.root;
+        let mut op_node = self.root.aq_ref();
 
         let mut chars = key.chars();
         let mut c = unsafe { chars.next_back().unwrap_unchecked() };
@@ -772,19 +772,19 @@ impl Poetrie {
     }
 
     fn track(&self, entry: &Key, trace: bool) -> TraRes {
-        let mut node = &self.root;
+        let mut node = self.root.promote();
         let btr = self.btr.promote();
 
         if trace {
-            btr.push((NULL, node.to_mut_ptr()));
+            btr.push((NULL, node));
         }
 
         let mut chars = entry.chars();
         while let Some(c) = chars.next_back() {
-            if let Some(l) = node.links.as_ref() {
-                if let Some(n) = l.get(&c) {
+            if let Some(l) = node.links.as_mut() {
+                if let Some(n) = l.get_mut(&c) {
                     if trace {
-                        btr.push((c, n.to_mut_ptr()));
+                        btr.push((c, n));
                     }
 
                     node = n;
@@ -812,7 +812,7 @@ impl Poetrie {
     ///
     /// Return value is count of entries before clearing.
     pub fn cr(&mut self) -> usize {
-        self.root = Node::empty();
+        self.root = UC::new(Node::empty());
 
         let cnt = self.cnt;
         self.cnt = 0;
@@ -882,10 +882,6 @@ impl Node {
             links: None,
             entry: false,
         }
-    }
-
-    const fn to_mut_ptr(&self) -> *mut Self {
-        (self as *const Self).cast_mut()
     }
 }
 
@@ -1744,7 +1740,7 @@ mod tests_of_units {
         fn nw() {
             let poetrie = Poetrie::nw();
 
-            assert_eq!(Node::empty(), poetrie.root);
+            assert_eq!(Node::empty(), poetrie.root.0.into_inner());
             assert_eq!(0, poetrie.cnt);
 
             test_vec(&poetrie.btr);
@@ -1823,7 +1819,7 @@ mod tests_of_units {
                 assert_eq!(true, res);
                 assert_eq!(1, poetrie.cnt);
 
-                let links = poetrie.root.links;
+                let links = poetrie.root.0.into_inner().links;
                 assert_eq!(true, links.is_some());
                 let links = links.unwrap();
                 let node = links.get(&'a');
@@ -4939,7 +4935,6 @@ mod tests_of_units {
     mod node {
 
         use crate::{Links, Node};
-        use std::ptr::addr_of;
 
         #[test]
         fn links() {
@@ -4956,13 +4951,6 @@ mod tests_of_units {
 
             assert_eq!(None, node.links);
             assert_eq!(false, node.entry);
-        }
-
-        #[test]
-        fn to_mut_ptr() {
-            let n = Node::empty();
-            let n_add = addr_of!(n) as usize;
-            assert_eq!(n_add, n.to_mut_ptr() as usize);
         }
     }
 
