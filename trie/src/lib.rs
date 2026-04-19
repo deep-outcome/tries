@@ -640,7 +640,7 @@ impl<T> Trie<T> {
         if cp < approx_cap {
             tr.reserve(approx_cap);
         } else if cp > approx_cap {
-            *tr = UC::new(Vec::with_capacity(approx_cap));
+            *tr.aq_mut() = Vec::with_capacity(approx_cap);
         }
 
         tr.capacity()
@@ -1014,7 +1014,7 @@ impl<T> Trie<T> {
     ///
     /// TC: ϴ(n).
     pub fn clr(&mut self) -> usize {
-        self.rt = UC::new(ab(self.al));
+        *self.rt = ab(self.al);
         let ct = self.ct;
         self.ct = 0;
         ct
@@ -2002,7 +2002,7 @@ mod tests_of_units {
         }
 
         mod put_trace_cap {
-            use crate::{uc::UC, Trie};
+            use crate::Trie;
 
             #[test]
             fn extend() {
@@ -2022,7 +2022,7 @@ mod tests_of_units {
                 let old_cap = 50;
 
                 let mut trie = Trie::<usize>::new();
-                trie.tr = UC::new(Vec::with_capacity(old_cap));
+                *trie.tr = Vec::with_capacity(old_cap);
 
                 let size = trie.put_trace_cap(new_cap);
                 assert!(size >= new_cap && size < old_cap);
