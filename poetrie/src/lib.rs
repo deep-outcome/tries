@@ -390,7 +390,7 @@ impl Poetrie {
     /// Return value is [`true`] if entry was inserted into tree,
     /// [`false`] if it was present already.
     pub fn it(&mut self, entry: &Entry) -> bool {
-        let mut node = self.root.promote();
+        let mut node = self.root.aq_mut();
         let mut chars = entry.chars();
         while let Some(c) = chars.next_back() {
             let links = node.links.get_or_insert_with(|| Links::new());
@@ -482,8 +482,8 @@ impl Poetrie {
     }
 
     fn clr_f_buffs(&self) {
-        self.bra.promote().clear();
-        self.buf.promote().clear();
+        self.bra.uplift().clear();
+        self.buf.uplift().clear();
     }
 
     /// Use to remove entry from tree.
@@ -594,12 +594,12 @@ impl Poetrie {
 
         let sub_e = mc.sub_e;
 
-        let branching = self.bra.promote();
+        let branching = self.bra.uplift();
         let mut disjunct_hit = false;
 
         let mut find = Vec::with_capacity(100);
 
-        let buff = self.buf.promote();
+        let buff = self.buf.uplift();
         let mut buf_l;
         let mut max_l_accord;
 
@@ -772,8 +772,8 @@ impl Poetrie {
     }
 
     fn track(&self, entry: &Key, trace: bool) -> TraRes {
-        let mut node = self.root.promote();
-        let btr = self.btr.promote();
+        let mut node = self.root.uplift();
+        let btr = self.btr.uplift();
 
         if trace {
             btr.push((NULL, node));
@@ -812,7 +812,7 @@ impl Poetrie {
     ///
     /// Return value is count of entries before clearing.
     pub fn cr(&mut self) -> usize {
-        self.root = UC::new(Node::empty());
+        *self.root = Node::empty();
 
         let cnt = self.cnt;
         self.cnt = 0;
@@ -1767,7 +1767,7 @@ mod tests_of_units {
                 let res = poetrie.it(&entry);
                 assert_eq!(true, res);
 
-                let links = &poetrie.root.links.as_ref();
+                let links = poetrie.root.links.as_ref();
                 assert_eq!(true, links.is_some());
                 let mut links = links.unwrap();
 
@@ -1946,8 +1946,8 @@ mod tests_of_units {
         fn clr_f_buffers() {
             let poetrie = Poetrie::nw();
 
-            let bra = poetrie.bra.promote();
-            let buf = poetrie.buf.promote();
+            let bra = poetrie.bra.uplift();
+            let buf = poetrie.buf.uplift();
 
             bra.push((ptr::null(), 0, ptr::null()));
             buf.push('\0');
@@ -4781,7 +4781,7 @@ mod tests_of_units {
                 let keyword_e = &entries[2].entry();
                 _ = poetrie.track(keyword_e, true);
 
-                let trace = poetrie.btr.promote();
+                let trace = poetrie.btr.uplift();
                 let proof = format!("{}{}", NULL, keyword);
                 for (ix, c) in proof.chars().enumerate() {
                     let duo = trace[ix];
