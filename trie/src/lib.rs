@@ -804,7 +804,7 @@ impl<T> Trie<T> {
         let c = unsafe { c.unwrap_unchecked() };
 
         let ix = &self.ix;
-        let tr = self.tr.promote();
+        let tr = self.tr.uplift();
 
         let mut letter = &self.rt[ix(c)];
 
@@ -968,7 +968,7 @@ impl<T> Trie<T> {
     ///
     /// Check with [`Iter::next`] for details.
     pub fn iter(&self) -> Iter<'_, T> {
-        let rt = self.rt.promote();
+        let rt = self.rt.uplift();
         let rt_len = rt.len();
 
         // capacity is prebuffered
