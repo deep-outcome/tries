@@ -1795,6 +1795,7 @@ mod tests_of_units {
             fn existing_path_insert() {
                 let existing = &Entry("touchstone");
                 let new = &Entry("touch");
+                let newer = &Entry("touchstones");
 
                 let mut poetrie = Poetrie::nw();
 
@@ -1806,8 +1807,13 @@ mod tests_of_units {
                 assert_eq!(true, res);
                 assert_eq!(2, poetrie.cnt);
 
+                let res = poetrie.it(newer);
+                assert_eq!(true, res);
+                assert_eq!(3, poetrie.cnt);
+
                 assert_eq!(true, poetrie.ey(existing));
                 assert_eq!(true, poetrie.ey(new));
+                assert_eq!(true, poetrie.ey(newer));
             }
 
             #[test]
