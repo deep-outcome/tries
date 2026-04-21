@@ -1888,7 +1888,7 @@ mod tests_of_units {
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e);
 
-                for e in ["Key", "Opener"] {
+                for e in ["Key", "Opener", "Keywords"] {
                     let e = Entry(e);
                     let res = poetrie.ey(&e);
                     assert_eq!(false, res);
