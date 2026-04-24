@@ -549,7 +549,7 @@ impl Poetrie {
 
         node.links = None;
         #[cfg(test)]
-        if *grade != (2 | 8) {
+        if *grade == 2 {
             set_grade(16, grade);
         }
 
@@ -1968,19 +1968,26 @@ mod tests_of_units {
         }
 
         mod re {
-            use crate::{Entry, Poetrie};
+            use crate::{Entry, Poetrie, tests_of_units::rev_entry::RevEntry};
 
+            #[allow(non_snake_case)]
             #[test]
-            fn known_unknown() {
-                let known = &Entry("safe-hideaway");
-                let unknown = &Entry("grave-monition");
+            fn known__almost_known__unknown() {
+                let known = RevEntry::new("safe-hideaway");
+                let known = &known.entry();
+                let unknown1 = RevEntry::new("unknown-hideaway");
+                let unknown1 = &unknown1.entry();
+                let unknown2 = &Entry("grave-monition");
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(known);
 
-                assert_eq!(false, poetrie.re(unknown));
+                assert_eq!(false, poetrie.re(unknown2));
                 assert_eq!(0, poetrie.btr.len());
                 assert_eq!(true, poetrie.btr.capacity() > 0);
+                assert_eq!(1, poetrie.cnt);
+
+                assert_eq!(false, poetrie.re(unknown1));
                 assert_eq!(1, poetrie.cnt);
 
                 assert_eq!(true, poetrie.re(known));
@@ -2000,8 +2007,7 @@ mod tests_of_units {
 
             #[test]
             fn basic_test() {
-                let entry = RevEntry::new("abcxyz");
-                let entry = &entry.entry();
+                let entry = &Entry("abcxyz");
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
@@ -2023,6 +2029,7 @@ mod tests_of_units {
                 poetrie.re_actual(&mut grade);
                 assert_eq!(false, poetrie.ey(entry));
                 assert_eq!(18, grade);
+                assert_eq!(false, poetrie.root.links());
             }
 
             #[test]
@@ -2084,8 +2091,7 @@ mod tests_of_units {
 
             #[test]
             fn links_removal() {
-                let entry = RevEntry::new("Keyword");
-                let entry = &entry.entry();
+                let entry = &Entry("Keyword");
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
 
@@ -2100,10 +2106,8 @@ mod tests_of_units {
 
             #[test]
             fn node_composing_path() {
-                let dissimilar = RevEntry::new("Dissimilar");
-                let dissimilar = &dissimilar.entry();
-                let keyword = RevEntry::new("Keyword");
-                let keyword = &keyword.entry();
+                let dissimilar = &Entry("Dissimilar");
+                let keyword = &Entry("Keyword");
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(dissimilar);
@@ -3383,7 +3387,7 @@ mod tests_of_units {
                     _ = poetrie.it(&Entry(e.as_str()));
                 }
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.max_n = usize::MAX;
 
                 let mut proof = entries.clone();
@@ -3422,7 +3426,7 @@ mod tests_of_units {
 
                 _ = poetrie.it(key);
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.max_n = usize::MAX;
 
                 let mut proof = entries.clone();
@@ -4510,7 +4514,7 @@ mod tests_of_units {
                     _ = poetrie.it(&Entry(e.as_str()));
                 }
 
-                let mut mc = MatchConduct::default();
+                let mut mc = MatchConduct::test();
                 mc.max_n = usize::MAX;
                 mc.sub_e = true;
 
