@@ -567,7 +567,7 @@ impl Poetrie {
         #[cfg(test)] grade: &mut usize,
     ) -> Result<Find, FindErr> {
         #[cfg(test)]
-        assert_eq!(true, MatchConduct::val(mc).is_none());
+        assert_eq!(None, MatchConduct::val(mc));
 
         // operative node
         let mut op_node = self.root.aq_ref();
@@ -629,18 +629,25 @@ impl Poetrie {
                         return Ok(find);
                     }
                 } else {
-                    disjunct_hit = true;
+                    if disjunct_hit == false {
+                        disjunct_hit = true;
+                    }
                 }
             }
 
             if let Some(l) = op_node.links.as_ref() {
+                #[cfg(test)]
+                assert_eq!(true, next_c.is_some());
+
                 c = unsafe { next_c.unwrap_unchecked() };
                 if let Some(n) = l.get(&c) {
                     if l.len() > 1 {
                         if max_l_accord && min_sl <= buf_l {
                             branching.push((l, buf_l, n));
                         } else {
-                            disjunct_hit = true;
+                            if disjunct_hit == false {
+                                disjunct_hit = true;
+                            }
                         }
                     }
 
@@ -711,6 +718,8 @@ impl Poetrie {
         };
 
         if can_extend {
+            #[cfg(test)]
+            assert_eq!(true, links.is_some());
             let l = unsafe { links.unwrap_unchecked() };
             for (c, node) in l {
                 if extender.e(node, *c) {
@@ -727,10 +736,10 @@ impl Poetrie {
             while let Some((blinks, blen, skip_n)) = b.next_back() {
                 let blen = *blen;
                 if blen == max_ml {
-                    // `==` occurs when buf_l = max_l = max_ml
+                    // `==` occurs when buf_l = max_o_sl = max_ml
                     // it is simpler to skip already long enough buffer here
                     // than checking each time for both conditions,
-                    // buf_l <= max_sl && buf_l < max_ml, instead of buf_l <= max_l
+                    // buf_l <= max_sl && buf_l < max_ml, instead of buf_l <= max_o_sl
                     #[cfg(test)]
                     set_grade(grade::BUF_MAX_ALR, grade);
                     continue;
@@ -2150,6 +2159,7 @@ mod tests_of_units {
         }
 
         pub mod find {
+            use grade::*;
             use std::cmp::min;
             use std::collections::HashSet;
 
@@ -2163,7 +2173,7 @@ mod tests_of_units {
                 pub const KEY_EXH: usize = 2;
                 /// no path available on node
                 pub const NO_PATH_N: usize = 4;
-                /// no path available on link
+                /// no path available on links
                 pub const NO_PATH_L: usize = 8;
                 /// guaranteed zero matches
                 pub const G_ZERO_M: usize = 16;
@@ -2207,7 +2217,8 @@ mod tests_of_units {
 
             #[test]
             fn exactly_last_match_a_1() {
-                let e = &Entry("s");
+                let p = String::from("s");
+                let e = &Entry(p.as_str());
                 let k = &Entry("lyrics");
 
                 let mut poetrie = Poetrie::nw();
@@ -2217,6 +2228,8 @@ mod tests_of_units {
                 mc.sub_e = true;
                 mc.max_n = 2;
 
+                let p = Ok(vec![p]);
+                assert_eq!(40, NO_PATH_L | SUB_E_ONLY);
                 for duo in [(1, 40), (MAX_ML, 40)] {
                     mc.max_ml = duo.0;
 
@@ -2225,14 +2238,15 @@ mod tests_of_units {
 
                     poetrie.clr_f_buffs();
 
-                    assert_eq!(Ok(vec![String::from("s")]), f, "{duo:?}");
+                    assert_eq!(p, f, "{duo:?}");
                     assert_eq!(duo.1, grade);
                 }
             }
 
             #[test]
             fn exactly_last_match_a_2() {
-                let e = &Entry("s");
+                let p = String::from("s");
+                let e = &Entry(p.as_str());
                 let k = &Entry("lyrics");
 
                 let mut poetrie = Poetrie::nw();
@@ -2243,6 +2257,9 @@ mod tests_of_units {
                 mc.sub_e = true;
                 mc.max_n = 2;
 
+                let p = Ok(vec![p]);
+
+                assert_eq!(34, KEY_EXH | SUB_E_ONLY);
                 for duo in [(1, 34), (MAX_ML, 34)] {
                     mc.max_ml = duo.0;
 
@@ -2251,21 +2268,26 @@ mod tests_of_units {
 
                     poetrie.clr_f_buffs();
 
-                    assert_eq!(Ok(vec![String::from("s")]), f);
+                    assert_eq!(p, f);
                     assert_eq!(duo.1, grade);
                 }
             }
 
             #[test]
             fn exactly_last_match_b_1() {
-                let p = "lyrics";
+                let p = String::from("lyrics");
+                let e = &Entry(p.as_str());
                 let k = &Entry("s");
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&Entry(p));
+                _ = poetrie.it(e);
 
                 let mut mc = MatchConduct::test();
 
+                let p = Ok(vec![p]);
+
+                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(514, KEY_EXH | FIN);
                 for duo in [(1, 130), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
@@ -2274,33 +2296,37 @@ mod tests_of_units {
 
                     poetrie.clr_f_buffs();
 
-                    let proof = vec![String::from(p)];
-                    assert_eq!(Ok(proof), f);
+                    assert_eq!(p, f);
                     assert_eq!(duo.1, grade);
                 }
             }
 
             #[test]
             fn exactly_last_match_b_2() {
-                let p = "lyrics";
-
+                let p = String::from("lyrics");
+                let e = &Entry(p.as_str());
                 let k = &Entry("s");
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&Entry(p));
+                _ = poetrie.it(e);
                 _ = poetrie.it(k);
 
                 let mut mc = MatchConduct::test();
+                mc.sub_e = true;
+
+                let p = Ok(vec![p]);
+
+                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(514, KEY_EXH | FIN);
                 for duo in [(1, 130), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
-
                     let f = poetrie.find(k, &mc, &mut grade);
+
                     poetrie.clr_f_buffs();
 
-                    let proof = vec![String::from(p)];
-                    assert_eq!(Ok(proof), f);
+                    assert_eq!(p, f);
                     assert_eq!(duo.1, grade);
                 }
             }
@@ -2313,6 +2339,7 @@ mod tests_of_units {
                 _ = poetrie.it(k);
 
                 let mut mc = MatchConduct::test();
+                assert_eq!(18, KEY_EXH | G_ZERO_M);
                 for max_ml in [1, MAX_ML] {
                     mc.max_ml = max_ml;
 
