@@ -2426,220 +2426,6 @@ mod tests_of_units {
             }
 
             #[test]
-            fn key_matches_itself_only_a_1() {
-                let itself = &Entry("lyrics");
-                let other = &Entry("epicalyx");
-
-                let mc = MatchConduct::test();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(itself);
-                _ = poetrie.it(other);
-
-                let mut grade = 0;
-                let f = poetrie.find(itself, &mc, &mut grade);
-
-                assert_eq!(Err(FindErr::OnlyKeyMatches), f);
-
-                assert_eq!(18, KEY_EXH | G_ZERO_M);
-                assert_eq!(18, grade);
-            }
-
-            #[test]
-            fn key_matches_itself_only_a_2() {
-                let proof = String::from("beautiful lyrics");
-                let itself = &Entry("lyrics");
-                let other = &Entry(proof.as_str());
-
-                let mc = MatchConduct::test();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(itself);
-                _ = poetrie.it(other);
-
-                let mut grade = 0;
-                let f = poetrie.find(itself, &mc, &mut grade);
-
-                let p = Ok(vec![proof]);
-                assert_eq!(p, f);
-
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
-                assert_eq!(130, grade);
-            }
-
-            #[test]
-            fn key_matches_itself_only_a_3() {
-                let proof = String::from("critics");
-                let itself = &Entry("lyrics");
-                let other = &Entry(proof.as_str());
-
-                let mc = MatchConduct::test();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(itself);
-                _ = poetrie.it(other);
-
-                let mut grade = 0;
-                let f = poetrie.find(itself, &mc, &mut grade);
-
-                let p = Ok(vec![proof]);
-                assert_eq!(p, f);
-
-                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
-                assert_eq!(258, grade);
-            }
-
-            #[test]
-            fn key_matches_itself_only_b_1() {
-                let itself = &Entry("lyrics");
-                let other = &Entry("epicalyx");
-
-                let mut mc = MatchConduct::test();
-                mc.max_ml = itself.0.len() - 1;
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(itself);
-                _ = poetrie.it(other);
-
-                let mut grade = 0;
-                let f = poetrie.find(itself, &mc, &mut grade);
-
-                assert_eq!(Err(FindErr::OnlyKeyMatches), f, "{}", grade);
-
-                assert_eq!(18, KEY_EXH | G_ZERO_M);
-                assert_eq!(18, grade);
-            }
-
-            #[test]
-            fn key_matches_itself_only_b_2() {
-                let proof = String::from("beautiful lyrics");
-                let itself = &Entry("lyrics");
-                let other = &Entry(proof.as_str());
-
-                let mut mc = MatchConduct::test();
-                mc.max_ml = itself.0.len() - 1;
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(itself);
-                _ = poetrie.it(other);
-
-                let mut grade = 0;
-                let f = poetrie.find(itself, &mc, &mut grade);
-
-                assert_eq!(Err(FindErr::DisjunctConduct), f, "{}", grade);
-
-                assert_eq!(18, KEY_EXH | G_ZERO_M);
-                assert_eq!(18, grade);
-            }
-
-            #[test]
-            fn key_matches_itself_only_b_3() {
-                let proof = String::from("attics");
-                let itself = &Entry("lyrics");
-                let other = &Entry(proof.as_str());
-
-                let mut mc = MatchConduct::test();
-                mc.max_ml = itself.0.len() - 1;
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(itself);
-                _ = poetrie.it(other);
-
-                let mut grade = 0;
-                let f = poetrie.find(itself, &mc, &mut grade);
-
-                assert_eq!(Err(FindErr::DisjunctConduct), f, "{}", grade);
-
-                assert_eq!(514, KEY_EXH | FIN);
-                assert_eq!(514, grade);
-            }
-
-            #[test]
-            fn key_matches_itself_only_c_1() {
-                let itself = &Entry("lyrics");
-                let other = &Entry("epicalyx");
-
-                let mut mc = MatchConduct::test();
-                mc.max_sl = itself.0.len() - 1;
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(itself);
-                _ = poetrie.it(other);
-
-                let mut grade = 0;
-                let f = poetrie.find(itself, &mc, &mut grade);
-
-                assert_eq!(Err(FindErr::OnlyKeyMatches), f);
-
-                assert_eq!(18, KEY_EXH | G_ZERO_M);
-                assert_eq!(18, grade);
-            }
-            #[test]
-            fn key_matches_itself_only_c_2() {
-                let proof = String::from("beautiful lyrics");
-                let itself = &Entry("lyrics");
-                let other = &Entry(proof.as_str());
-
-                let mut mc = MatchConduct::test();
-                mc.max_sl = itself.0.len() - 1;
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(itself);
-                _ = poetrie.it(other);
-
-                let mut grade = 0;
-                let f = poetrie.find(itself, &mc, &mut grade);
-
-                assert_eq!(Err(FindErr::DisjunctConduct), f, "{}", grade);
-
-                assert_eq!(18, KEY_EXH | G_ZERO_M);
-                assert_eq!(18, grade);
-            }
-
-            #[test]
-            fn key_matches_itself_only_c_3() {
-                let proof = String::from("attics");
-                let itself = &Entry("lyrics");
-                let other = &Entry(proof.as_str());
-
-                let mut mc = MatchConduct::test();
-                mc.max_sl = itself.0.len() - 1;
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(itself);
-                _ = poetrie.it(other);
-
-                let mut grade = 0;
-                let f = poetrie.find(itself, &mc, &mut grade);
-
-                let p = Ok(vec![proof]);
-                assert_eq!(p, f);
-
-                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
-                assert_eq!(258, grade);
-            }
-
-            #[test]
-            fn key_matches_itself_only_d() {
-                let p = String::from("lyRics");
-                let e = &Entry(p.as_str());
-                let k = &Entry("lyrics");
-                let mc = MatchConduct::test();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(e);
-                _ = poetrie.it(k);
-
-                let mut grade = 0;
-                let f = poetrie.find(k, &mc, &mut grade);
-
-                assert_eq!(Ok(vec![p]), f);
-
-                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
-                assert_eq!(258, grade);
-            }
-
-            #[test]
             fn subentry_disjunct_detection_a_1() {
                 let se = RevEntry::new("document");
                 let k = RevEntry::new("documentalist");
@@ -3629,6 +3415,220 @@ mod tests_of_units {
 
                 assert_eq!(Ok(vec![e.0]), f);
                 assert_eq!(40, grade);
+            }
+
+            #[test]
+            fn key_matches_itself_only_a_1() {
+                let itself = &Entry("lyrics");
+                let other = &Entry("epicalyx");
+
+                let mc = MatchConduct::test();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(itself);
+                _ = poetrie.it(other);
+
+                let mut grade = 0;
+                let f = poetrie.find(itself, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::OnlyKeyMatches), f);
+
+                assert_eq!(18, KEY_EXH | G_ZERO_M);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn key_matches_itself_only_a_2() {
+                let proof = String::from("beautiful lyrics");
+                let itself = &Entry("lyrics");
+                let other = &Entry(proof.as_str());
+
+                let mc = MatchConduct::test();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(itself);
+                _ = poetrie.it(other);
+
+                let mut grade = 0;
+                let f = poetrie.find(itself, &mc, &mut grade);
+
+                let p = Ok(vec![proof]);
+                assert_eq!(p, f);
+
+                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(130, grade);
+            }
+
+            #[test]
+            fn key_matches_itself_only_a_3() {
+                let proof = String::from("critics");
+                let itself = &Entry("lyrics");
+                let other = &Entry(proof.as_str());
+
+                let mc = MatchConduct::test();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(itself);
+                _ = poetrie.it(other);
+
+                let mut grade = 0;
+                let f = poetrie.find(itself, &mc, &mut grade);
+
+                let p = Ok(vec![proof]);
+                assert_eq!(p, f);
+
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(258, grade);
+            }
+
+            #[test]
+            fn key_matches_itself_only_b_1() {
+                let itself = &Entry("lyrics");
+                let other = &Entry("epicalyx");
+
+                let mut mc = MatchConduct::test();
+                mc.max_ml = itself.0.len() - 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(itself);
+                _ = poetrie.it(other);
+
+                let mut grade = 0;
+                let f = poetrie.find(itself, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::OnlyKeyMatches), f, "{}", grade);
+
+                assert_eq!(18, KEY_EXH | G_ZERO_M);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn key_matches_itself_only_b_2() {
+                let proof = String::from("beautiful lyrics");
+                let itself = &Entry("lyrics");
+                let other = &Entry(proof.as_str());
+
+                let mut mc = MatchConduct::test();
+                mc.max_ml = itself.0.len() - 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(itself);
+                _ = poetrie.it(other);
+
+                let mut grade = 0;
+                let f = poetrie.find(itself, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f, "{}", grade);
+
+                assert_eq!(18, KEY_EXH | G_ZERO_M);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn key_matches_itself_only_b_3() {
+                let proof = String::from("attics");
+                let itself = &Entry("lyrics");
+                let other = &Entry(proof.as_str());
+
+                let mut mc = MatchConduct::test();
+                mc.max_ml = itself.0.len() - 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(itself);
+                _ = poetrie.it(other);
+
+                let mut grade = 0;
+                let f = poetrie.find(itself, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f, "{}", grade);
+
+                assert_eq!(514, KEY_EXH | FIN);
+                assert_eq!(514, grade);
+            }
+
+            #[test]
+            fn key_matches_itself_only_c_1() {
+                let itself = &Entry("lyrics");
+                let other = &Entry("epicalyx");
+
+                let mut mc = MatchConduct::test();
+                mc.max_sl = itself.0.len() - 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(itself);
+                _ = poetrie.it(other);
+
+                let mut grade = 0;
+                let f = poetrie.find(itself, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::OnlyKeyMatches), f);
+
+                assert_eq!(18, KEY_EXH | G_ZERO_M);
+                assert_eq!(18, grade);
+            }
+            #[test]
+            fn key_matches_itself_only_c_2() {
+                let proof = String::from("beautiful lyrics");
+                let itself = &Entry("lyrics");
+                let other = &Entry(proof.as_str());
+
+                let mut mc = MatchConduct::test();
+                mc.max_sl = itself.0.len() - 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(itself);
+                _ = poetrie.it(other);
+
+                let mut grade = 0;
+                let f = poetrie.find(itself, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f, "{}", grade);
+
+                assert_eq!(18, KEY_EXH | G_ZERO_M);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn key_matches_itself_only_c_3() {
+                let proof = String::from("attics");
+                let itself = &Entry("lyrics");
+                let other = &Entry(proof.as_str());
+
+                let mut mc = MatchConduct::test();
+                mc.max_sl = itself.0.len() - 1;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(itself);
+                _ = poetrie.it(other);
+
+                let mut grade = 0;
+                let f = poetrie.find(itself, &mc, &mut grade);
+
+                let p = Ok(vec![proof]);
+                assert_eq!(p, f);
+
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(258, grade);
+            }
+
+            #[test]
+            fn key_matches_itself_only_d() {
+                let p = String::from("lyRics");
+                let e = &Entry(p.as_str());
+                let k = &Entry("lyrics");
+                let mc = MatchConduct::test();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(e);
+                _ = poetrie.it(k);
+
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
+
+                assert_eq!(Ok(vec![p]), f);
+
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(258, grade);
             }
 
             #[test]
