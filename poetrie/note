@@ -9,7 +9,3 @@
 - merge key into match conduct (idea: do not make search if is not possible to satisfy mc with key)
 - expose internal buffers (?: as ptr, raw, mut/ref)
 - iter +IntoIter
-
-
-👍 custom letter equalizer; develop as separate "amplifier":
-    - for given input it generates n-words using given char-char mapping (e.g. for phonemes mapping)

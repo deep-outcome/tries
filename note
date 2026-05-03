@@ -1,9 +1,5 @@
-- poetrie
-    ▪ customs equalizer (e.g. t =d, s =z, [x =eks (?)]), the pamp
-    ▪ update readme with pamp info
-
 - opts
-    - check with track opt on UC node (see t-oc also)
+    - check with track optimizations on UC node (see t-oc also)
     - dyn+trie
         ▪ keys, values, view_mut methods
         ▪ iter, iter_mut, IntoIter
