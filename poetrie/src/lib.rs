@@ -374,6 +374,8 @@ pub struct Poetrie {
 use crate::tests_of_units::poetrie::find::grade;
 
 const NULL: char = '\0';
+const DEF_FIN_CAP: usize = 100;
+
 impl Poetrie {
     /// Use for `Poetrie` construction.
     pub fn nw() -> Poetrie {
@@ -598,7 +600,12 @@ impl Poetrie {
         let branching = self.bra.uplift();
         let mut disjunct_hit = false;
 
-        let mut find = Vec::with_capacity(100);
+        let mut find = aide::vec_with_cap_or_def(
+            mc.max_n,
+            || Vec::with_capacity(DEF_FIN_CAP),
+            #[cfg(test)]
+            &mut 0,
+        );
 
         let buff = self.buf.uplift();
         let mut buf_l;
@@ -2165,7 +2172,7 @@ mod tests_of_units {
             use std::collections::HashSet;
 
             use crate::{
-                Entry, FindErr, MatchConduct, Poetrie, mc_defaults::MAX_ML,
+                DEF_FIN_CAP, Entry, FindErr, MatchConduct, Poetrie, mc_defaults::MAX_ML,
                 tests_of_units::rev_entry::RevEntry,
             };
 
@@ -2382,6 +2389,40 @@ mod tests_of_units {
 
                 assert_eq!(Err(FindErr::NoJointSuffix), f);
                 assert_eq!(0, grade);
+            }
+
+            #[test]
+            fn find_capacity_a() {
+                let e = &Entry("lyrics");
+                let k = &Entry("codecs");
+                let mut mc = MatchConduct::test();
+                mc.max_n = 10;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(e);
+
+                let f = poetrie.find(k, &mc, &mut 0);
+                assert_eq!(true, f.is_ok());
+                let f = f.unwrap();
+
+                assert_eq!(true, f.capacity() < 2 * mc.max_n);
+            }
+
+            #[test]
+            fn find_capacity_b() {
+                let e = &Entry("lyrics");
+                let k = &Entry("codecs");
+                let mut mc = MatchConduct::test();
+                mc.max_n = usize::MAX;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(e);
+
+                let f = poetrie.find(k, &mc, &mut 0);
+                assert_eq!(true, f.is_ok());
+                let f = f.unwrap();
+
+                assert_eq!(true, f.capacity() == DEF_FIN_CAP);
             }
 
             #[test]
