@@ -2892,9 +2892,11 @@ mod tests_of_units {
 
                 let p = Ok(vec![e_a.0, e_b.0]);
                 assert_eq!(p, f);
+                
+                assert_eq!(64, SAT_ON_SE);
                 assert_eq!(64, grade);
             }
-
+            
             #[test]
             fn branch_disjunct_detection_a_1() {
                 let e = RevEntry::new("documenter");
