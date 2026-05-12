@@ -357,8 +357,7 @@ impl<T> Trie<T> {
 
         let mut buff = String::with_capacity(KEY_BUFF_CAP);
 
-        let mut res = Vec::new();
-        res.reserve_exact(cnt);
+        let mut res = Vec::with_capacity(cnt);
 
         let rl = unsafe { self.root.branches.as_mut().unwrap_unchecked() };
         ext(rl, &mut buff, &mut res);
@@ -385,8 +384,7 @@ impl<T> Trie<T> {
 
         let mut buff = String::with_capacity(KEY_BUFF_CAP);
 
-        let mut res = Vec::new();
-        res.reserve_exact(cnt);
+        let mut res = Vec::with_capacity(cnt);
 
         let rl = unsafe { self.root.branches.as_ref().unwrap_unchecked() };
         view(rl, &mut buff, &mut res);
@@ -1530,4 +1528,4 @@ mod tests_of_units {
     }
 }
 
-// cargo fmt && cargo test --release
+// cargo fmt & cargo test --release
