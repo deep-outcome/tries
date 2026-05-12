@@ -70,8 +70,7 @@ pub type Take<T> = (String, T);
 
 /// Alphabet function, tree arms generation of length specified.
 fn ab<T>(len: usize) -> Alphabet<T> {
-    let mut ab = Vec::new();
-    ab.reserve_exact(len);
+    let mut ab = Vec::with_capacity(len);
 
     let spare = ab.spare_capacity_mut();
     for ix in 0..len {
@@ -857,8 +856,7 @@ impl<T> Trie<T> {
         // capacity is prebuffered
         let mut buff = String::with_capacity(KEY_BUFF_CAP);
 
-        let mut res = Vec::new();
-        res.reserve_exact(ct);
+        let mut res = Vec::with_capacity(ct);
 
         ext(self.rt.aq_mut(), &mut buff, self.re, &mut res);
         _ = self.clr();
@@ -883,8 +881,7 @@ impl<T> Trie<T> {
             return None;
         }
 
-        let mut res = Vec::new();
-        res.reserve_exact(ct);
+        let mut res = Vec::with_capacity(ct);
 
         vals(self.rt.aq_ref(), &mut res);
 
@@ -908,8 +905,7 @@ impl<T> Trie<T> {
         // capacity is prebuffered
         let mut buff = String::with_capacity(KEY_BUFF_CAP);
 
-        let mut res = Vec::new();
-        res.reserve_exact(ct);
+        let mut res = Vec::with_capacity(ct);
 
         keys(self.rt.aq_ref(), &mut buff, self.re, &mut res);
 
@@ -933,8 +929,7 @@ impl<T> Trie<T> {
         // capacity is prebuffered
         let mut buff = String::with_capacity(KEY_BUFF_CAP);
 
-        let mut res = Vec::new();
-        res.reserve_exact(ct);
+        let mut res = Vec::with_capacity(ct);
 
         view(self.rt.aq_ref(), &mut buff, self.re, &mut res);
         Some(res)
@@ -957,8 +952,7 @@ impl<T> Trie<T> {
         // capacity is prebuffered
         let mut buff = String::with_capacity(KEY_BUFF_CAP);
 
-        let mut res = Vec::new();
-        res.reserve_exact(ct);
+        let mut res = Vec::with_capacity(ct);
 
         view_mut(self.rt.aq_mut(), &mut buff, self.re, &mut res);
         Some(res)
@@ -2966,5 +2960,5 @@ mod tests_of_units {
     }
 }
 
-// cargo fmt && cargo test --features test-ext --release
-// cargo fmt && cargo test --release
+// cargo fmt & cargo test --features test-ext --release
+// cargo fmt & cargo test --release
