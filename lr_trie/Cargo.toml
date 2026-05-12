@@ -1,6 +1,6 @@
 [package]
 name = "lr_trie"
-version = "4.1.4"
+version = "4.1.5"
 edition = "2021"
 keywords = [ "digital-tree", "prefix-tree", "trie", "retrieval-tree" ]
 authors = [ "software9119.technology" ]
@@ -10,3 +10,7 @@ license = "MIT"
 categories = [ "data-structures" ]
 documentation = "https://docs.rs/lr_trie/latest/lr_trie/index.html"
 readme = "README.md"
+
+[features]
+rh-aide-tests = []
+rh-uc-tests = []
