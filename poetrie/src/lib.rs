@@ -3218,6 +3218,7 @@ mod tests_of_units {
                 let f = poetrie.find(&k.entry(), &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(2052, NO_PATH_N | MIN_SL_NOT_REA);
                 assert_eq!(2052, grade);
             }
 
@@ -3229,7 +3230,7 @@ mod tests_of_units {
                 let k = &k.entry();
 
                 let mut mc = MatchConduct::test();
-                mc.min_sl = k.0.len() + 1;
+                mc.min_sl = e_b.0.len() + 1;
                 mc.sub_e = true;
 
                 let mut poetrie = Poetrie::nw();
@@ -3241,7 +3242,8 @@ mod tests_of_units {
                 let f = poetrie.find(k, &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
-                assert_eq!(2050, grade);
+                assert_eq!(18, KEY_EXH | G_ZERO_M);
+                assert_eq!(18, grade);
             }
 
             #[test]
@@ -3264,6 +3266,7 @@ mod tests_of_units {
 
                 let p = Ok(vec![e_a.0, e_b.0]);
                 assert_eq!(p, f);
+                assert_eq!(516, NO_PATH_N | FIN);
                 assert_eq!(516, grade);
             }
 
@@ -3289,6 +3292,7 @@ mod tests_of_units {
 
                 let p = Ok(vec![e_a.0, e_b.0]);
                 assert_eq!(p, f);
+                assert_eq!(514, KEY_EXH | FIN);
                 assert_eq!(514, grade);
             }
 
