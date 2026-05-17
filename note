@@ -1,6 +1,6 @@
 - opts
     - check with track optimizations on UC node (see t-oc also)
-    - dyn+trie
+    - dyn_trie
         ▪ keys, values, view_mut methods
         ▪ iter, iter_mut, IntoIter
     - lr_trie

@@ -600,7 +600,7 @@ impl Poetrie {
         let branching = self.bra.uplift();
         let mut disjunct_hit = false;
 
-        let mut find = aide::vec_with_cap_or_def(
+        let mut find = aide::vec_of_cap_or(
             mc.max_n,
             || Vec::with_capacity(DEF_FIN_CAP),
             #[cfg(test)]
@@ -618,10 +618,10 @@ impl Poetrie {
             buff.push(c);
             buf_l = buff.len();
 
-            // unwinding key, instead of short-cutting,
-            // is necessary for disjunct conduct determination
             max_sl_accord = buf_l <= max_o_sl;
 
+            // implnote: unwinding key, instead of short-cutting,
+            // is necessary for disjunct conduct determination
             let next_c = chars.next_back();
             if next_c.is_none() {
                 #[cfg(test)]
@@ -654,6 +654,8 @@ impl Poetrie {
                             branching.push((l, buf_l, n));
                         } else {
                             if disjunct_hit == false {
+                                #[cfg(test)]
+                                set_grade(grade::DISJ_DIR_BRA, grade);
                                 disjunct_hit = true;
                             }
                         }
@@ -683,7 +685,7 @@ impl Poetrie {
         let continuable = links.is_some();
 
         // extension is special case of branching where
-        // branching node is last node of key
+        // branching node is last node of key found
         let can_extend = max_sl_accord && continuable && buf_l < max_ml;
         let can_branch = branching.len() > 0;
 
@@ -2179,9 +2181,9 @@ mod tests_of_units {
             pub mod grade {
                 /// key exhausted
                 pub const KEY_EXH: usize = 2;
-                /// no path available on node
+                /// no path available on node, ineffectual path potential
                 pub const NO_PATH_N: usize = 4;
-                /// no path available on links
+                /// no path available on links, no path potential
                 pub const NO_PATH_L: usize = 8;
                 /// guaranteed zero matches
                 pub const G_ZERO_M: usize = 16;
@@ -2199,6 +2201,8 @@ mod tests_of_units {
                 pub const BUF_MAX_ALR: usize = 1024;
                 /// min suffix requirement not reached
                 pub const MIN_SL_NOT_REA: usize = 2048;
+                /// direct disjuct branch detection
+                pub const DISJ_DIR_BRA: usize = 4096;
             }
 
             #[test]
@@ -2892,11 +2896,11 @@ mod tests_of_units {
 
                 let p = Ok(vec![e_a.0, e_b.0]);
                 assert_eq!(p, f);
-                
+
                 assert_eq!(64, SAT_ON_SE);
                 assert_eq!(64, grade);
             }
-            
+
             #[test]
             fn branch_disjunct_detection_a_1() {
                 let e = RevEntry::new("documenter");
@@ -2912,6 +2916,7 @@ mod tests_of_units {
                 let f = poetrie.find(&k.entry(), &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(2052, NO_PATH_N | MIN_SL_NOT_REA);
                 assert_eq!(2052, grade);
             }
 
@@ -2932,13 +2937,15 @@ mod tests_of_units {
                 let f = poetrie.find(k, &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
-                assert_eq!(18, grade);
+                assert_eq!(4114, KEY_EXH | DISJ_DIR_BRA | G_ZERO_M);
+                assert_eq!(4114, grade);
             }
 
             #[test]
             fn branch_disjunct_detection_a_3() {
                 let e = RevEntry::new("documenter");
                 let k = RevEntry::new("documentalist");
+                let k = &k.entry();
 
                 let mut mc = MatchConduct::test();
                 mc.min_sl = e.0.len() - 2;
@@ -2947,11 +2954,13 @@ mod tests_of_units {
                 _ = poetrie.it(&e.entry());
 
                 let p = Ok(vec![e.0]);
+                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(516, NO_PATH_N | FIN);
                 for duo in [(1, 132), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
-                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
@@ -2973,6 +2982,8 @@ mod tests_of_units {
                 _ = poetrie.it(k);
 
                 let p = Ok(vec![e.0]);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(514, KEY_EXH | FIN);
                 for duo in [(1, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
@@ -3000,6 +3011,7 @@ mod tests_of_units {
                 let f = poetrie.find(&k.entry(), &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(20, NO_PATH_N | G_ZERO_M);
                 assert_eq!(20, grade);
             }
 
@@ -3020,13 +3032,15 @@ mod tests_of_units {
                 let f = poetrie.find(k, &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
-                assert_eq!(18, grade);
+                assert_eq!(4114, KEY_EXH | DISJ_DIR_BRA | G_ZERO_M);
+                assert_eq!(4114, grade);
             }
 
             #[test]
             fn branch_disjunct_detection_b_3() {
                 let e = RevEntry::new("documenter");
                 let k = RevEntry::new("documentalist");
+                let k = &k.entry();
 
                 let mut mc = MatchConduct::test();
                 mc.max_sl = e.0.len() - 2;
@@ -3035,11 +3049,13 @@ mod tests_of_units {
                 _ = poetrie.it(&e.entry());
 
                 let p = Ok(vec![e.0]);
+                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(516, NO_PATH_N | FIN);
                 for duo in [(1, 132), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
-                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(p, f);
@@ -3061,6 +3077,8 @@ mod tests_of_units {
                 _ = poetrie.it(k);
 
                 let p = Ok(vec![e.0]);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(514, KEY_EXH | FIN);
                 for duo in [(1, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
@@ -3088,6 +3106,7 @@ mod tests_of_units {
                 let f = poetrie.find(&k.entry(), &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(20, NO_PATH_N | G_ZERO_M);
                 assert_eq!(20, grade);
             }
 
@@ -3108,13 +3127,15 @@ mod tests_of_units {
                 let f = poetrie.find(k, &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
-                assert_eq!(18, grade);
+                assert_eq!(4114, KEY_EXH | DISJ_DIR_BRA | G_ZERO_M);
+                assert_eq!(4114, grade);
             }
 
             #[test]
             fn branch_disjunct_detection_c_3() {
                 let e = RevEntry::new("documenter");
                 let k = RevEntry::new("documentalist");
+                let k = &k.entry();
 
                 let mut mc = MatchConduct::test();
                 let e_len = e.0.len();
@@ -3123,6 +3144,9 @@ mod tests_of_units {
                 _ = poetrie.it(&e.entry());
 
                 let p = Ok(vec![e.0]);
+                assert_eq!(20, NO_PATH_N | G_ZERO_M);
+                assert_eq!(516, NO_PATH_N | FIN);
+                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
                 for quadruplet in [
                     (usize::MAX, 20, e_len - 2, Err(FindErr::DisjunctConduct)),
                     (usize::MAX, 516, e_len - 1, Err(FindErr::DisjunctConduct)),
@@ -3133,7 +3157,7 @@ mod tests_of_units {
                     mc.max_ml = quadruplet.2;
 
                     let mut grade = 0;
-                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     assert_eq!(quadruplet.3, f);
@@ -3155,6 +3179,9 @@ mod tests_of_units {
                 _ = poetrie.it(k);
 
                 let p = Ok(vec![e.0]);
+                assert_eq!(1538, KEY_EXH | BUF_MAX_ALR | FIN);
+                assert_eq!(514, KEY_EXH | FIN);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
                 for quadruplet in [
                     (usize::MAX, 1538, e_len - 2, Err(FindErr::DisjunctConduct)),
                     (usize::MAX, 514, e_len - 1, Err(FindErr::DisjunctConduct)),
@@ -4905,7 +4932,7 @@ mod tests_of_units {
                 let proof = rev_entry::rev("doctorate");
 
                 let mut ac = AssertComposite { p: poetrie, m: mc };
-                let mut mc = ac.assert(Ok(vec![proof]), 132, key.entry());
+                let mut mc = ac.assert(Ok(vec![proof]), 4228, key.entry());
 
                 mc.min_sl = "doctor".len();
                 mc.ext_ml = 4;
@@ -4913,7 +4940,7 @@ mod tests_of_units {
 
                 let key = RevEntry::new("doctor");
                 let proof = map_rev(["doctorfish", "doctorship"]);
-                mc = ac.assert(proof, 514, key.entry());
+                mc = ac.assert(proof, 4610, key.entry());
 
                 mc.min_sl = "doctrine".len() - 1;
                 mc.max_ml = "doctrinarianism".len() - 1;
@@ -4921,7 +4948,7 @@ mod tests_of_units {
 
                 let key = RevEntry::new("doctrine");
                 let proof = map_rev(["doctrinaire", "doctrinal", "doctrinarian"]);
-                mc = ac.assert(proof, 258, key.entry());
+                mc = ac.assert(proof, 4354, key.entry());
 
                 mc.sub_e = true;
                 mc.min_sl = "documental".len() - 2;
@@ -4930,13 +4957,13 @@ mod tests_of_units {
 
                 let key = RevEntry::new("documental");
                 let proof = map_rev(["document", "documented", "documenter"]);
-                mc = ac.assert(proof, 514, key.entry());
+                mc = ac.assert(proof, 4610, key.entry());
 
                 mc.min_sl = "surgeful".len();
                 mc.max_sl = "surgeful".len();
 
                 let key = RevEntry::new("surgeful");
-                mc = ac.assert(Err(FindErr::DisjunctConduct), 18, key.entry());
+                mc = ac.assert(Err(FindErr::DisjunctConduct), 4114, key.entry());
 
                 mc.max_n = usize::MAX;
                 mc.sub_e = true;
@@ -4956,7 +4983,7 @@ mod tests_of_units {
                     "documented",
                     "documenter",
                 ]);
-                mc = ac.assert(proof, 514, key.entry());
+                mc = ac.assert(proof, 4610, key.entry());
 
                 mc.max_n = usize::MAX;
                 mc.sub_e = true;
@@ -4977,7 +5004,7 @@ mod tests_of_units {
                     "documented",
                     "documenter",
                 ]);
-                _ = ac.assert(proof, 514, key.entry());
+                _ = ac.assert(proof, 4610, key.entry());
 
                 fn map_rev<const S: usize>(vals: [&str; S]) -> Result<Find, FindErr> {
                     let mut map = vals.map(rev_entry::rev);
