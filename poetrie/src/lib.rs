@@ -957,30 +957,30 @@ mod tests_of_units {
 
             #[test]
             fn new() {
-                let proof = RevEntry(String::from("abcd"));
+                let p = RevEntry(String::from("abcd"));
                 let test = RevEntry::new("dcba");
-                assert_eq!(proof, test);
+                assert_eq!(p, test);
             }
 
             #[test]
             fn entry() {
-                let proof = Entry("abcd");
+                let p = Entry("abcd");
                 let test = RevEntry::new("dcba");
-                assert_eq!(proof, test.entry());
+                assert_eq!(p, test.entry());
             }
 
             #[test]
             fn _rev() {
-                let proof = String::from("abcd");
+                let p = String::from("abcd");
                 let test = rev("dcba");
-                assert_eq!(proof, test);
+                assert_eq!(p, test);
             }
 
             #[test]
             fn deref() {
-                let proof = String::from("abcd");
+                let p = String::from("abcd");
                 let test = rev("dcba");
-                assert_eq!(proof, *test);
+                assert_eq!(p, *test);
             }
         }
     }
@@ -1023,11 +1023,11 @@ mod tests_of_units {
             let links = poetrie.root.links.as_mut().unwrap();
             extract(links, &mut buff, &mut test);
 
-            let proof = vec![String::from("a"), String::from("z")];
-            assert_eq!(proof.len(), test.len());
+            let p = vec![String::from("a"), String::from("z")];
+            assert_eq!(p.len(), test.len());
             test.sort();
 
-            assert_eq!(proof, test);
+            assert_eq!(p, test);
 
             assert_eq!(true, poetrie.ey(a));
             assert_eq!(true, poetrie.ey(z));
@@ -1265,10 +1265,10 @@ mod tests_of_units {
 
             _ = extender.e(&n, 'o');
 
-            let proof = String::from('o');
+            let p = String::from('o');
             assert_eq!(1, f.len());
-            assert_eq!(proof, f[0]);
-            assert_eq!(proof, b);
+            assert_eq!(p, f[0]);
+            assert_eq!(p, b);
         }
 
         #[test]
@@ -1356,10 +1356,10 @@ mod tests_of_units {
 
             let res = extender.e(&mut n, 'c');
             assert_eq!(false, res);
-            let mut proof = vec![rev("documental"), rev("documentable"), rev("documents")];
-            proof.sort();
+            let mut p = vec![rev("documental"), rev("documentable"), rev("documents")];
+            p.sort();
             f.sort();
-            assert_eq!(proof, f);
+            assert_eq!(p, f);
         }
 
         fn load_setup() -> (Node, HashSet<String>) {
@@ -1376,7 +1376,7 @@ mod tests_of_units {
             let mut n_seroton = add_one(&mut n_serot, "on", false);
             add_rooted(&mut n_seroton, &["ergic", "in"]);
 
-            let proof = [
+            let p = [
                 "serosity",
                 "serotaxonomy",
                 "serotherapy",
@@ -1391,7 +1391,7 @@ mod tests_of_units {
             .into_iter()
             .collect::<HashSet<String>>();
 
-            (n, proof)
+            (n, p)
         }
 
         #[test]
@@ -1451,27 +1451,27 @@ mod tests_of_units {
 
         #[test]
         fn limit_hit_a() {
-            let proof = "poetship";
-            let cs = proof.chars().rev().collect::<CharBuf>();
+            let p = "poetship";
+            let cs = p.chars().rev().collect::<CharBuf>();
             let mut f = Vec::new();
 
             let lim = push_match(&cs, &mut f, 2);
             assert_eq!(false, lim);
             assert_eq!(1, f.len());
-            assert_eq!(proof, f[0]);
+            assert_eq!(p, f[0]);
         }
 
         #[test]
         fn limit_hit_b() {
-            let proof = "poet-cruiser";
-            let cs = proof.chars().rev().collect::<CharBuf>();
+            let p = "poet-cruiser";
+            let cs = p.chars().rev().collect::<CharBuf>();
             let mut f = Vec::new();
             f.push(String::with_capacity(0));
 
             let lim = push_match(&cs, &mut f, 2);
             assert_eq!(true, lim);
             assert_eq!(2, f.len());
-            assert_eq!(proof, f[1]);
+            assert_eq!(p, f[1]);
         }
     }
 
@@ -1706,7 +1706,7 @@ mod tests_of_units {
                 .sub_e(true)
                 .form();
 
-            let proof = MatchConduct {
+            let p = MatchConduct {
                 max_n: 11,
                 min_sl: 33,
                 max_sl: 55,
@@ -1715,12 +1715,12 @@ mod tests_of_units {
                 sub_e: true,
             };
 
-            assert_ne!(mc_defaults::SUB_E, proof.sub_e);
+            assert_ne!(mc_defaults::SUB_E, p.sub_e);
 
-            assert_eq!(Ok(proof.clone()), test);
+            assert_eq!(Ok(p.clone()), test);
 
             let test = shaper.transform();
-            assert_eq!(Ok(proof), test);
+            assert_eq!(Ok(p), test);
         }
 
         #[test]
@@ -1746,9 +1746,9 @@ mod tests_of_units {
             assert_eq!(true, err.is_err());
 
             let (_, test) = err.unwrap_err();
-            let mut proof = MatchConductShaper::init();
-            _ = proof.max_n(0);
-            assert_eq!(proof, test);
+            let mut p = MatchConductShaper::init();
+            _ = p.max_n(0);
+            assert_eq!(p, test);
         }
     }
 
@@ -1922,15 +1922,15 @@ mod tests_of_units {
             fn basic_test() {
                 let mut poetrie = Poetrie::nw();
 
-                let proof = String::from("quadriliteral");
-                let entry = Entry(proof.as_str());
+                let p = String::from("quadriliteral");
+                let entry = Entry(p.as_str());
                 _ = poetrie.it(&entry);
 
                 let key = Entry("semiliteral");
                 let mc = MatchConduct::test();
                 let find = poetrie.sx(&key, &mc);
 
-                assert_eq!(Ok(vec![proof]), find);
+                assert_eq!(Ok(vec![p]), find);
             }
 
             #[test]
@@ -3472,9 +3472,9 @@ mod tests_of_units {
 
             #[test]
             fn key_matches_itself_only_a_2() {
-                let proof = String::from("beautiful lyrics");
+                let p = String::from("beautiful lyrics");
                 let itself = &Entry("lyrics");
-                let other = &Entry(proof.as_str());
+                let other = &Entry(p.as_str());
 
                 let mc = MatchConduct::test();
 
@@ -3485,7 +3485,7 @@ mod tests_of_units {
                 let mut grade = 0;
                 let f = poetrie.find(itself, &mc, &mut grade);
 
-                let p = Ok(vec![proof]);
+                let p = Ok(vec![p]);
                 assert_eq!(p, f);
 
                 assert_eq!(130, KEY_EXH | SAT_ON_EXT);
@@ -3494,9 +3494,9 @@ mod tests_of_units {
 
             #[test]
             fn key_matches_itself_only_a_3() {
-                let proof = String::from("critics");
+                let p = String::from("critics");
                 let itself = &Entry("lyrics");
-                let other = &Entry(proof.as_str());
+                let other = &Entry(p.as_str());
 
                 let mc = MatchConduct::test();
 
@@ -3507,7 +3507,7 @@ mod tests_of_units {
                 let mut grade = 0;
                 let f = poetrie.find(itself, &mc, &mut grade);
 
-                let p = Ok(vec![proof]);
+                let p = Ok(vec![p]);
                 assert_eq!(p, f);
 
                 assert_eq!(258, KEY_EXH | SAT_ON_BRA);
@@ -3537,9 +3537,9 @@ mod tests_of_units {
 
             #[test]
             fn key_matches_itself_only_b_2() {
-                let proof = String::from("beautiful lyrics");
+                let p = String::from("beautiful lyrics");
                 let itself = &Entry("lyrics");
-                let other = &Entry(proof.as_str());
+                let other = &Entry(p.as_str());
 
                 let mut mc = MatchConduct::test();
                 mc.max_ml = itself.0.len() - 1;
@@ -3559,9 +3559,9 @@ mod tests_of_units {
 
             #[test]
             fn key_matches_itself_only_b_3() {
-                let proof = String::from("attics");
+                let p = String::from("attics");
                 let itself = &Entry("lyrics");
-                let other = &Entry(proof.as_str());
+                let other = &Entry(p.as_str());
 
                 let mut mc = MatchConduct::test();
                 mc.max_ml = itself.0.len() - 1;
@@ -3601,9 +3601,9 @@ mod tests_of_units {
             }
             #[test]
             fn key_matches_itself_only_c_2() {
-                let proof = String::from("beautiful lyrics");
+                let p = String::from("beautiful lyrics");
                 let itself = &Entry("lyrics");
-                let other = &Entry(proof.as_str());
+                let other = &Entry(p.as_str());
 
                 let mut mc = MatchConduct::test();
                 mc.max_sl = itself.0.len() - 1;
@@ -3623,9 +3623,9 @@ mod tests_of_units {
 
             #[test]
             fn key_matches_itself_only_c_3() {
-                let proof = String::from("attics");
+                let p = String::from("attics");
                 let itself = &Entry("lyrics");
-                let other = &Entry(proof.as_str());
+                let other = &Entry(p.as_str());
 
                 let mut mc = MatchConduct::test();
                 mc.max_sl = itself.0.len() - 1;
@@ -3637,7 +3637,7 @@ mod tests_of_units {
                 let mut grade = 0;
                 let f = poetrie.find(itself, &mc, &mut grade);
 
-                let p = Ok(vec![proof]);
+                let p = Ok(vec![p]);
                 assert_eq!(p, f);
 
                 assert_eq!(258, KEY_EXH | SAT_ON_BRA);
@@ -3681,23 +3681,23 @@ mod tests_of_units {
                 let mut mc = MatchConduct::test();
                 mc.max_n = usize::MAX;
 
-                let mut proof = entries.clone();
-                proof.remove(0);
-                let proof = Ok(proof);
+                let mut p = entries.clone();
+                p.remove(0);
+                let p = Ok(p);
 
                 let mut grade = 0;
                 let mut f = poetrie.find(key, &mc, &mut grade);
-                assert_eq!(proof, f);
+                assert_eq!(p, f);
                 assert_eq!(516, grade);
 
                 poetrie.clr_f_buffs();
 
-                let proof = Ok(entries);
+                let p = Ok(entries);
                 mc.sub_e = true;
 
                 grade = 0;
                 f = poetrie.find(key, &mc, &mut grade);
-                assert_eq!(proof, f);
+                assert_eq!(p, f);
                 assert_eq!(516, grade);
             }
 
@@ -3720,23 +3720,23 @@ mod tests_of_units {
                 let mut mc = MatchConduct::test();
                 mc.max_n = usize::MAX;
 
-                let mut proof = entries.clone();
-                proof.remove(0);
-                let proof = Ok(proof);
+                let mut p = entries.clone();
+                p.remove(0);
+                let p = Ok(p);
 
                 let mut grade = 0;
                 let mut f = poetrie.find(key, &mc, &mut grade);
-                assert_eq!(proof, f);
+                assert_eq!(p, f);
                 assert_eq!(514, grade);
 
                 poetrie.clr_f_buffs();
 
-                let proof = Ok(entries);
+                let p = Ok(entries);
                 mc.sub_e = true;
 
                 grade = 0;
                 f = poetrie.find(key, &mc, &mut grade);
-                assert_eq!(proof, f);
+                assert_eq!(p, f);
                 assert_eq!(514, grade);
             }
 
@@ -4015,15 +4015,15 @@ mod tests_of_units {
                 mc.ext_ml = e_e.0.len() - 1;
                 mc.max_ml = e_d.0.len();
 
-                let proof = vec![e_a, e_b, e_c, e_d, e_e];
-                for e in proof.iter() {
+                let p = vec![e_a, e_b, e_c, e_d, e_e];
+                for e in p.iter() {
                     _ = poetrie.it(&e.entry());
                 }
 
                 _ = poetrie.it(&e_f.entry());
                 _ = poetrie.it(&e_g.entry());
 
-                let p = HashSet::<String>::from_iter(proof.iter().map(|x| x.0.clone()));
+                let p = HashSet::<String>::from_iter(p.iter().map(|x| x.0.clone()));
                 let p_len = p.len();
 
                 for duo in [(3, 264), (5, 264), (usize::MAX, 520)] {
@@ -4065,8 +4065,8 @@ mod tests_of_units {
                 mc.ext_ml = e_e.0.len() - 1;
                 mc.max_ml = e_d.0.len();
 
-                let proof = vec![e_a, e_b, e_c, e_d, e_e];
-                for e in proof.iter() {
+                let p = vec![e_a, e_b, e_c, e_d, e_e];
+                for e in p.iter() {
                     _ = poetrie.it(&e.entry());
                 }
 
@@ -4074,7 +4074,7 @@ mod tests_of_units {
                 _ = poetrie.it(&e_g.entry());
                 _ = poetrie.it(k);
 
-                let p = HashSet::<String>::from_iter(proof.iter().map(|x| x.0.clone()));
+                let p = HashSet::<String>::from_iter(p.iter().map(|x| x.0.clone()));
                 let p_len = p.len();
 
                 for duo in [(3, 258), (5, 258), (usize::MAX, 514)] {
@@ -4809,11 +4809,11 @@ mod tests_of_units {
                 mc.max_n = usize::MAX;
                 mc.sub_e = true;
 
-                let proof = Ok(entries);
+                let p = Ok(entries);
 
                 let mut grade = 0;
                 let mut f = poetrie.find(key, &mc, &mut grade);
-                assert_eq!(proof, f);
+                assert_eq!(p, f);
                 assert_eq!(520, grade);
 
                 poetrie.clr_f_buffs();
@@ -4821,7 +4821,7 @@ mod tests_of_units {
 
                 grade = 0;
                 f = poetrie.find(key, &mc, &mut grade);
-                assert_eq!(proof, f);
+                assert_eq!(p, f);
                 assert_eq!(514, grade);
             }
 
@@ -4854,32 +4854,32 @@ mod tests_of_units {
                 let mut ac = AssertComposite { p: poetrie, m: mc };
 
                 let key = Entry("musics");
-                let proof = String::from("physics");
-                ac.assert_n(Ok(vec![proof]), 132, key, 1);
+                let p = String::from("physics");
+                ac.assert_n(Ok(vec![p]), 132, key, 1);
 
                 let key = Entry("athletics");
-                let proof = String::from("aesthetics");
-                ac.assert_n(Ok(vec![proof]), 258, key, 1);
+                let p = String::from("aesthetics");
+                ac.assert_n(Ok(vec![p]), 258, key, 1);
 
                 let key = Entry("aesthetics");
-                let proof = String::from("athletics");
-                ac.assert_n(Ok(vec![proof]), 258, key, 1);
+                let p = String::from("athletics");
+                ac.assert_n(Ok(vec![p]), 258, key, 1);
 
                 let key = Entry("epicalyx");
                 ac.assert_n(Err(FindErr::NoJointSuffix), 0, key, 1);
 
                 let key = RevEntry::new("documental");
-                let proof1 = RevEntry::new("document").0;
-                let proof2 = RevEntry::new("documentalist").0;
-                ac.assert_n(Ok(vec![proof1, proof2]), 130, key.entry(), 2);
+                let p1 = RevEntry::new("document").0;
+                let p2 = RevEntry::new("documentalist").0;
+                ac.assert_n(Ok(vec![p1, p2]), 130, key.entry(), 2);
 
                 let key = RevEntry::new("documentalist");
-                let proof = RevEntry::new("document").0;
-                ac.assert_n(Ok(vec![proof]), 34, key.entry(), 2);
+                let p = RevEntry::new("document").0;
+                ac.assert_n(Ok(vec![p]), 34, key.entry(), 2);
 
                 let key = RevEntry::new("quadriceps");
-                let proof = String::from("q");
-                ac.assert_n(Ok(vec![proof]), 64, key.entry(), 1);
+                let p = String::from("q");
+                ac.assert_n(Ok(vec![p]), 64, key.entry(), 1);
 
                 let key = Entry("q");
                 ac.assert_n(Err(FindErr::OnlyKeyMatches), 18, key, 1);
@@ -4933,26 +4933,26 @@ mod tests_of_units {
                 mc.min_sl = "doctoral".len() - 1;
 
                 let key = RevEntry::new("doctoral");
-                let proof = rev_entry::rev("doctorate");
+                let p = rev_entry::rev("doctorate");
 
                 let mut ac = AssertComposite { p: poetrie, m: mc };
-                let mut mc = ac.assert(Ok(vec![proof]), 4228, key.entry());
+                let mut mc = ac.assert(Ok(vec![p]), 4228, key.entry());
 
                 mc.min_sl = "doctor".len();
                 mc.ext_ml = 4;
                 mc.max_n = usize::MAX;
 
                 let key = RevEntry::new("doctor");
-                let proof = map_rev(["doctorfish", "doctorship"]);
-                mc = ac.assert(proof, 4610, key.entry());
+                let p = map_rev(["doctorfish", "doctorship"]);
+                mc = ac.assert(p, 4610, key.entry());
 
                 mc.min_sl = "doctrine".len() - 1;
                 mc.max_ml = "doctrinarianism".len() - 1;
                 mc.max_n = 3;
 
                 let key = RevEntry::new("doctrine");
-                let proof = map_rev(["doctrinaire", "doctrinal", "doctrinarian"]);
-                mc = ac.assert(proof, 4354, key.entry());
+                let p = map_rev(["doctrinaire", "doctrinal", "doctrinarian"]);
+                mc = ac.assert(p, 4354, key.entry());
 
                 mc.sub_e = true;
                 mc.min_sl = "documental".len() - 2;
@@ -4960,8 +4960,8 @@ mod tests_of_units {
                 mc.max_n = usize::MAX;
 
                 let key = RevEntry::new("documental");
-                let proof = map_rev(["document", "documented", "documenter"]);
-                mc = ac.assert(proof, 4610, key.entry());
+                let p = map_rev(["document", "documented", "documenter"]);
+                mc = ac.assert(p, 4610, key.entry());
 
                 mc.min_sl = "surgeful".len();
                 mc.max_sl = "surgeful".len();
@@ -4974,7 +4974,7 @@ mod tests_of_units {
                 mc.min_sl = "document".len();
 
                 let key = RevEntry::new("documentational");
-                let proof = map_rev([
+                let p = map_rev([
                     "document",
                     "documentable",
                     "documental",
@@ -4987,14 +4987,14 @@ mod tests_of_units {
                     "documented",
                     "documenter",
                 ]);
-                mc = ac.assert(proof, 4610, key.entry());
+                mc = ac.assert(p, 4610, key.entry());
 
                 mc.max_n = usize::MAX;
                 mc.sub_e = true;
                 mc.min_sl = "docu".len();
 
                 let key = RevEntry::new("documentalist");
-                let proof = map_rev([
+                let p = map_rev([
                     "docudrama",
                     "document",
                     "documentable",
@@ -5008,7 +5008,7 @@ mod tests_of_units {
                     "documented",
                     "documenter",
                 ]);
-                _ = ac.assert(proof, 4610, key.entry());
+                _ = ac.assert(p, 4610, key.entry());
 
                 fn map_rev<const S: usize>(vals: [&str; S]) -> Result<Find, FindErr> {
                     let mut map = vals.map(rev_entry::rev);
@@ -5083,8 +5083,8 @@ mod tests_of_units {
                 _ = poetrie.track(keyword_e, true);
 
                 let trace = poetrie.btr.uplift();
-                let proof = format!("{}{}", NULL, keyword);
-                for (ix, c) in proof.chars().enumerate() {
+                let p = format!("{}{}", NULL, keyword);
+                for (ix, c) in p.chars().enumerate() {
                     let duo = trace[ix];
                     assert_eq!(c, duo.0, "{ix}");
                 }
@@ -5184,7 +5184,7 @@ mod tests_of_units {
 
             #[test]
             fn basic_test() {
-                let proof = vec![
+                let p = vec![
                     String::from("aa"),
                     String::from("azbq"),
                     String::from("by"),
@@ -5196,7 +5196,7 @@ mod tests_of_units {
                     String::from("zazazazazabyyb"),
                 ];
 
-                let entries = proof.iter().map(|x| Entry(x.as_str()));
+                let entries = p.iter().map(|x| Entry(x.as_str()));
 
                 let mut poetrie = Poetrie::nw();
                 for e in entries.clone() {
@@ -5207,16 +5207,16 @@ mod tests_of_units {
                 assert_eq!(true, ext.is_some());
                 let mut ext = ext.unwrap();
 
-                let proof_len = proof.len();
-                assert_eq!(proof_len, ext.len());
+                let p_len = p.len();
+                assert_eq!(p_len, ext.len());
 
                 ext.sort();
-                assert_eq!(proof, ext);
+                assert_eq!(p, ext);
 
                 let cap = ext.capacity();
 
-                assert_eq!(true, cap >= proof_len);
-                assert_eq!(true, cap < proof_len * 2);
+                assert_eq!(true, cap >= p_len);
+                assert_eq!(true, cap < p_len * 2);
 
                 for e in entries.clone() {
                     assert_eq!(true, poetrie.ey(&e));
