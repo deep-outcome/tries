@@ -5,7 +5,7 @@
     - 9d0b9fbfc74aee6aed1fc4af9b5982107695ddaa
     - cd40c127b96d651ff7c1398408b66c3777f7d98b
 - check with poetries' general note
-- check with devnotes (devnote:)
+- check with devnote:s
 - merge key into match conduct (idea: do not make search if is not possible to satisfy mc with key)
 - expose internal buffers (?: as ptr, raw, mut/ref)
 - iter +IntoIter
