@@ -3251,6 +3251,111 @@ mod tests_of_units {
             }
 
             #[test]
+            fn branch_disjunct_detection_d_1() {
+                let e = RevEntry::new("documenter");
+                let k = RevEntry::new("documentalist");
+
+                let mut mc = MatchConduct::test();
+                mc.min_sl = e.0.len() - 3;
+                mc.ext_ml = 4;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(516, NO_PATH_N | FIN);
+                assert_eq!(516, grade);
+            }
+
+            #[test]
+            fn branch_disjunct_detection_d_2() {
+                let e = RevEntry::new("documenter");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.min_sl = e.0.len() - 3;
+                mc.ext_ml = 4;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+                _ = poetrie.it(k);
+
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(514, KEY_EXH | FIN);
+                assert_eq!(514, grade);
+            }
+
+            #[test]
+            fn branch_disjunct_detection_d_3() {
+                let e = RevEntry::new("documenter");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+                let e_len = e.0.len();
+
+                let mut mc = MatchConduct::test();
+                mc.ext_ml = 3;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+
+                let p = Ok(vec![e.0]);
+                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(516, NO_PATH_N | FIN);
+                for min_sl in [e_len - 3, e_len - 4] {
+                    mc.min_sl = min_sl;
+                    for duo in [(1, 132), (usize::MAX, 516)] {
+                        mc.max_n = duo.0;
+
+                        let mut grade = 0;
+                        let f = poetrie.find(k, &mc, &mut grade);
+                        poetrie.clr_f_buffs();
+
+                        assert_eq!(p, f);
+                        assert_eq!(duo.1, grade);
+                    }
+                }
+            }
+
+            #[test]
+            fn branch_disjunct_detection_d_4() {
+                let e = RevEntry::new("documenter");
+                let k = RevEntry::new("documentalist");
+                let k = &k.entry();
+                let e_len = e.0.len();
+
+                let mut mc = MatchConduct::test();
+                mc.ext_ml = 3;
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+                _ = poetrie.it(k);
+
+                let p = Ok(vec![e.0]);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(514, KEY_EXH | FIN);
+                for min_sl in [e_len - 3, e_len - 4] {
+                    mc.min_sl = min_sl;
+                    for duo in [(1, 258), (usize::MAX, 514)] {
+                        mc.max_n = duo.0;
+
+                        let mut grade = 0;
+                        let f = poetrie.find(k, &mc, &mut grade);
+                        poetrie.clr_f_buffs();
+
+                        assert_eq!(p, f, "{}", duo.1);
+                        assert_eq!(duo.1, grade);
+                    }
+                }
+            }
+
+            #[test]
             fn minimal_suffix_length_miss_a_1() {
                 let e_a = RevEntry::new("document");
                 let e_b = RevEntry::new("documenter");
