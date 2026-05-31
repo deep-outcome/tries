@@ -926,6 +926,7 @@ mod tests_of_units {
 
     mod rev_entry {
         use crate::Entry;
+        use std::convert::Into;
 
         pub fn rev(s: &str) -> String {
             s.chars().rev().collect()
@@ -945,6 +946,12 @@ mod tests_of_units {
             }
         }
 
+        impl Into<String> for RevEntry {
+            fn into(self) -> String {
+                self.0
+            }
+        }
+
         use std::ops::Deref;
         impl Deref for RevEntry {
             type Target = String;
@@ -956,6 +963,7 @@ mod tests_of_units {
         mod tests_of_units {
             use super::{RevEntry, rev};
             use crate::Entry;
+            use std::convert::Into;
 
             #[test]
             fn new() {
@@ -983,6 +991,13 @@ mod tests_of_units {
                 let p = String::from("abcd");
                 let test = rev("dcba");
                 assert_eq!(p, *test);
+            }
+
+            #[test]
+            fn into() {
+                let p = String::from("abcd");
+                let test: String = RevEntry::new("dcba").into();
+                assert_eq!(p, test);
             }
         }
     }
@@ -3687,67 +3702,27 @@ mod tests_of_units {
 
             #[test]
             fn extension_a_1() {
-                let e_a = RevEntry::new("documenting");
-                let e_b = RevEntry::new("documenter");
-                let e_c = RevEntry::new("documental");
-                let e_d = RevEntry::new("documentalist");
-                let e_e = RevEntry::new("documentational");
-                let k = RevEntry::new("document");
-
-                let mut poetrie = Poetrie::nw();
-
-                _ = poetrie.it(&e_a.entry());
-                _ = poetrie.it(&e_b.entry());
-                _ = poetrie.it(&e_c.entry());
-                _ = poetrie.it(&e_d.entry());
-                _ = poetrie.it(&e_e.entry());
-
-                let mut mc = MatchConduct::test();
-                mc.ext_ml = e_b.0.len();
-                mc.max_ml = e_e.0.len() - 1;
-
-                let mut p = vec![e_a.0, e_d.0];
-                p.sort();
-
-                for duo in [(2, 130), (usize::MAX, 514)] {
-                    mc.max_n = duo.0;
-
-                    let mut grade = 0;
-                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
-                    poetrie.clr_f_buffs();
-
-                    let mut f = f.unwrap();
-                    f.sort();
-
-                    assert_eq!(p, f);
-                    assert_eq!(duo.1, grade);
-                }
-            }
-
-            #[test]
-            fn extension_a_2() {
-                let e_a = RevEntry::new("documenting");
-                let e_b = RevEntry::new("documenter");
-                let e_c = RevEntry::new("documental");
-                let e_d = RevEntry::new("documentalist");
-                let e_e = RevEntry::new("documentational");
+                let ent_aa = RevEntry::new("documenting");
+                let ent_bb = RevEntry::new("documenter");
+                let ent_cc = RevEntry::new("documental");
+                let ent_dd = RevEntry::new("documentalist");
+                let ent_ee = RevEntry::new("documentational");
                 let k = RevEntry::new("document");
                 let k = &k.entry();
 
                 let mut poetrie = Poetrie::nw();
 
-                _ = poetrie.it(&e_a.entry());
-                _ = poetrie.it(&e_b.entry());
-                _ = poetrie.it(&e_c.entry());
-                _ = poetrie.it(&e_d.entry());
-                _ = poetrie.it(&e_e.entry());
-                _ = poetrie.it(k);
+                let e = [&ent_aa, &ent_bb, &ent_cc, &ent_dd, &ent_ee];
+                for e in e {
+                    _ = poetrie.it(&e.entry());
+                }
 
                 let mut mc = MatchConduct::test();
-                mc.ext_ml = e_b.0.len();
-                mc.max_ml = e_e.0.len() - 1;
+                mc.ext_ml = ent_bb.0.len();
+                mc.max_ml = ent_ee.0.len() - 1;
 
-                let mut p = vec![e_a.0, e_d.0];
+                let mut p = vec![ent_aa.0, ent_dd.0];
+                let p_len = p.len();
                 p.sort();
 
                 for duo in [(2, 130), (usize::MAX, 514)] {
@@ -3761,31 +3736,75 @@ mod tests_of_units {
                     f.sort();
 
                     assert_eq!(p, f);
+                    assert_eq!(p_len, f.len());
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn extension_a_2() {
+                let ent_aa = RevEntry::new("documenting");
+                let ent_bb = RevEntry::new("documenter");
+                let ent_cc = RevEntry::new("documental");
+                let ent_dd = RevEntry::new("documentalist");
+                let ent_ee = RevEntry::new("documentational");
+                let k = RevEntry::new("document");
+                let k = &k.entry();
+
+                let mut poetrie = Poetrie::nw();
+
+                let e = [&ent_aa, &ent_bb, &ent_cc, &ent_dd, &ent_ee];
+                for e in e {
+                    _ = poetrie.it(&e.entry());
+                }
+                _ = poetrie.it(k);
+
+                let mut mc = MatchConduct::test();
+                mc.ext_ml = ent_bb.0.len();
+                mc.max_ml = ent_ee.0.len() - 1;
+
+                let mut p = vec![ent_aa.0, ent_dd.0];
+                let p_len = p.len();
+                p.sort();
+
+                for duo in [(2, 130), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    let mut f = f.unwrap();
+                    f.sort();
+
+                    assert_eq!(p, f);
+                    assert_eq!(p_len, f.len());
                     assert_eq!(duo.1, grade);
                 }
             }
 
             #[test]
             fn extension_b_1() {
-                let e_a = RevEntry::new("documenting");
-                let e_b = RevEntry::new("documenter");
-                let e_c = RevEntry::new("documental");
-                let e_d = RevEntry::new("documentalist");
-                let e_e = RevEntry::new("documentational");
+                let ent_aa = RevEntry::new("documenting");
+                let ent_bb = RevEntry::new("documenter");
+                let ent_cc = RevEntry::new("documental");
+                let ent_dd = RevEntry::new("documentalist");
+                let ent_ee = RevEntry::new("documentational");
                 let k = RevEntry::new("document");
+                let k = &k.entry();
 
                 let mut mc = MatchConduct::test();
-                mc.ext_ml = e_b.0.len() - 1;
-                mc.max_ml = e_e.0.len();
+                mc.ext_ml = ent_bb.0.len() - 1;
+                mc.max_ml = ent_ee.0.len();
 
                 let mut poetrie = Poetrie::nw();
 
-                let entries = [e_a, e_b, e_c, e_d, e_e];
-                for e in entries.iter() {
+                let e = [ent_aa, ent_bb, ent_cc, ent_dd, ent_ee];
+                for e in e.iter() {
                     _ = poetrie.it(&e.entry());
                 }
 
-                let p = HashSet::<String>::from_iter(entries.iter().map(|x| x.0.clone()));
+                let p: HashSet<String> = e.map(|x| x.into()).into();
                 let p_len = p.len();
 
                 for duo in [(2, 130), (5, 130), (6, 514)] {
@@ -3793,7 +3812,7 @@ mod tests_of_units {
                     mc.max_n = max_n;
 
                     let mut grade = 0;
-                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     let f = f.unwrap();
@@ -3811,28 +3830,27 @@ mod tests_of_units {
 
             #[test]
             fn extension_b_2() {
-                let e_a = RevEntry::new("documenting");
-                let e_b = RevEntry::new("documenter");
-                let e_c = RevEntry::new("documental");
-                let e_d = RevEntry::new("documentalist");
-                let e_e = RevEntry::new("documentational");
+                let ent_aa = RevEntry::new("documenting");
+                let ent_bb = RevEntry::new("documenter");
+                let ent_cc = RevEntry::new("documental");
+                let ent_dd = RevEntry::new("documentalist");
+                let ent_ee = RevEntry::new("documentational");
                 let k = RevEntry::new("document");
                 let k = &k.entry();
 
                 let mut mc = MatchConduct::test();
-                mc.ext_ml = e_b.0.len() - 1;
-                mc.max_ml = e_e.0.len();
+                mc.ext_ml = ent_bb.0.len() - 1;
+                mc.max_ml = ent_ee.0.len();
 
                 let mut poetrie = Poetrie::nw();
 
-                let entries = vec![e_a, e_b, e_c, e_d, e_e];
-                for e in entries.iter() {
+                let e = [ent_aa, ent_bb, ent_cc, ent_dd, ent_ee];
+                for e in e.iter() {
                     _ = poetrie.it(&e.entry());
                 }
-
                 _ = poetrie.it(k);
 
-                let p = HashSet::<String>::from_iter(entries.iter().map(|x| x.0.clone()));
+                let p: HashSet<String> = e.map(|x| x.into()).into();
                 let p_len = p.len();
 
                 for duo in [(2, 130), (5, 130), (6, 514)] {
@@ -3851,6 +3869,7 @@ mod tests_of_units {
                     for f in f {
                         assert_eq!(true, p.contains(&f));
                     }
+
                     assert_eq!(duo.1, grade);
                 }
             }
@@ -4606,7 +4625,7 @@ mod tests_of_units {
 
             #[test]
             fn finds_ordering() {
-                let entries = [                    
+                let entries = [
                     "document",
                     "documentation",
                     "documentable",
@@ -5350,4 +5369,4 @@ mod tests_of_units {
     }
 }
 
-// cargo fmt && cargo test --release
+// cargo fmt && cargo test
