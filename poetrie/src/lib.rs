@@ -652,7 +652,7 @@ impl Poetrie {
                 c = unsafe { next_c.unwrap_unchecked() };
                 if let Some(n) = l.get(&c) {
                     if l.len() > 1 {
-                        if max_sl_accord && min_sl <= buf_l {
+                        if max_sl_accord && min_sl <= buf_l && buf_l < max_ml {
                             branching.push((l, buf_l, n));
                         } else {
                             if disjunct_hit == false {
@@ -746,18 +746,7 @@ impl Poetrie {
             let mut b = branching.iter();
 
             while let Some((blinks, blen, skip_n)) = b.next_back() {
-                let blen = *blen;
-                if blen == max_ml {
-                    // `==` occurs when buf_l = max_o_sl = max_ml
-                    // it is simpler to skip already long enough buffer here
-                    // than checking each time for both conditions,
-                    // buf_l <= max_sl && buf_l < max_ml, instead of buf_l <= max_o_sl
-                    #[cfg(test)]
-                    set_grade(grade::BUF_MAX_ALR, grade);
-                    continue;
-                }
-
-                extender.b.truncate(blen);
+                extender.b.truncate(*blen);
 
                 // devnote: check with option to avoid raw pointers
                 let blinks = unsafe { blinks.as_ref().unwrap_unchecked() };
@@ -2214,8 +2203,6 @@ mod tests_of_units {
                 pub const SAT_ON_BRA: usize = 256;
                 /// final execution reached
                 pub const FIN: usize = 512;
-                /// buffer is already at maximum length on branch node
-                pub const BUF_MAX_ALR: usize = 1024;
                 /// min suffix requirement not reached
                 pub const MIN_SL_NOT_REA: usize = 2048;
                 /// direct disjuct branch detection
@@ -3289,9 +3276,8 @@ mod tests_of_units {
                 _ = poetrie.it(k);
 
                 assert_eq!(4114, KEY_EXH | DISJ_DIR_BRA | G_ZERO_M);
-                assert_eq!(1538, KEY_EXH | BUF_MAX_ALR | FIN);
                 assert_eq!(514, KEY_EXH | FIN);
-                for duo in [(e_len - 1, 514), (e_len - 2, 1538), (e_len - 3, 4114)] {
+                for duo in [(e_len - 1, 514), (e_len - 2, 4114), (e_len - 3, 4114)] {
                     mc.max_ml = duo.0;
 
                     let mut grade = 0;
@@ -3707,8 +3693,8 @@ mod tests_of_units {
                 let ent_cc = RevEntry::new("documental");
                 let ent_dd = RevEntry::new("documentalist");
                 let ent_ee = RevEntry::new("documentational");
-                let k = RevEntry::new("document");
-                let k = &k.entry();
+                let key_kk = RevEntry::new("document");
+                let key_kk = &key_kk.entry();
 
                 let mut poetrie = Poetrie::nw();
 
@@ -3729,7 +3715,7 @@ mod tests_of_units {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
+                    let f = poetrie.find(key_kk, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     let mut f = f.unwrap();
@@ -3748,8 +3734,8 @@ mod tests_of_units {
                 let ent_cc = RevEntry::new("documental");
                 let ent_dd = RevEntry::new("documentalist");
                 let ent_ee = RevEntry::new("documentational");
-                let k = RevEntry::new("document");
-                let k = &k.entry();
+                let key_kk = RevEntry::new("document");
+                let key_kk = &key_kk.entry();
 
                 let mut poetrie = Poetrie::nw();
 
@@ -3757,7 +3743,7 @@ mod tests_of_units {
                 for e in e {
                     _ = poetrie.it(&e.entry());
                 }
-                _ = poetrie.it(k);
+                _ = poetrie.it(key_kk);
 
                 let mut mc = MatchConduct::test();
                 mc.ext_ml = ent_bb.0.len();
@@ -3771,7 +3757,7 @@ mod tests_of_units {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
+                    let f = poetrie.find(key_kk, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     let mut f = f.unwrap();
@@ -3790,8 +3776,8 @@ mod tests_of_units {
                 let ent_cc = RevEntry::new("documental");
                 let ent_dd = RevEntry::new("documentalist");
                 let ent_ee = RevEntry::new("documentational");
-                let k = RevEntry::new("document");
-                let k = &k.entry();
+                let key_kk = RevEntry::new("document");
+                let key_kk = &key_kk.entry();
 
                 let mut mc = MatchConduct::test();
                 mc.ext_ml = ent_bb.0.len() - 1;
@@ -3812,7 +3798,7 @@ mod tests_of_units {
                     mc.max_n = max_n;
 
                     let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
+                    let f = poetrie.find(key_kk, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     let f = f.unwrap();
@@ -3835,8 +3821,8 @@ mod tests_of_units {
                 let ent_cc = RevEntry::new("documental");
                 let ent_dd = RevEntry::new("documentalist");
                 let ent_ee = RevEntry::new("documentational");
-                let k = RevEntry::new("document");
-                let k = &k.entry();
+                let key_kk = RevEntry::new("document");
+                let key_kk = &key_kk.entry();
 
                 let mut mc = MatchConduct::test();
                 mc.ext_ml = ent_bb.0.len() - 1;
@@ -3848,7 +3834,7 @@ mod tests_of_units {
                 for e in e.iter() {
                     _ = poetrie.it(&e.entry());
                 }
-                _ = poetrie.it(k);
+                _ = poetrie.it(key_kk);
 
                 let p: HashSet<String> = e.map(|x| x.into()).into();
                 let p_len = p.len();
@@ -3858,7 +3844,7 @@ mod tests_of_units {
                     mc.max_n = max_n;
 
                     let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
+                    let f = poetrie.find(key_kk, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     let f = f.unwrap();
@@ -3876,42 +3862,42 @@ mod tests_of_units {
 
             #[test]
             fn branching_a_1() {
-                let e_a = RevEntry::new("documenting");
-                let e_b = RevEntry::new("documenter");
-                let e_c = RevEntry::new("documental");
-                let e_d = RevEntry::new("documentalistic");
-                let e_e = RevEntry::new("docuer");
-                let e_f = RevEntry::new("document");
-                let e_g = RevEntry::new("documentation");
-                let k = RevEntry::new("documentational");
+                let ent_aa = RevEntry::new("documenting");
+                let ent_bb = RevEntry::new("documenter");
+                let ent_cc = RevEntry::new("documental");
+                let ent_dd = RevEntry::new("documentalistic");
+                let ent_ee = RevEntry::new("docuer");
+                let key_kk = RevEntry::new("documentational");
+                let key_kk = &key_kk.entry();
 
                 let mut poetrie = Poetrie::nw();
 
-                _ = poetrie.it(&e_a.entry());
-                _ = poetrie.it(&e_b.entry());
-                _ = poetrie.it(&e_c.entry());
-                _ = poetrie.it(&e_d.entry());
-                _ = poetrie.it(&e_e.entry());
-                _ = poetrie.it(&e_f.entry());
-                _ = poetrie.it(&e_g.entry());
+                let e = [&ent_aa, &ent_bb, &ent_cc, &ent_dd, &ent_ee];
+                for e in e {
+                    _ = poetrie.it(&e.entry());
+                }
 
                 let mut mc = MatchConduct::test();
-                mc.ext_ml = e_e.0.len();
-                mc.max_ml = e_d.0.len() - 1;
+                mc.ext_ml = ent_ee.0.len();
+                mc.max_ml = ent_dd.0.len() - 1;
 
-                let mut p = vec![e_a.0, e_b.0, e_c.0];
+                let mut p = vec![ent_aa.0, ent_bb.0, ent_cc.0];
+                let p_len = p.len();
                 p.sort();
 
-                for duo in [(3, 264), (usize::MAX, 520)] {
+                assert_eq!(260, NO_PATH_N | SAT_ON_BRA);
+                assert_eq!(516, NO_PATH_N | FIN);
+                for duo in [(3, 260), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
-                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    let f = poetrie.find(key_kk, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     let mut f = f.unwrap();
                     f.sort();
 
+                    assert_eq!(p_len, f.len());
                     assert_eq!(p, f);
                     assert_eq!(duo.1, grade);
                 }
@@ -3919,44 +3905,43 @@ mod tests_of_units {
 
             #[test]
             fn branching_a_2() {
-                let e_a = RevEntry::new("documenting");
-                let e_b = RevEntry::new("documenter");
-                let e_c = RevEntry::new("documental");
-                let e_d = RevEntry::new("documentalistic");
-                let e_e = RevEntry::new("docuer");
-                let e_f = RevEntry::new("document");
-                let e_g = RevEntry::new("documentation");
-                let k = RevEntry::new("documentational");
-                let k = &k.entry();
+                let ent_aa = RevEntry::new("documenting");
+                let ent_bb = RevEntry::new("documenter");
+                let ent_cc = RevEntry::new("documental");
+                let ent_dd = RevEntry::new("documentalistic");
+                let ent_ee = RevEntry::new("docuer");
+                let key_kk = RevEntry::new("documentational");
+                let key_kk = &key_kk.entry();
 
                 let mut poetrie = Poetrie::nw();
 
-                _ = poetrie.it(&e_a.entry());
-                _ = poetrie.it(&e_b.entry());
-                _ = poetrie.it(&e_c.entry());
-                _ = poetrie.it(&e_d.entry());
-                _ = poetrie.it(&e_e.entry());
-                _ = poetrie.it(&e_f.entry());
-                _ = poetrie.it(&e_g.entry());
-                _ = poetrie.it(k);
+                let e = [&ent_aa, &ent_bb, &ent_cc, &ent_dd, &ent_ee];
+                for e in e {
+                    _ = poetrie.it(&e.entry());
+                }
+                _ = poetrie.it(key_kk);
 
                 let mut mc = MatchConduct::test();
-                mc.ext_ml = e_e.0.len();
-                mc.max_ml = e_d.0.len() - 1;
+                mc.ext_ml = ent_ee.0.len();
+                mc.max_ml = ent_dd.0.len() - 1;
 
-                let mut p = vec![e_a.0, e_b.0, e_c.0];
+                let mut p = vec![ent_aa.0, ent_bb.0, ent_cc.0];
+                let p_len = p.len();
                 p.sort();
 
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(514, KEY_EXH | FIN);
                 for duo in [(3, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
+                    let f = poetrie.find(key_kk, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     let mut f = f.unwrap();
                     f.sort();
 
+                    assert_eq!(p_len, f.len());
                     assert_eq!(p, f, "{duo:?}, {grade}");
                     assert_eq!(duo.1, grade);
                 }
@@ -3964,38 +3949,36 @@ mod tests_of_units {
 
             #[test]
             fn branching_b_1() {
-                let e_a = RevEntry::new("documenting");
-                let e_b = RevEntry::new("documenter");
-                let e_c = RevEntry::new("documental");
-                let e_d = RevEntry::new("documentalistic");
-                let e_e = RevEntry::new("docuer");
-                let e_f = RevEntry::new("document");
-                let e_g = RevEntry::new("documentation");
-                let k = RevEntry::new("documentational");
+                let ent_aa = RevEntry::new("documenting");
+                let ent_bb = RevEntry::new("documenter");
+                let ent_cc = RevEntry::new("documental");
+                let ent_dd = RevEntry::new("documentalistic");
+                let ent_ee = RevEntry::new("docuer");
+                let key_kk = RevEntry::new("documentational");
+                let key_kk = &key_kk.entry();
 
                 let mut poetrie = Poetrie::nw();
 
                 let mut mc = MatchConduct::test();
-                mc.ext_ml = e_e.0.len() - 1;
-                mc.max_ml = e_d.0.len();
+                mc.ext_ml = ent_ee.0.len() - 1;
+                mc.max_ml = ent_dd.0.len();
 
-                let p = vec![e_a, e_b, e_c, e_d, e_e];
+                let p = [ent_aa, ent_bb, ent_cc, ent_dd, ent_ee];
                 for e in p.iter() {
                     _ = poetrie.it(&e.entry());
                 }
 
-                _ = poetrie.it(&e_f.entry());
-                _ = poetrie.it(&e_g.entry());
-
-                let p = HashSet::<String>::from_iter(p.iter().map(|x| x.0.clone()));
+                let p: HashSet<String> = p.map(|x| x.into()).into();
                 let p_len = p.len();
 
-                for duo in [(3, 264), (5, 264), (usize::MAX, 520)] {
+                assert_eq!(260, NO_PATH_N | SAT_ON_BRA);
+                assert_eq!(516, NO_PATH_N | FIN);
+                for duo in [(3, 260), (5, 260), (usize::MAX, 516)] {
                     let max_n = duo.0;
                     mc.max_n = max_n;
 
                     let mut grade = 0;
-                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    let f = poetrie.find(key_kk, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     let f = f.unwrap();
@@ -4013,40 +3996,38 @@ mod tests_of_units {
 
             #[test]
             fn branching_b_2() {
-                let e_a = RevEntry::new("documenting");
-                let e_b = RevEntry::new("documenter");
-                let e_c = RevEntry::new("documental");
-                let e_d = RevEntry::new("documentalistic");
-                let e_e = RevEntry::new("docuer");
-                let e_f = RevEntry::new("document");
-                let e_g = RevEntry::new("documentation");
-                let k = RevEntry::new("documentational");
-                let k = &k.entry();
+                let ent_aa = RevEntry::new("documenting");
+                let ent_bb = RevEntry::new("documenter");
+                let ent_cc = RevEntry::new("documental");
+                let ent_dd = RevEntry::new("documentalistic");
+                let ent_ee = RevEntry::new("docuer");
+                let key_kk = RevEntry::new("documentational");
+                let key_kk = &key_kk.entry();
 
                 let mut poetrie = Poetrie::nw();
 
                 let mut mc = MatchConduct::test();
-                mc.ext_ml = e_e.0.len() - 1;
-                mc.max_ml = e_d.0.len();
+                mc.ext_ml = ent_ee.0.len() - 1;
+                mc.max_ml = ent_dd.0.len();
 
-                let p = vec![e_a, e_b, e_c, e_d, e_e];
+                let p = [ent_aa, ent_bb, ent_cc, ent_dd, ent_ee];
                 for e in p.iter() {
                     _ = poetrie.it(&e.entry());
                 }
 
-                _ = poetrie.it(&e_f.entry());
-                _ = poetrie.it(&e_g.entry());
-                _ = poetrie.it(k);
+                _ = poetrie.it(key_kk);
 
-                let p = HashSet::<String>::from_iter(p.iter().map(|x| x.0.clone()));
+                let p: HashSet<String> = p.map(|x| x.into()).into();
                 let p_len = p.len();
 
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(514, KEY_EXH | FIN);
                 for duo in [(3, 258), (5, 258), (usize::MAX, 514)] {
                     let max_n = duo.0;
                     mc.max_n = max_n;
 
                     let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
+                    let f = poetrie.find(key_kk, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
                     let f = f.unwrap();
@@ -4079,7 +4060,7 @@ mod tests_of_units {
 
                 let eb_len = e_b.len();
 
-                for duo in [(2, 1282, vec![e_a.0.clone()]), (0, 258, vec![e_b.0, e_a.0])] {
+                for duo in [(2, 4354, vec![e_a.0.clone()]), (0, 258, vec![e_b.0, e_a.0])] {
                     // subtrahend
                     let s = duo.0;
 
