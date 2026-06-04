@@ -4161,154 +4161,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_shared_suffix_a_1() {
-                let p = String::from("lyrics");
-                let e = &Entry(p.as_str());
-
-                let k = &Entry("athletics");
-                let mut mc = MatchConduct::test();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(e);
-
-                let p = Ok(vec![p]);
-                for duo in [(1, 132), (usize::MAX, 516)] {
-                    mc.max_n = duo.0;
-
-                    let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
-                    poetrie.clr_f_buffs();
-
-                    assert_eq!(p, f);
-                    assert_eq!(duo.1, grade);
-                }
-            }
-
-            #[test]
-            fn partially_shared_suffix_a_2() {
-                let p = String::from("lyrics");
-                let e = &Entry(p.as_str());
-
-                let k = &Entry("athletics");
-                let mut mc = MatchConduct::test();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(e);
-                _ = poetrie.it(k);
-
-                let p = Ok(vec![p]);
-                for duo in [(1, 258), (usize::MAX, 514)] {
-                    mc.max_n = duo.0;
-
-                    let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
-                    poetrie.clr_f_buffs();
-
-                    assert_eq!(p, f);
-                    assert_eq!(duo.1, grade);
-                }
-            }
-
-            #[test]
-            fn partially_shared_suffix_b_1() {
-                let p = String::from("lyrics");
-                let e = &Entry(p.as_str());
-
-                let k = &Entry("carboniferous");
-                let mut mc = MatchConduct::test();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(e);
-
-                let p = Ok(vec![p]);
-                for duo in [(1, 132), (usize::MAX, 516)] {
-                    mc.max_n = duo.0;
-
-                    let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
-                    poetrie.clr_f_buffs();
-
-                    assert_eq!(p, f);
-                    assert_eq!(duo.1, grade);
-                }
-            }
-
-            #[test]
-            fn partially_shared_suffix_b_2() {
-                let p = String::from("lyrics");
-                let e = &Entry(p.as_str());
-
-                let k = &Entry("carboniferous");
-                let mut mc = MatchConduct::test();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(e);
-                _ = poetrie.it(k);
-
-                let p = Ok(vec![p]);
-                for duo in [(1, 258), (usize::MAX, 514)] {
-                    mc.max_n = duo.0;
-
-                    let mut grade = 0;
-                    let find = poetrie.find(k, &mc, &mut grade);
-                    poetrie.clr_f_buffs();
-
-                    assert_eq!(p, find);
-                    assert_eq!(duo.1, grade);
-                }
-            }
-
-            #[test]
-            fn partially_shared_suffix_c_1() {
-                let p = String::from("B-lyrics");
-                let e = &Entry(p.as_str());
-
-                let k = &Entry("A-lyrics");
-                let mut mc = MatchConduct::test();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(e);
-
-                let p = Ok(vec![p]);
-                for duo in [(1, 132), (usize::MAX, 516)] {
-                    mc.max_n = duo.0;
-
-                    let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
-                    poetrie.clr_f_buffs();
-
-                    assert_eq!(p, f);
-                    assert_eq!(duo.1, grade);
-                }
-            }
-
-            #[test]
-            fn partially_shared_suffix_c_2() {
-                let p = String::from("B-lyrics");
-                let e = &Entry(p.as_str());
-
-                let k = &Entry("A-lyrics");
-                let mut mc = MatchConduct::test();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(e);
-                _ = poetrie.it(k);
-
-                let p = Ok(vec![p]);
-                for duo in [(1, 258), (usize::MAX, 514)] {
-                    mc.max_n = duo.0;
-
-                    let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
-                    poetrie.clr_f_buffs();
-
-                    assert_eq!(p, f);
-                    assert_eq!(duo.1, grade);
-                }
-            }
-
-            #[test]
-            fn partially_shared_suffix_d_1() {
+            fn partially_shared_suffix_a() {
                 let p_a = String::from("lyrics");
                 let e_a = &Entry(p_a.as_str());
 
@@ -4322,7 +4175,12 @@ mod tests_of_units {
                 _ = poetrie.it(e_a);
                 _ = poetrie.it(e_b);
 
-                let p = HashSet::from([p_a, p_b]);
+                let mut p = vec![p_a, p_b];
+                let p_len = p.len();
+                p.sort();
+
+                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(516, NO_PATH_N | FIN);
                 for duo in [(2, 132), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
@@ -4330,59 +4188,17 @@ mod tests_of_units {
                     let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
-                    assert_eq!(true, f.is_ok());
-                    let f = f.unwrap();
+                    let mut f = f.unwrap();
+                    f.sort();
 
-                    assert_eq!(p.len(), f.len());
-
-                    for f in f {
-                        assert_eq!(true, p.contains(&f), "{f}");
-                    }
-
+                    assert_eq!(p_len, f.len());
+                    assert_eq!(p, f);
                     assert_eq!(duo.1, grade);
                 }
             }
 
             #[test]
-            fn partially_shared_suffix_d_2() {
-                let p_a = String::from("lyrics");
-                let e_a = &Entry(p_a.as_str());
-
-                let p_b = String::from("ethics");
-                let e_b = &Entry(p_b.as_str());
-
-                let k = &Entry("athletics");
-                let mut mc = MatchConduct::test();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(e_a);
-                _ = poetrie.it(e_b);
-
-                _ = poetrie.it(k);
-
-                let p = HashSet::from([p_a, p_b]);
-                for duo in [(2, 258), (usize::MAX, 514)] {
-                    mc.max_n = duo.0;
-
-                    let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
-                    poetrie.clr_f_buffs();
-
-                    assert_eq!(true, f.is_ok());
-                    let f = f.unwrap();
-
-                    assert_eq!(p.len(), f.len());
-
-                    for f in f {
-                        assert_eq!(true, p.contains(&f), "{f}");
-                    }
-
-                    assert_eq!(duo.1, grade);
-                }
-            }
-
-            #[test]
-            fn partially_shared_suffix_e_1() {
+            fn partially_shared_suffix_b() {
                 let p_a = String::from("lyrics");
                 let e_a = &Entry(p_a.as_str());
 
@@ -4396,7 +4212,12 @@ mod tests_of_units {
                 _ = poetrie.it(e_a);
                 _ = poetrie.it(e_b);
 
-                let p = HashSet::from([p_a, p_b]);
+                let mut p = vec![p_a, p_b];
+                let p_len = p.len();
+                p.sort();
+
+                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(516, NO_PATH_N | FIN);
                 for duo in [(2, 132), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
@@ -4404,59 +4225,17 @@ mod tests_of_units {
                     let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
-                    assert_eq!(true, f.is_ok());
-                    let f = f.unwrap();
+                    let mut f = f.unwrap();
+                    f.sort();
 
-                    assert_eq!(p.len(), f.len());
-
-                    for f in f {
-                        assert_eq!(true, p.contains(&f), "{f}");
-                    }
-
+                    assert_eq!(p_len, f.len());
+                    assert_eq!(p, f);
                     assert_eq!(duo.1, grade);
                 }
             }
 
             #[test]
-            fn partially_shared_suffix_e_2() {
-                let p_a = String::from("lyrics");
-                let e_a = &Entry(p_a.as_str());
-
-                let p_b = String::from("lodgings");
-                let e_b = &Entry(p_b.as_str());
-
-                let k = &Entry("carboniferous");
-                let mut mc = MatchConduct::test();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(e_a);
-                _ = poetrie.it(e_b);
-
-                _ = poetrie.it(k);
-
-                let p = HashSet::from([p_a, p_b]);
-                for duo in [(2, 258), (usize::MAX, 514)] {
-                    mc.max_n = duo.0;
-
-                    let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
-                    poetrie.clr_f_buffs();
-
-                    assert_eq!(true, f.is_ok());
-                    let f = f.unwrap();
-
-                    assert_eq!(p.len(), f.len());
-
-                    for f in f {
-                        assert_eq!(true, p.contains(&f), "{f}");
-                    }
-
-                    assert_eq!(duo.1, grade);
-                }
-            }
-
-            #[test]
-            fn partially_shared_suffix_f_1() {
+            fn partially_shared_suffix_c() {
                 let p_a = String::from("T-lyrics");
                 let e_a = &Entry(p_a.as_str());
 
@@ -4470,7 +4249,12 @@ mod tests_of_units {
                 _ = poetrie.it(e_a);
                 _ = poetrie.it(e_b);
 
-                let p = HashSet::from([p_a, p_b]);
+                let mut p = vec![p_a, p_b];
+                let p_len = p.len();
+                p.sort();
+
+                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(516, NO_PATH_N | FIN);
                 for duo in [(2, 132), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
@@ -4478,53 +4262,11 @@ mod tests_of_units {
                     let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
 
-                    assert_eq!(true, f.is_ok());
-                    let f = f.unwrap();
+                    let mut f = f.unwrap();
+                    f.sort();
 
-                    assert_eq!(p.len(), f.len());
-
-                    for f in f {
-                        assert_eq!(true, p.contains(&f), "{f}");
-                    }
-
-                    assert_eq!(duo.1, grade);
-                }
-            }
-
-            #[test]
-            fn partially_shared_suffix_f_2() {
-                let p_a = String::from("T-lyrics");
-                let e_a = &Entry(p_a.as_str());
-
-                let p_b = String::from("U-lyrics");
-                let e_b = &Entry(p_b.as_str());
-
-                let k = &Entry("X-lyrics");
-                let mut mc = MatchConduct::test();
-
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(e_a);
-                _ = poetrie.it(e_b);
-
-                _ = poetrie.it(k);
-
-                let p = HashSet::from([p_a, p_b]);
-                for duo in [(2, 258), (usize::MAX, 514)] {
-                    mc.max_n = duo.0;
-
-                    let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
-                    poetrie.clr_f_buffs();
-
-                    assert_eq!(true, f.is_ok());
-                    let f = f.unwrap();
-
-                    assert_eq!(p.len(), f.len());
-
-                    for f in f {
-                        assert_eq!(true, p.contains(&f), "{f}");
-                    }
-
+                    assert_eq!(p_len, f.len());
+                    assert_eq!(p, f);
                     assert_eq!(duo.1, grade);
                 }
             }
