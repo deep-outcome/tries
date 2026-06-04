@@ -428,7 +428,7 @@ impl Poetrie {
     ///
     /// Generally, suffix match length is emphasized, entries are ordered
     /// from that with longest suffix match to those with shortest suffix match.
-    /// With exception for sub-entries which are ordered very first, at list beginning, 
+    /// With exception for sub-entries which are ordered very first, at list beginning,
     /// starting with shortest one.
     ///
     /// Sub-entries are entries which are suffix to picked key, e.g. for _commode_
@@ -2433,161 +2433,118 @@ mod tests_of_units {
 
                 assert_eq!(true, f.capacity() == DEF_FIN_CAP);
             }
-            
+
             #[test]
             fn matching_subentries_a_1() {
                 let se_a = RevEntry::new("document");
                 let se_b = RevEntry::new("documental");
-                
+
                 let k = RevEntry::new("documentalist");
                 let k = &k.entry();
-                
+
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&se_a.entry());
                 _ = poetrie.it(&se_b.entry());
-                _ = poetrie.it(k);
-                
+
                 let mut mc = MatchConduct::test();
                 mc.sub_e = true;
-                
+
                 let p = Ok(vec![se_a.0, se_b.0]);
-                for duo in [(2, 64), (usize::MAX, 34)] {
+                assert_eq!(64, SAT_ON_SE);
+                assert_eq!(40, NO_PATH_L | SUB_E_ONLY);
+                for duo in [(2, 64), (usize::MAX, 40)] {
                     mc.max_n = duo.0;
-                    
+
                     let mut grade = 0;
                     let find = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
-                    
+
                     assert_eq!(p, find);
                     assert_eq!(duo.1, grade);
                 }
             }
-            
+
             #[test]
             fn matching_subentries_a_2() {
                 let se_a = RevEntry::new("document");
                 let se_b = RevEntry::new("documental");
-                
+
                 let k = RevEntry::new("documentalist");
                 let k = &k.entry();
-                
+
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&se_a.entry());
                 _ = poetrie.it(&se_b.entry());
-                
+                _ = poetrie.it(k);
+
                 let mut mc = MatchConduct::test();
                 mc.sub_e = true;
-                
+
                 let p = Ok(vec![se_a.0, se_b.0]);
-                for duo in [(2, 64), (usize::MAX, 40)] {
+                assert_eq!(64, SAT_ON_SE);
+                assert_eq!(34, KEY_EXH | SUB_E_ONLY);
+                for duo in [(2, 64), (usize::MAX, 34)] {
                     mc.max_n = duo.0;
-                    
+
                     let mut grade = 0;
                     let find = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
-                    
+
                     assert_eq!(p, find);
                     assert_eq!(duo.1, grade);
                 }
             }
-            
+
             #[test]
             fn matching_subentries_b_1() {
                 let p = String::from("m");
                 let se = Entry(p.as_str());
-                
+
                 let k = &Entry("anagram");
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&se);
-                _ = poetrie.it(k);
-                
+
                 let mut mc = MatchConduct::test();
                 mc.sub_e = true;
-                
+
                 let p = Ok(vec![p]);
-                for duo in [(1, 64), (usize::MAX, 34)] {
+                assert_eq!(64, SAT_ON_SE);
+                assert_eq!(40, NO_PATH_L | SUB_E_ONLY);
+                for duo in [(1, 64), (usize::MAX, 40)] {
                     mc.max_n = duo.0;
-                    
+
                     let mut grade = 0;
                     let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
-                    
+
                     assert_eq!(p, f);
                     assert_eq!(duo.1, grade);
                 }
             }
-            
+
             #[test]
             fn matching_subentries_b_2() {
                 let p = String::from("m");
                 let se = Entry(p.as_str());
-                
+
                 let k = &Entry("anagram");
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&se);
-                
+                _ = poetrie.it(k);
+
                 let mut mc = MatchConduct::test();
                 mc.sub_e = true;
-                
+
                 let p = Ok(vec![p]);
-                for duo in [(1, 64), (usize::MAX, 40)] {
-                    mc.max_n = duo.0;
-                    
-                    let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
-                    poetrie.clr_f_buffs();
-                    
-                    assert_eq!(p, f);
-                    assert_eq!(duo.1, grade);
-                }
-            }
-            
-            #[test]
-            fn matching_subentries_c_1() {
-                let p = String::from("-ode");
-                let se = Entry(p.as_str());
-                
-                let k = &Entry("X-ode");
-                let mut mc = MatchConduct::test();
-                mc.sub_e = true;
-                
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&se);
-                _ = poetrie.it(&k);
-                
-                let p = Ok(vec![p]);
+                assert_eq!(64, SAT_ON_SE);
+                assert_eq!(34, KEY_EXH | SUB_E_ONLY);
                 for duo in [(1, 64), (usize::MAX, 34)] {
                     mc.max_n = duo.0;
-                    
+
                     let mut grade = 0;
                     let f = poetrie.find(k, &mc, &mut grade);
                     poetrie.clr_f_buffs();
-                    
-                    assert_eq!(p, f);
-                    assert_eq!(duo.1, grade);
-                }
-            }
-            
-            #[test]
-            fn matching_subentries_c_2() {
-                let p = String::from("-ode");
-                let se = Entry(p.as_str());
-                
-                let k = &Entry("X-ode");
-                let mut mc = MatchConduct::test();
-                mc.sub_e = true;
-                
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&se);
-                
-                let p = Ok(vec![p]);
-                for duo in [(1, 64), (usize::MAX, 40)] {
-                    mc.max_n = duo.0;
-                    
-                    let mut grade = 0;
-                    let f = poetrie.find(k, &mc, &mut grade);
-                    poetrie.clr_f_buffs();
-                    
+
                     assert_eq!(p, f);
                     assert_eq!(duo.1, grade);
                 }
@@ -4202,8 +4159,6 @@ mod tests_of_units {
                     assert_eq!(duo.1, grade);
                 }
             }
-
-           
 
             #[test]
             fn partially_shared_suffix_a_1() {
