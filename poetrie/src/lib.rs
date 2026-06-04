@@ -3907,7 +3907,7 @@ mod tests_of_units {
                     _ = poetrie.it(&e.entry());
                 }
 
-                let p: HashSet<String> = e.map(|x| x.into()).into();
+                let p: HashSet<String> = e.map(RevEntry::into).into();
                 let p_len = p.len();
 
                 for duo in [(2, 130), (5, 130), (6, 514)] {
@@ -3953,7 +3953,7 @@ mod tests_of_units {
                 }
                 _ = poetrie.it(key_kk);
 
-                let p: HashSet<String> = e.map(|x| x.into()).into();
+                let p: HashSet<String> = e.map(RevEntry::into).into();
                 let p_len = p.len();
 
                 for duo in [(2, 130), (5, 130), (6, 514)] {
@@ -4085,7 +4085,7 @@ mod tests_of_units {
                     _ = poetrie.it(&e.entry());
                 }
 
-                let p: HashSet<String> = p.map(|x| x.into()).into();
+                let p: HashSet<String> = p.map(RevEntry::into).into();
                 let p_len = p.len();
 
                 assert_eq!(260, NO_PATH_N | SAT_ON_BRA);
@@ -4134,7 +4134,7 @@ mod tests_of_units {
 
                 _ = poetrie.it(key_kk);
 
-                let p: HashSet<String> = p.map(|x| x.into()).into();
+                let p: HashSet<String> = p.map(RevEntry::into).into();
                 let p_len = p.len();
 
                 assert_eq!(258, KEY_EXH | SAT_ON_BRA);
@@ -4273,9 +4273,12 @@ mod tests_of_units {
 
             #[test]
             fn finds_ordering() {
+                // sub-entries from shortest
+                // other entries from longest
                 let entries = [
                     "document",
                     "documentation",
+                    "documentationalist",
                     "documentable",
                     "documented",
                     "docudrama",
@@ -4300,7 +4303,7 @@ mod tests_of_units {
                 let mut grade = 0;
                 let mut f = poetrie.find(key, &mc, &mut grade);
                 assert_eq!(p, f);
-                assert_eq!(520, grade);
+                assert_eq!(514, grade);
 
                 poetrie.clr_f_buffs();
                 _ = poetrie.it(key);
