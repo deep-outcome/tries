@@ -4407,20 +4407,21 @@ mod tests_of_units {
 
             #[test]
             fn must_not_recourse_to_root_branching_a_1() {
-                let p = String::from("hilum");
-                let e_a = Entry(p.as_str());
-                let e_b = Entry("claybank");
+                let p = String::from("flit");
+                let ent_aa = Entry(p.as_str());
+                let ent_bb = Entry("claybank");
 
-                let k = &Entry("haulm");
+                let k = &Entry("evanescent");
                 let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&e_a);
-                _ = poetrie.it(&e_b);
-                _ = poetrie.it(k);
+                _ = poetrie.it(&ent_aa);
+                _ = poetrie.it(&ent_bb);
 
                 let p = Ok(vec![p]);
-                for duo in [(1, 258), (usize::MAX, 514)] {
+                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(516, NO_PATH_N | FIN);
+                for duo in [(1, 132), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
@@ -4434,19 +4435,22 @@ mod tests_of_units {
 
             #[test]
             fn must_not_recourse_to_root_branching_a_2() {
-                let p = String::from("hilum");
-                let e_a = Entry(p.as_str());
-                let e_b = Entry("claybank");
+                let p = String::from("flit");
+                let ent_aa = Entry(p.as_str());
+                let ent_bb = Entry("claybank");
 
-                let k = &Entry("haulm");
+                let k = &Entry("evanescent");
                 let mut mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&e_a);
-                _ = poetrie.it(&e_b);
+                _ = poetrie.it(&ent_aa);
+                _ = poetrie.it(&ent_bb);
+                _ = poetrie.it(k);
 
                 let p = Ok(vec![p]);
-                for duo in [(1, 132), (usize::MAX, 516)] {
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(514, KEY_EXH | FIN);
+                for duo in [(1, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
@@ -4461,7 +4465,7 @@ mod tests_of_units {
             #[test]
             fn must_not_recourse_to_root_branching_b() {
                 let k = &Entry("lyrics");
-                let e = &Entry("disarrangement");
+                let e = &Entry("befogged");
                 let mc = MatchConduct::test();
 
                 let mut poetrie = Poetrie::nw();
@@ -4472,6 +4476,7 @@ mod tests_of_units {
                 let f = poetrie.find(k, &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::OnlyKeyMatches), f);
+                assert_eq!(18, KEY_EXH | G_ZERO_M);
                 assert_eq!(18, grade);
             }
 
