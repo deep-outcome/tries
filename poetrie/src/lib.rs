@@ -4480,26 +4480,32 @@ mod tests_of_units {
                 assert_eq!(18, grade);
             }
 
-            // update to all options test
             #[test]
-            fn key_with_subentry_is_suffix_to_entry_1() {
-                let se = RevEntry::new("document");
-                let e = RevEntry::new("documentalist");
+            fn copious_key_1() {
+                let se = "document";
+                let ee = "documentalist";
+                let be = "documetable";
+
+                let mut poetrie = Poetrie::nw();
+                let e = [se, ee, be].map(rev_entry::rev).to_vec();
+                for e in e.iter() {
+                    _ = poetrie.it(&Entry(e));
+                }
+
                 let k = RevEntry::new("documental");
+                let k = &k.entry();
 
                 let mut mc = MatchConduct::test();
                 mc.sub_e = true;
 
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&se.entry());
-                _ = poetrie.it(&e.entry());
-
-                let p = Ok(vec![se.0, e.0]);
-                for duo in [(2, 130), (usize::MAX, 514)] {
+                let p = Ok(e);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(514, KEY_EXH | FIN);
+                for duo in [(3, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
-                    let f = poetrie.find(&k.entry(), &mc, &mut grade);
+                    let f = poetrie.find(k, &mc, &mut grade);
 
                     poetrie.clr_f_buffs();
 
@@ -4508,25 +4514,29 @@ mod tests_of_units {
                 }
             }
 
-            // update to all options test
             #[test]
-            fn key_with_subentry_is_suffix_to_entry_2() {
-                let se = RevEntry::new("document");
-                let e = RevEntry::new("documentalist");
+            fn copious_key_2() {
+                let se = "document";
+                let ee = "documentalist";
+                let be = "documetable";
+
+                let mut poetrie = Poetrie::nw();
+                let e = [se, ee, be].map(rev_entry::rev).to_vec();
+                for e in e.iter() {
+                    _ = poetrie.it(&Entry(e));
+                }
 
                 let k = RevEntry::new("documental");
                 let k = &k.entry();
+                _ = poetrie.it(k);
 
                 let mut mc = MatchConduct::test();
                 mc.sub_e = true;
 
-                let mut poetrie = Poetrie::nw();
-                _ = poetrie.it(&se.entry());
-                _ = poetrie.it(&e.entry());
-                _ = poetrie.it(k);
-
-                let p = Ok(vec![se.0, e.0]);
-                for duo in [(2, 130), (usize::MAX, 514)] {
+                let p = Ok(e);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(514, KEY_EXH | FIN);
+                for duo in [(3, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
