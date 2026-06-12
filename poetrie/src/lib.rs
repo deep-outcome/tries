@@ -4323,7 +4323,7 @@ mod tests_of_units {
                     .map(rev_entry::rev)
                     .to_vec();
 
-                let key = RevEntry::new("documented");
+                let key = RevEntry::new("documents");
                 let key = &key.entry();
 
                 let mut poetrie = Poetrie::nw();
@@ -4336,20 +4336,26 @@ mod tests_of_units {
 
                 let mut p = entries.clone();
                 p.remove(0);
-                let p = Ok(p);
+                p.sort();
 
                 let mut grade = 0;
-                let mut f = poetrie.find(key, &mc, &mut grade);
+                let mut f = poetrie.find(key, &mc, &mut grade).unwrap();
+                f.sort();
+
                 assert_eq!(p, f);
+                assert_eq!(516, NO_PATH_N | FIN);
                 assert_eq!(516, grade);
 
                 poetrie.clr_f_buffs();
 
-                let p = Ok(entries);
                 mc.sub_e = true;
+                p = entries;
+                p.sort();
 
                 grade = 0;
-                f = poetrie.find(key, &mc, &mut grade);
+                f = poetrie.find(key, &mc, &mut grade).unwrap();
+                f.sort();
+
                 assert_eq!(p, f);
                 assert_eq!(516, grade);
             }
@@ -4360,7 +4366,7 @@ mod tests_of_units {
                     .map(rev_entry::rev)
                     .to_vec();
 
-                let key = RevEntry::new("documented");
+                let key = RevEntry::new("documents");
                 let key = &key.entry();
 
                 let mut poetrie = Poetrie::nw();
@@ -4375,20 +4381,26 @@ mod tests_of_units {
 
                 let mut p = entries.clone();
                 p.remove(0);
-                let p = Ok(p);
+                p.sort();
 
                 let mut grade = 0;
-                let mut f = poetrie.find(key, &mc, &mut grade);
+                let mut f = poetrie.find(key, &mc, &mut grade).unwrap();
+                f.sort();
+
                 assert_eq!(p, f);
+                assert_eq!(514, KEY_EXH | FIN);
                 assert_eq!(514, grade);
 
                 poetrie.clr_f_buffs();
 
-                let p = Ok(entries);
                 mc.sub_e = true;
+                p = entries;
+                p.sort();
 
                 grade = 0;
-                f = poetrie.find(key, &mc, &mut grade);
+                f = poetrie.find(key, &mc, &mut grade).unwrap();
+                f.sort();
+
                 assert_eq!(p, f);
                 assert_eq!(514, grade);
             }
