@@ -1254,7 +1254,7 @@ mod tests_of_units {
 
             assert_eq!(2, f.len());
 
-            let p = ["endorse", "endorsement"].map(|x| rev(x));
+            let p = ["endorse", "endorsement"].map(rev);
             assert_eq!(p[0], f[0]);
             assert_eq!(p[1], f[1]);
         }
@@ -1308,7 +1308,7 @@ mod tests_of_units {
             assert_eq!(2, f.len());
 
             let pb = "endorse";
-            let p = ["end", pb].map(|x| rev(x));
+            let p = ["end", pb].map(rev);
             assert_eq!(p[0], f[0]);
             assert_eq!(p[1], f[1]);
 
@@ -1331,7 +1331,7 @@ mod tests_of_units {
             assert_eq!(false, lim);
 
             assert_eq!(2, f.len());
-            let p = ["end", "endorse"].map(|x| rev(x));
+            let p = ["end", "endorse"].map(rev);
             assert_eq!(p[0], f[0]);
             assert_eq!(p[1], f[1]);
 
@@ -1394,7 +1394,7 @@ mod tests_of_units {
                 "serotonergic",
                 "serotonin",
             ]
-            .map(|x| rev(x))
+            .map(rev)
             .into_iter()
             .collect::<HashSet<String>>();
 
@@ -4553,8 +4553,11 @@ mod tests_of_units {
             fn composite_a() {
                 let mut poetrie = Poetrie::nw();
 
-                let rev_entries = ["document", "documentalist"].map(rev_entry::rev);
-                let rev_entries = rev_entries.iter().map(|x| x.as_str());
+                let e_document = RevEntry::new("document");
+                let e_documentalist = RevEntry::new("documentalist");
+
+                let rev_entries = [&e_document, &e_documentalist];
+                let rev_entries = rev_entries.iter().map(|x| x.0.as_str());
 
                 let entries = [
                     "aesthetics",
@@ -4565,6 +4568,7 @@ mod tests_of_units {
                     "q",
                     "epically",
                 ];
+
                 for e in entries.iter().map(|x| *x).chain(rev_entries) {
                     _ = poetrie.it(&Entry(e));
                 }
@@ -4573,6 +4577,13 @@ mod tests_of_units {
                 mc.sub_e = true;
 
                 let mut ac = AssertComposite { p: poetrie, m: mc };
+
+                assert_eq!(18, KEY_EXH | G_ZERO_M);
+                assert_eq!(34, KEY_EXH | SUB_E_ONLY);
+                assert_eq!(64, SAT_ON_SE);
+                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
 
                 let key = Entry("musics");
                 let p = String::from("physics");
@@ -4590,13 +4601,13 @@ mod tests_of_units {
                 ac.assert_n(Err(FindErr::NoJointSuffix), 0, key, 1);
 
                 let key = RevEntry::new("documental");
-                let p1 = RevEntry::new("document").0;
-                let p2 = RevEntry::new("documentalist").0;
+                let p1 = e_document.0.clone();
+                let p2 = e_documentalist.0.clone();
                 ac.assert_n(Ok(vec![p1, p2]), 130, key.entry(), 2);
 
-                let key = RevEntry::new("documentalist");
-                let p = RevEntry::new("document").0;
-                ac.assert_n(Ok(vec![p]), 34, key.entry(), 2);
+                let key = e_documentalist;
+                let p = e_document.0.clone();
+                ac.assert_n(Ok(vec![p]), 34, key.entry(), usize::MAX);
 
                 let key = RevEntry::new("quadriceps");
                 let p = String::from("q");
@@ -4655,6 +4666,11 @@ mod tests_of_units {
 
                 let key = RevEntry::new("doctoral");
                 let p = rev_entry::rev("doctorate");
+
+                assert_eq!(4114, DISJ_DIR_BRA | KEY_EXH | G_ZERO_M);
+                assert_eq!(4228, DISJ_DIR_BRA | NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(4354, DISJ_DIR_BRA | KEY_EXH | SAT_ON_BRA);
+                assert_eq!(4610, DISJ_DIR_BRA | KEY_EXH | FIN);
 
                 let mut ac = AssertComposite { p: poetrie, m: mc };
                 let mut mc = ac.assert(Ok(vec![p]), 4228, key.entry());

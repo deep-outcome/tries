@@ -7,5 +7,6 @@
 - check with poetries' general note
 - check with devnote:s
 - merge key into match conduct (idea: do not make search if is not possible to satisfy mc with key)
+    - rather add validation fn to mc
 - expose internal buffers (?: as ptr, raw, mut/ref)
 - iter +IntoIter
