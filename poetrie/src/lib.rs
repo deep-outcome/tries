@@ -4812,14 +4812,14 @@ mod tests_of_units {
         mod track {
 
             use super::super::rev_entry::RevEntry;
-            use crate::{NULL, Poetrie};
+            use crate::{Entry, NULL, Poetrie};
 
             #[test]
             fn tracing() {
                 let mut poetrie = Poetrie::nw();
 
                 let keyword = "keyword";
-                let entries = ["k", "key", keyword].map(|x| RevEntry::new(x));
+                let entries = ["k", "key", keyword].map(RevEntry::new);
 
                 for e in entries.iter() {
                     _ = poetrie.it(&e.entry());
@@ -4848,15 +4848,14 @@ mod tests_of_units {
 
                 grade = 0;
                 _ = poetrie.track(keyword_e, false, &mut grade);
-                
+
                 assert_eq!(3, grade);
                 assert_eq!(0, trace.len());
             }
 
             #[test]
             fn ok() {
-                let entry = RevEntry::new("información meteorológica");
-                let entry = &entry.entry();
+                let entry = &Entry("información meteorológica");
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
