@@ -1528,4 +1528,4 @@ mod tests_of_units {
     }
 }
 
-// cargo fmt & cargo test --release
+// cargo fmt & cargo test

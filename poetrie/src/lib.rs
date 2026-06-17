@@ -419,9 +419,12 @@ impl Poetrie {
     ///
     /// Return value is [`true`] if entry is present in tree, [`false`] otherwise.
     pub fn ey(&self, key: &Key) -> bool {
-        let res = self.track(key, false);
-
-        TraRes::Ok == res
+        self.track(
+            key,
+            false,
+            #[cfg(test)]
+            &mut 0,
+        )
     }
 
     /// Use to find entries with shared suffix to key.
@@ -494,8 +497,13 @@ impl Poetrie {
     ///
     /// Return value is [`true`] if entry was removed, [`false`] if it was not present.
     pub fn re(&mut self, entry: &Entry) -> bool {
-        let tra_res = self.track(entry, true);
-        let res = if let TraRes::Ok = tra_res {
+        let tra_res = self.track(
+            entry,
+            true,
+            #[cfg(test)]
+            &mut 0,
+        );
+        let res = if tra_res {
             self.re_actual(
                 #[cfg(test)]
                 &mut 0,
@@ -782,7 +790,7 @@ impl Poetrie {
         }
     }
 
-    fn track(&self, entry: &Key, trace: bool) -> TraRes {
+    fn track(&self, entry: &Key, trace: bool, #[cfg(test)] grade: &mut usize) -> bool {
         let mut node = self.root.uplift();
         let btr = self.btr.uplift();
 
@@ -801,16 +809,23 @@ impl Poetrie {
                     node = n;
                     continue;
                 }
-                return TraRes::UnknownForAbsentPathNode;
+                #[cfg(test)]
+                set_grade(grade, 1);
+                return false;
             }
 
-            return TraRes::UnknownForAbsentPathLinks;
+            #[cfg(test)]
+            set_grade(grade, 2);
+            return false;
         }
 
-        if node.entry {
-            TraRes::Ok
-        } else {
-            TraRes::UnknownForNotEntry
+        #[cfg(test)]
+        set_grade(grade, 3);
+        return node.entry;
+
+        #[cfg(test)]
+        fn set_grade(grade: &mut usize, g: usize) {
+            *grade = g;
         }
     }
 
@@ -849,15 +864,6 @@ impl Poetrie {
 
         Some(res)
     }
-}
-
-#[cfg_attr(test, derive(Debug))]
-#[derive(PartialEq)]
-enum TraRes {
-    Ok,
-    UnknownForNotEntry,
-    UnknownForAbsentPathLinks,
-    UnknownForAbsentPathNode,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -2037,7 +2043,7 @@ mod tests_of_units {
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
-                _ = poetrie.track(entry, true);
+                _ = poetrie.track(entry, true, &mut 0);
 
                 poetrie.re_actual(&mut 0);
                 assert_eq!(false, poetrie.ey(entry));
@@ -2049,7 +2055,7 @@ mod tests_of_units {
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
-                _ = poetrie.track(entry, true);
+                _ = poetrie.track(entry, true, &mut 0);
 
                 let mut grade = 0;
                 poetrie.re_actual(&mut grade);
@@ -2066,7 +2072,7 @@ mod tests_of_units {
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry1);
                 _ = poetrie.it(entry2);
-                _ = poetrie.track(entry1, true);
+                _ = poetrie.track(entry1, true, &mut 0);
 
                 let mut grade = 0;
                 poetrie.re_actual(&mut grade);
@@ -2084,7 +2090,7 @@ mod tests_of_units {
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry1);
                 _ = poetrie.it(entry2);
-                _ = poetrie.track(entry1, true);
+                _ = poetrie.track(entry1, true, &mut 0);
 
                 let mut grade = 0;
                 poetrie.re_actual(&mut grade);
@@ -2103,11 +2109,11 @@ mod tests_of_units {
 
                 let inner = RevEntry::new("Key");
                 let inner = &inner.entry();
+
                 _ = poetrie.it(inner);
+                _ = poetrie.track(inner, true, &mut 0);
 
                 let mut grade = 0;
-                _ = poetrie.track(inner, true);
-
                 poetrie.re_actual(&mut grade);
                 assert_eq!(1, grade);
 
@@ -2119,10 +2125,11 @@ mod tests_of_units {
             fn links_removal() {
                 let entry = &Entry("Keyword");
                 let mut poetrie = Poetrie::nw();
+
                 _ = poetrie.it(entry);
+                _ = poetrie.track(entry, true, &mut 0);
 
                 let mut grade = 0;
-                _ = poetrie.track(entry, true);
                 poetrie.re_actual(&mut grade);
                 assert_eq!(18, grade);
 
@@ -2136,11 +2143,12 @@ mod tests_of_units {
                 let keyword = &Entry("Keyword");
 
                 let mut poetrie = Poetrie::nw();
+
                 _ = poetrie.it(dissimilar);
                 _ = poetrie.it(keyword);
+                _ = poetrie.track(keyword, true, &mut 0);
 
                 let mut grade = 0;
-                _ = poetrie.track(keyword, true);
                 poetrie.re_actual(&mut grade);
                 assert_eq!(6, grade);
 
@@ -2155,18 +2163,19 @@ mod tests_of_units {
                 let under = RevEntry::new("keyworders");
                 let under = &under.entry();
                 let mut poetrie = Poetrie::nw();
+
                 _ = poetrie.it(above);
                 _ = poetrie.it(under);
+                _ = poetrie.track(under, true, &mut 0);
 
                 let mut grade = 0;
-                _ = poetrie.track(under, true);
                 poetrie.re_actual(&mut grade);
                 assert_eq!(10, grade);
 
                 assert_eq!(false, poetrie.ey(under));
                 assert_eq!(true, poetrie.ey(above));
 
-                _ = poetrie.track(above, true);
+                _ = poetrie.track(above, true, &mut 0);
                 let btr = &poetrie.btr;
                 let last = btr[btr.len() - 1];
                 assert_eq!('r', last.0);
@@ -4803,7 +4812,7 @@ mod tests_of_units {
         mod track {
 
             use super::super::rev_entry::RevEntry;
-            use crate::{NULL, Poetrie, TraRes};
+            use crate::{NULL, Poetrie};
 
             #[test]
             fn tracing() {
@@ -4817,7 +4826,10 @@ mod tests_of_units {
                 }
 
                 let keyword_e = &entries[2].entry();
-                _ = poetrie.track(keyword_e, true);
+
+                let mut grade = 0;
+                _ = poetrie.track(keyword_e, true, &mut grade);
+                assert_eq!(3, grade);
 
                 let trace = poetrie.btr.uplift();
                 let p = format!("{}{}", NULL, keyword);
@@ -4833,7 +4845,11 @@ mod tests_of_units {
                 }
 
                 trace.clear();
-                _ = poetrie.track(keyword_e, false);
+
+                grade = 0;
+                _ = poetrie.track(keyword_e, false, &mut grade);
+                
+                assert_eq!(3, grade);
                 assert_eq!(0, trace.len());
             }
 
@@ -4844,9 +4860,12 @@ mod tests_of_units {
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(entry);
-                let res = poetrie.track(entry, false);
 
-                assert_eq!(TraRes::Ok, res);
+                let mut grade = 0;
+                let res = poetrie.track(entry, false, &mut grade);
+
+                assert_eq!(3, grade);
+                assert_eq!(true, res);
             }
 
             #[test]
@@ -4856,8 +4875,12 @@ mod tests_of_units {
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&entry.entry());
-                let res = poetrie.track(&bad_entry.entry(), false);
-                assert_eq!(TraRes::UnknownForAbsentPathLinks, res);
+
+                let mut grade = 0;
+                let res = poetrie.track(&bad_entry.entry(), false, &mut grade);
+
+                assert_eq!(2, grade);
+                assert_eq!(false, res);
             }
 
             #[test]
@@ -4867,8 +4890,12 @@ mod tests_of_units {
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&entry.entry());
-                let res = poetrie.track(&bad_entry.entry(), false);
-                assert_eq!(TraRes::UnknownForAbsentPathNode, res);
+
+                let mut grade = 0;
+                let res = poetrie.track(&bad_entry.entry(), false, &mut grade);
+
+                assert_eq!(1, grade);
+                assert_eq!(false, res);
             }
 
             #[test]
@@ -4879,8 +4906,11 @@ mod tests_of_units {
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&entry.entry());
 
-                let res = poetrie.track(&bad_entry.entry(), false);
-                assert_eq!(TraRes::UnknownForNotEntry, res);
+                let mut grade = 0;
+                let res = poetrie.track(&bad_entry.entry(), false, &mut grade);
+
+                assert_eq!(3, grade);
+                assert_eq!(false, res);
             }
         }
 

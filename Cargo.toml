@@ -8,3 +8,33 @@ members = [
   "res",  
   "tra",
   "poetrie"]
+
+[profile.dev]
+opt-level = 0
+debug = true
+split-debuginfo = 'unpacked'
+strip = "none"
+debug-assertions = true
+overflow-checks = true
+lto = false
+panic = 'unwind'
+incremental = true
+codegen-units = 256
+rpath = false
+# embed-bitcode=true
+# force-unwind-tables=true
+
+[profile.release]
+opt-level = 3
+debug = false
+split-debuginfo = 'unpacked'
+strip = "none"
+debug-assertions = false
+overflow-checks = false
+lto = false
+panic = 'unwind'
+incremental = false
+codegen-units = 16
+rpath = false
+# embed-bitcode=true
+# force-unwind-tables=false
