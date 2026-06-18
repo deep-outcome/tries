@@ -829,20 +829,24 @@ impl Poetrie {
         }
     }
 
-    /// Use to obtain count of entries in tree.
-    pub const fn ct(&self) -> usize {
-        self.cnt
-    }
-
     /// Use to clear entire tree.
     ///
     /// Return value is count of entries before clearing.
     pub fn cr(&mut self) -> usize {
-        *self.root = Node::empty();
-
         let cnt = self.cnt;
+        if cnt == 0 {
+            return 0;
+        }
+
+        self.root.links = None;
         self.cnt = 0;
+
         cnt
+    }
+
+    /// Use to obtain count of entries in tree.
+    pub const fn ct(&self) -> usize {
+        self.cnt
     }
 
     /// Use to extract entries from tree.
@@ -895,7 +899,7 @@ impl Node {
     const fn empty() -> Self {
         Node {
             #[cfg(test)]
-            c: '\0',
+            c: NULL,
             links: None,
             entry: false,
         }
@@ -4913,27 +4917,40 @@ mod tests_of_units {
             }
         }
 
-        use crate::Entry;
+        mod cr {
+            use crate::{Entry, Links, Poetrie};
 
-        #[test]
-        fn cr() {
-            let keyentry = Entry("keyentry");
-            let mut poetrie = Poetrie::nw();
+            #[test]
+            fn basic_test() {
+                let ke = Entry("keyentry");
+                let mut poetrie = Poetrie::nw();
 
-            _ = poetrie.it(&keyentry);
-            let cap = 50;
-            poetrie.btr.reserve(cap);
-            poetrie.buf.reserve(cap);
+                _ = poetrie.it(&ke);
+                let cap = 50;
+                poetrie.btr.reserve(cap);
+                poetrie.buf.reserve(cap);
+                poetrie.bra.reserve(cap);
 
-            assert_eq!(1, poetrie.cr());
-            assert_eq!(false, poetrie.ey(&keyentry));
-            let root = &poetrie.root;
-            assert_eq!(false, root.links());
-            assert_eq!(false, root.entry);
-            assert_eq!(0, poetrie.cnt);
+                assert_eq!(1, poetrie.cr());
+                assert_eq!(false, poetrie.ey(&ke));
+                let root = &poetrie.root;
+                assert_eq!(false, root.links());
+                assert_eq!(0, poetrie.cnt);
 
-            assert_eq!(true, poetrie.btr.capacity() >= cap);
-            assert_eq!(true, poetrie.buf.capacity() >= cap);
+                assert_eq!(true, poetrie.btr.capacity() >= cap);
+                assert_eq!(true, poetrie.buf.capacity() >= cap);
+                assert_eq!(true, poetrie.bra.capacity() >= cap);
+            }
+
+            #[test]
+            fn empty_tree() {
+                let mut poetrie = Poetrie::nw();
+
+                poetrie.root.links = Some(Links::new());
+                assert_eq!(0, poetrie.cr());
+
+                assert_eq!(true, poetrie.root.links());
+            }
         }
 
         #[test]
