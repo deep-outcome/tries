@@ -294,37 +294,37 @@ impl MatchConductShaper {
     }
 
     /// Use to adjust matches limit.
-    pub fn max_n(&mut self, max_n: usize) -> &mut Self {
+    pub const fn max_n(&mut self, max_n: usize) -> &mut Self {
         self.0.max_n = max_n;
         self
     }
 
     /// Use to adjust minimal suffix match length.
-    pub fn min_sl(&mut self, min_sl: usize) -> &mut Self {
+    pub const fn min_sl(&mut self, min_sl: usize) -> &mut Self {
         self.0.min_sl = min_sl;
         self
     }
 
     /// Use to adjust maximal suffix match length.
-    pub fn max_sl(&mut self, max_sl: usize) -> &mut Self {
+    pub const fn max_sl(&mut self, max_sl: usize) -> &mut Self {
         self.0.max_sl = max_sl;
         self
     }
 
     /// Use to adjust extra match length requirement.
-    pub fn ext_ml(&mut self, ext_ml: usize) -> &mut Self {
+    pub const fn ext_ml(&mut self, ext_ml: usize) -> &mut Self {
         self.0.ext_ml = ext_ml;
         self
     }
 
     /// Use to adjust maximal match length.
-    pub fn max_ml(&mut self, max_ml: usize) -> &mut Self {
+    pub const fn max_ml(&mut self, max_ml: usize) -> &mut Self {
         self.0.max_ml = max_ml;
         self
     }
 
     /// Use to adjust sub-entries inclusion flag.
-    pub fn sub_e(&mut self, sub_e: bool) -> &mut Self {
+    pub const fn sub_e(&mut self, sub_e: bool) -> &mut Self {
         self.0.sub_e = sub_e;
         self
     }
@@ -378,7 +378,7 @@ const DEF_FIN_CAP: usize = 100;
 
 impl Poetrie {
     /// Use for `Poetrie` construction.
-    pub fn nw() -> Poetrie {
+    pub const fn nw() -> Poetrie {
         Poetrie {
             root: UC::new(Node::empty()),
             btr: UC::new(BtrBuf::new()),
