@@ -60,7 +60,9 @@ Thinking about what could be good rhyming with word of choice, simple try search
 
 ```rust
 let mut poetrie = Poetrie::nw();
-let words = ["lynx", "index"].map(Entry::new_from_str).map(Option::unwrap);
+let words = ["lynx", "index"]
+    .map(Entry::new_from_str)
+    .map(Option::unwrap);
 
 for w in words {
     poetrie.it(&w);
