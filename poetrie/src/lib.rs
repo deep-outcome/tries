@@ -5031,7 +5031,7 @@ mod tests_of_units {
 
             assert_eq!(false, node.links());
             node.links = Some(Links::new());
-            assert!(node.links());
+            assert_eq!(true, node.links());
         }
 
         #[test]
