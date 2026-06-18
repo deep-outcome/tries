@@ -1022,6 +1022,7 @@ mod tests_of_units {
 
     mod extract {
 
+        use super::rev_entry::rev;
         use crate::{Entry, Poetrie, extract};
 
         #[test]
@@ -1054,19 +1055,14 @@ mod tests_of_units {
         fn nesting() {
             let mut poetrie = Poetrie::nw();
 
-            let entries = vec![
-                String::from("a"),
-                String::from("az"),
-                String::from("b"),
-                String::from("by"),
-                String::from("y"),
-                String::from("yb"),
-                String::from("z"),
-                String::from("za"),
-            ];
+            let mut entries = ["a", "az", "b", "by", "y", "yb", "z", "za"]
+                .map(rev)
+                .to_vec();
+
+            entries.sort();
 
             for e in entries.iter() {
-                _ = poetrie.it(&Entry(e.as_str()));
+                _ = poetrie.it(&Entry(e));
             }
 
             let mut buff = String::new();
@@ -1085,22 +1081,26 @@ mod tests_of_units {
         fn in_depth_recursion() {
             let mut poetrie = Poetrie::nw();
 
-            let paths = vec![
-                String::from("aa"),
-                String::from("azbq"),
-                String::from("by"),
-                String::from("bycd"),
-                String::from("bycdefgh"),
-                String::from("byceff"),
-                String::from("byceffgq"),
-                String::from("bycqff"),
-                String::from("ybc"),
-                String::from("ybcrqutmop"),
-                String::from("ybcrqutmopfvb"),
-                String::from("ybcrqutmoprfg"),
-                String::from("ybxr"),
-                String::from("zazazazazabyyb"),
-            ];
+            let mut paths = [
+                "aa",
+                "azbq",
+                "by",
+                "bycd",
+                "bycdefgh",
+                "byceff",
+                "byceffgq",
+                "bycqff",
+                "ybc",
+                "ybcrqutmop",
+                "ybcrqutmopfvb",
+                "ybcrqutmoprfg",
+                "ybxr",
+                "zazazazazabyyb",
+            ]
+            .map(rev)
+            .to_vec();
+
+            paths.sort();
 
             for p in paths.iter() {
                 _ = poetrie.it(&Entry(p.as_str()));
@@ -1112,6 +1112,7 @@ mod tests_of_units {
             let links = poetrie.root.links.as_mut().unwrap();
             extract(links, &mut buff, &mut test);
 
+            assert_eq!(0, buff.len());
             assert_eq!(paths.len(), test.len());
 
             test.sort();
@@ -4963,45 +4964,49 @@ mod tests_of_units {
         }
 
         mod et {
+            use super::super::rev_entry::rev;
+
             use crate::{Entry, Poetrie};
 
             #[test]
             fn basic_test() {
-                let p = vec![
-                    String::from("aa"),
-                    String::from("azbq"),
-                    String::from("by"),
-                    String::from("ybc"),
-                    String::from("ybxr"),
-                    String::from("ybxrqutmop"),
-                    String::from("ybxrqutmopfvb"),
-                    String::from("ybxrqutmoprfg"),
-                    String::from("zazazazazabyyb"),
-                ];
+                let mut p = [
+                    "aa",
+                    "azbq",
+                    "by",
+                    "ybc",
+                    "ybxr",
+                    "ybxrqutmop",
+                    "ybxrqutmopfvb",
+                    "ybxrqutmoprfg",
+                    "zazazazazabyyb",
+                ]
+                .map(rev)
+                .to_vec();
 
-                let entries = p.iter().map(|x| Entry(x.as_str()));
+                p.sort();
+
+                let entries: Vec<Entry> = p.iter().map(|x| Entry(x)).collect();
 
                 let mut poetrie = Poetrie::nw();
-                for e in entries.clone() {
+                for e in entries.iter() {
                     _ = poetrie.it(&e);
                 }
 
                 let ext = poetrie.et();
-                assert_eq!(true, ext.is_some());
+                assert_eq!(0, poetrie.buf.len());
+
                 let mut ext = ext.unwrap();
+                ext.sort();
 
                 let p_len = p.len();
                 assert_eq!(p_len, ext.len());
-
-                ext.sort();
                 assert_eq!(p, ext);
 
                 let cap = ext.capacity();
+                assert_eq!(true, cap >= p_len && cap < 2 * p_len);
 
-                assert_eq!(true, cap >= p_len);
-                assert_eq!(true, cap < p_len * 2);
-
-                for e in entries.clone() {
+                for e in entries {
                     assert_eq!(true, poetrie.ey(&e));
                 }
             }

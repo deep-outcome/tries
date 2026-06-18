@@ -1,6 +1,7 @@
 - opts
     - check with track optimizations on UC node (see t-oc also)
     - optimize clr methods (t-oc also)
+    - check ext methods (optimize, validate test) 
     - dyn_trie
         ▪ keys, values, view_mut methods
         ▪ iter, iter_mut, IntoIter
