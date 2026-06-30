@@ -452,13 +452,13 @@ impl Poetrie {
     /// _catchword_ rhymes evenly bad. For this maximal suffix match length can be used.
     /// However, then word _sword_ cannot be matched and open riddle like this created
     ///
-    /// _Secrets I do,_
-    /// _hide for you._
-    /// _Shattered, still whole,_
-    /// _robbed now your role._
-    /// _Buried down, laid,_
-    /// _a self-clown raid._
-    /// _What am I?_
+    /// _Secrets I do,_             </br>
+    /// _hide for you._             </br>
+    /// _Shattered, still whole,_   </br>
+    /// _robbed now your role._     </br>
+    /// _Buried down, laid,_        </br>
+    /// _a self-clown raid._        </br>
+    /// _What am I?_                </br>
     /// _(Fair, blameless pass-sword.)_
     ///
     /// It could be not all words are enough long or on flip side some are excessively long.

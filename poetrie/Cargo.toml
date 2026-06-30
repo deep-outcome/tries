@@ -1,6 +1,6 @@
 [package]
 name = "poetrie"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 keywords = [ "digital-tree", "prefix-tree", "trie", "retrieval-tree", "poetry" ]
 authors = [ "software9119.technology" ]
