@@ -374,6 +374,7 @@ pub struct Poetrie {
 use crate::tests_of_units::poetrie::find::grade;
 
 const NULL: char = '\0';
+/// default find result capacity
 const DEF_FIN_CAP: usize = 100;
 
 impl Poetrie {
@@ -585,9 +586,10 @@ impl Poetrie {
         let mut op_node = self.root.aq_ref();
 
         let mut chars = key.chars();
-        let mut c = unsafe { chars.next_back().unwrap_unchecked() };
+        let mut c;
 
         if let Some(l) = op_node.links.as_ref() {
+            c = unsafe { chars.next_back().unwrap_unchecked() };
             if let Some(n) = l.get(&c) {
                 op_node = n;
             } else {
@@ -610,7 +612,7 @@ impl Poetrie {
         let mut disjunct_hit = false;
 
         let mut find = aide::vec_of_cap_or(
-            mc.max_n,
+            max_n,
             || Vec::with_capacity(DEF_FIN_CAP),
             #[cfg(test)]
             &mut 0,
@@ -632,7 +634,7 @@ impl Poetrie {
             // implnote: unwinding key, instead of short-cutting,
             // is necessary for disjunct conduct determination
             // devnote: can be cut short if buff already contains
-            // at least one sub-entries
+            // at least one sub-entry
             let next_c = chars.next_back();
             if next_c.is_none() {
                 #[cfg(test)]
@@ -686,18 +688,12 @@ impl Poetrie {
             break 'track;
         }
 
-        if buf_l < min_sl {
-            #[cfg(test)]
-            set_grade(grade::MIN_SL_NOT_REA, grade);
-            return Err(FindErr::DisjunctConduct);
-        }
-
         let links = op_node.links.as_ref();
         let continuable = links.is_some();
 
         // extension is special case of branching where
         // branching node is last node of key found
-        let can_extend = max_sl_accord && continuable && buf_l < max_ml;
+        let can_extend = continuable && max_sl_accord && min_sl <= buf_l && buf_l < max_ml;
         let can_branch = branching.len() > 0;
 
         // CONTINUATION
@@ -2218,8 +2214,6 @@ mod tests_of_units {
                 pub const SAT_ON_BRA: usize = 256;
                 /// final execution reached
                 pub const FIN: usize = 512;
-                /// min suffix requirement not reached
-                pub const MIN_SL_NOT_REA: usize = 2048;
                 /// direct disjuct branch detection
                 pub const DISJ_DIR_BRA: usize = 4096;
             }
@@ -2419,7 +2413,8 @@ mod tests_of_units {
                 let e = &Entry("lyrics");
                 let k = &Entry("codecs");
                 let mut mc = MatchConduct::test();
-                mc.max_n = 10;
+                let max_n = 10;
+                mc.max_n = max_n;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(e);
@@ -2428,7 +2423,7 @@ mod tests_of_units {
                 assert_eq!(true, f.is_ok());
                 let f = f.unwrap();
 
-                assert_eq!(true, f.capacity() < 2 * mc.max_n);
+                assert_eq!(true, f.capacity() < 2 * max_n);
             }
 
             #[test]
@@ -2621,8 +2616,8 @@ mod tests_of_units {
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
 
-                assert_eq!(2056, NO_PATH_L | MIN_SL_NOT_REA);
-                assert_eq!(2056, grade);
+                assert_eq!(24, NO_PATH_L | G_ZERO_M);
+                assert_eq!(24, grade);
             }
 
             #[test]
@@ -3075,8 +3070,8 @@ mod tests_of_units {
                 let f = poetrie.find(&k.entry(), &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
-                assert_eq!(2052, NO_PATH_N | MIN_SL_NOT_REA);
-                assert_eq!(2052, grade);
+                assert_eq!(20, NO_PATH_N | G_ZERO_M);
+                assert_eq!(20, grade);
             }
 
             #[test]
@@ -3493,7 +3488,7 @@ mod tests_of_units {
                 let k = RevEntry::new("document");
 
                 let mut mc = MatchConduct::test();
-                mc.max_sl = k.0.len() - 1;
+                mc.min_sl = k.len() + 1;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&e.entry());
@@ -3513,7 +3508,7 @@ mod tests_of_units {
                 let k = &k.entry();
 
                 let mut mc = MatchConduct::test();
-                mc.max_sl = k.0.len() - 1;
+                mc.min_sl = k.len() + 1;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&e.entry());
@@ -3542,8 +3537,8 @@ mod tests_of_units {
                 let p = Ok(vec![e.0]);
                 assert_eq!(130, KEY_EXH | SAT_ON_EXT);
                 assert_eq!(514, KEY_EXH | FIN);
-                for max_sl in [k_len, k_len + 1] {
-                    mc.max_sl = max_sl;
+                for min_sl in [k_len, k_len - 1] {
+                    mc.min_sl = min_sl;
                     for duo in [(1, 130), (usize::MAX, 514)] {
                         mc.max_n = duo.0;
 
@@ -3574,8 +3569,8 @@ mod tests_of_units {
 
                 assert_eq!(130, KEY_EXH | SAT_ON_EXT);
                 assert_eq!(514, KEY_EXH | FIN);
-                for max_sl in [k_len, k_len + 1] {
-                    mc.max_sl = max_sl;
+                for min_sl in [k_len, k_len - 1] {
+                    mc.min_sl = min_sl;
                     for duo in [(1, 130), (usize::MAX, 514)] {
                         mc.max_n = duo.0;
 
@@ -3595,7 +3590,7 @@ mod tests_of_units {
                 let k = RevEntry::new("document");
 
                 let mut mc = MatchConduct::test();
-                mc.max_ml = k.0.len();
+                mc.max_sl = k.0.len() - 1;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&e.entry());
@@ -3615,7 +3610,7 @@ mod tests_of_units {
                 let k = &k.entry();
 
                 let mut mc = MatchConduct::test();
-                mc.max_ml = k.0.len();
+                mc.max_sl = k.0.len() - 1;
 
                 let mut poetrie = Poetrie::nw();
                 _ = poetrie.it(&e.entry());
@@ -3634,6 +3629,108 @@ mod tests_of_units {
                 let e = RevEntry::new("documentalist");
                 let k = RevEntry::new("document");
                 let k = &k.entry();
+                let k_len = k.len();
+
+                let mut mc = MatchConduct::test();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+
+                let p = Ok(vec![e.0]);
+                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(514, KEY_EXH | FIN);
+                for max_sl in [k_len, k_len + 1] {
+                    mc.max_sl = max_sl;
+                    for duo in [(1, 130), (usize::MAX, 514)] {
+                        mc.max_n = duo.0;
+
+                        let mut grade = 0;
+                        let f = poetrie.find(k, &mc, &mut grade);
+                        poetrie.clr_f_buffs();
+
+                        assert_eq!(p, f, "{duo:?}, grade: {grade}");
+                        assert_eq!(duo.1, grade);
+                    }
+                }
+            }
+
+            #[test]
+            fn cannot_extend_b_4() {
+                let e = RevEntry::new("documentalist");
+                let k = RevEntry::new("document");
+                let k = &k.entry();
+                let k_len = k.len();
+
+                let mut mc = MatchConduct::test();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+                _ = poetrie.it(k);
+
+                let p = Ok(vec![e.0]);
+
+                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(514, KEY_EXH | FIN);
+                for max_sl in [k_len, k_len + 1] {
+                    mc.max_sl = max_sl;
+                    for duo in [(1, 130), (usize::MAX, 514)] {
+                        mc.max_n = duo.0;
+
+                        let mut grade = 0;
+                        let f = poetrie.find(k, &mc, &mut grade);
+                        poetrie.clr_f_buffs();
+
+                        assert_eq!(p, f, "{duo:?}, grade: {grade}");
+                        assert_eq!(duo.1, grade);
+                    }
+                }
+            }
+
+            #[test]
+            fn cannot_extend_c_1() {
+                let e = RevEntry::new("documentalist");
+                let k = RevEntry::new("document");
+
+                let mut mc = MatchConduct::test();
+                mc.max_ml = k.0.len();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+
+                let mut grade = 0;
+                let f = poetrie.find(&k.entry(), &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(18, KEY_EXH | G_ZERO_M);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn cannot_extend_c_2() {
+                let e = RevEntry::new("documentalist");
+                let k = RevEntry::new("document");
+                let k = &k.entry();
+
+                let mut mc = MatchConduct::test();
+                mc.max_ml = k.0.len();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(&e.entry());
+                _ = poetrie.it(k);
+
+                let mut grade = 0;
+                let f = poetrie.find(k, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::DisjunctConduct), f);
+                assert_eq!(18, KEY_EXH | G_ZERO_M);
+                assert_eq!(18, grade);
+            }
+
+            #[test]
+            fn cannot_extend_c_3() {
+                let e = RevEntry::new("documentalist");
+                let k = RevEntry::new("document");
+                let k = &k.entry();
 
                 let mut mc = MatchConduct::test();
                 mc.max_ml = k.0.len() + 1;
@@ -3655,7 +3752,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn cannot_extend_b_4() {
+            fn cannot_extend_c_4() {
                 let e = RevEntry::new("documentalist");
                 let k = RevEntry::new("document");
                 let k = &k.entry();
@@ -3681,7 +3778,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn cannot_extend_c_1() {
+            fn cannot_extend_d_1() {
                 let k = &Entry("document");
 
                 let mc = MatchConduct::test();
@@ -3698,7 +3795,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn cannot_extend_c_2() {
+            fn cannot_extend_d_2() {
                 let e = RevEntry::new("document");
                 let k = RevEntry::new("documentalist");
 
