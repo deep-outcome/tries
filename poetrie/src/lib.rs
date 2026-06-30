@@ -3939,6 +3939,8 @@ mod tests_of_units {
                 let p_len = p.len();
                 p.sort();
 
+                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(514, KEY_EXH | FIN);
                 for duo in [(2, 130), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
@@ -3981,6 +3983,8 @@ mod tests_of_units {
                 let p_len = p.len();
                 p.sort();
 
+                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(514, KEY_EXH | FIN);
                 for duo in [(2, 130), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
@@ -4021,6 +4025,8 @@ mod tests_of_units {
                 let p: HashSet<String> = e.map(RevEntry::into).into();
                 let p_len = p.len();
 
+                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(514, KEY_EXH | FIN);
                 for duo in [(2, 130), (5, 130), (6, 514)] {
                     let max_n = duo.0;
                     mc.max_n = max_n;
@@ -4067,6 +4073,8 @@ mod tests_of_units {
                 let p: HashSet<String> = e.map(RevEntry::into).into();
                 let p_len = p.len();
 
+                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(514, KEY_EXH | FIN);
                 for duo in [(2, 130), (5, 130), (6, 514)] {
                     let max_n = duo.0;
                     mc.max_n = max_n;
@@ -4309,7 +4317,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_shared_suffix_b() {
+            fn partially_shared_suffix_b_1() {
                 let p_a = String::from("lyrics");
                 let e_a = &Entry(p_a.as_str());
 
@@ -4346,7 +4354,45 @@ mod tests_of_units {
             }
 
             #[test]
-            fn partially_shared_suffix_c() {
+            fn partially_shared_suffix_b_2() {
+                let p_a = String::from("lyrics");
+                let e_a = &Entry(p_a.as_str());
+
+                let p_b = String::from("lodgings");
+                let e_b = &Entry(p_b.as_str());
+
+                let k = &Entry("carboniferous");
+                let mut mc = MatchConduct::test();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(e_a);
+                _ = poetrie.it(e_b);
+                _ = poetrie.it(k);
+
+                let mut p = vec![p_a, p_b];
+                let p_len = p.len();
+                p.sort();
+
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(514, KEY_EXH | FIN);
+                for duo in [(2, 258), (usize::MAX, 514)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    let mut f = f.unwrap();
+                    f.sort();
+
+                    assert_eq!(p_len, f.len());
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn partially_shared_suffix_c_1() {
                 let p_a = String::from("T-lyrics");
                 let e_a = &Entry(p_a.as_str());
 
@@ -4367,6 +4413,44 @@ mod tests_of_units {
                 assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
                 assert_eq!(516, NO_PATH_N | FIN);
                 for duo in [(2, 132), (usize::MAX, 516)] {
+                    mc.max_n = duo.0;
+
+                    let mut grade = 0;
+                    let f = poetrie.find(k, &mc, &mut grade);
+                    poetrie.clr_f_buffs();
+
+                    let mut f = f.unwrap();
+                    f.sort();
+
+                    assert_eq!(p_len, f.len());
+                    assert_eq!(p, f);
+                    assert_eq!(duo.1, grade);
+                }
+            }
+
+            #[test]
+            fn partially_shared_suffix_c_2() {
+                let p_a = String::from("T-lyrics");
+                let e_a = &Entry(p_a.as_str());
+
+                let p_b = String::from("U-lyrics");
+                let e_b = &Entry(p_b.as_str());
+
+                let k = &Entry("X-lyrics");
+                let mut mc = MatchConduct::test();
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(e_a);
+                _ = poetrie.it(e_b);
+                _ = poetrie.it(k);
+
+                let mut p = vec![p_a, p_b];
+                let p_len = p.len();
+                p.sort();
+
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(514, KEY_EXH | FIN);
+                for duo in [(2, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
