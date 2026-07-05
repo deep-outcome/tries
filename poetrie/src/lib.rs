@@ -858,6 +858,42 @@ impl Poetrie {
 
         Some(res)
     }
+
+    /// Use to get reference access to tree root branches, [`None`] for empty tree.
+    pub const fn as_ref(&self) -> Option<&Branches> {
+        if self.cnt == 0 {
+            None
+        } else {
+            self.root.aq_ref().branches.as_ref()
+        }
+    }
+
+    /// Use to get mutable reference access to tree root branches, [`None`] for empty tree.
+    pub const fn as_mut(&mut self) -> Option<&mut Branches> {
+        if self.cnt == 0 {
+            None
+        } else {
+            self.root.aq_mut().branches.as_mut()
+        }
+    }
+
+    /// Use to get pointer access to tree root branches, [`None`] for empty tree.
+    pub const fn as_ptr(&self) -> Option<*const Branches> {
+        if let Some(b) = self.as_ref() {
+            Some(b)
+        } else {
+            None
+        }
+    }
+
+    /// Use to get mutable pointer access to tree root branches, [`None`] for empty tree.
+    pub const fn as_mut_ptr(&mut self) -> Option<*mut Branches> {
+        if let Some(b) = self.as_mut() {
+            Some(b)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -5524,6 +5560,106 @@ mod tests_of_units {
                 let ext = poetrie.et();
 
                 assert_eq!(None, ext);
+            }
+        }
+
+        mod as_ref {
+            use crate::aide::address;
+            use crate::{Key, Poetrie};
+
+            #[test]
+            fn basic_test() {
+                let key = &Key("_");
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(key);
+
+                let p = address(poetrie.root.aq_ref());
+                let _ref = poetrie.as_ref().unwrap();
+
+                assert_eq!(p, address(_ref));
+            }
+
+            #[test]
+            fn empty_tree() {
+                let poetrie = Poetrie::nw();
+                let _ref = poetrie.as_ref();
+                assert_eq!(None, _ref);
+            }
+        }
+
+        mod as_mut {
+            use crate::aide::address;
+            use crate::{Key, Poetrie};
+
+            #[test]
+            fn basic_test() {
+                let key = &Key("_");
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(key);
+
+                let p = address(poetrie.root.aq_mut());
+                let _mut = poetrie.as_mut().unwrap();
+
+                assert_eq!(p, address(_mut));
+            }
+
+            #[test]
+            fn empty_tree() {
+                let mut poetrie = Poetrie::nw();
+                let _mut = poetrie.as_mut();
+                assert_eq!(None, _mut);
+            }
+        }
+
+        mod as_ptr {
+            use crate::aide::address;
+            use crate::{Key, Poetrie};
+
+            #[test]
+            fn basic_test() {
+                let key = &Key("_");
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(key);
+
+                let p = address(poetrie.root.aq_ref());
+                let _ptr = poetrie.as_ptr().unwrap();
+
+                assert_eq!(p, _ptr as usize);
+            }
+
+            #[test]
+            fn empty_tree() {
+                let poetrie = Poetrie::nw();
+                let _ptr = poetrie.as_ptr();
+                assert_eq!(None, _ptr);
+            }
+        }
+
+        mod as_mut_ptr {
+            use crate::aide::address;
+            use crate::{Key, Poetrie};
+
+            #[test]
+            fn basic_test() {
+                let key = &Key("_");
+
+                let mut poetrie = Poetrie::nw();
+                _ = poetrie.it(key);
+
+                let p = address(poetrie.root.aq_mut());
+                let _ptr = poetrie.as_mut_ptr().unwrap();
+
+                assert_eq!(p, _ptr as usize);
+            }
+
+            #[test]
+            fn empty_tree() {
+                let mut poetrie = Poetrie::nw();
+                let _ptr = poetrie.as_mut_ptr();
+                assert_eq!(None, _ptr);
             }
         }
     }

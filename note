@@ -1,5 +1,6 @@
 - ideas
     - check with key vs entry (opinionated?)
+    - add as_ptr, as_mut_ptr
 - opts
     - check with track optimizations on UC node (see t-oc also)
     - optimize clr methods (t-oc also)
