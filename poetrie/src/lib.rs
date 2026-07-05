@@ -8,7 +8,8 @@ mod aide;
 mod uc;
 use uc::UC;
 
-type Links = HashMap<char, Node>;
+/// Tree node branches type.
+pub type Branches = HashMap<char, Node>;
 
 /// Actual matches found type.
 pub type Find = Vec<String>;
@@ -20,8 +21,8 @@ type BraInf = Vec<(*const HashMap<char, Node>, usize, *const Node)>;
 /// backtrace buffer
 type BtrBuf = Vec<(char, *mut Node)>;
 
-fn extract(l: &Links, buff: &mut CharBuf, o: &mut Vec<String>) {
-    for (k, n) in l.iter() {
+fn extract(b: &Branches, buff: &mut CharBuf, o: &mut Vec<String>) {
+    for (k, n) in b.iter() {
         buff.push(*k);
 
         if n.entry {
@@ -29,8 +30,8 @@ fn extract(l: &Links, buff: &mut CharBuf, o: &mut Vec<String>) {
             o.push(entry);
         }
 
-        if let Some(l) = n.links.as_ref() {
-            extract(l, buff, o);
+        if let Some(b) = n.branches.as_ref() {
+            extract(b, buff, o);
         }
 
         _ = buff.pop();
@@ -66,8 +67,8 @@ impl<'a> Extender<'a> {
         }
 
         if b_len < xl {
-            if let Some(l) = n.links.as_ref() {
-                for (c, node) in l.iter() {
+            if let Some(b) = n.branches.as_ref() {
+                for (c, node) in b.iter() {
                     if self.e(node, *c) {
                         return true;
                     }
@@ -81,11 +82,11 @@ impl<'a> Extender<'a> {
     }
 }
 
-fn push_match(c: &CharBuf, f: &mut Find, l: usize) -> bool {
+fn push_match(c: &CharBuf, f: &mut Find, b: usize) -> bool {
     let e = c.chars().rev().collect();
 
     f.push(e);
-    f.len() == l
+    f.len() == b
 }
 
 /// [`&str`] validated for usage with [`Poetrie`].
@@ -390,8 +391,8 @@ impl Poetrie {
         let mut node = self.root.aq_mut();
         let mut chars = key.chars();
         while let Some(c) = chars.next_back() {
-            let links = node.links.get_or_insert_with(|| Links::new());
-            node = links.entry(c).or_insert(Node::empty());
+            let branches = node.branches.get_or_insert_with(|| Branches::new());
+            node = branches.entry(c).or_insert(Node::empty());
 
             #[cfg(test)]
             {
@@ -519,7 +520,7 @@ impl Poetrie {
         let mut node = unsafe { en_duo.1.as_mut().unwrap_unchecked() };
 
         node.entry = false;
-        if node.links() {
+        if node.branches() {
             #[cfg(test)]
             set_grade(1, grade);
 
@@ -530,13 +531,13 @@ impl Poetrie {
         let mut sn_entry = &en_duo.0;
         while let Some((c, n)) = trace.next_back() {
             node = unsafe { n.as_mut().unwrap_unchecked() };
-            let links = unsafe { node.links.as_mut().unwrap_unchecked() };
-            _ = links.remove(sn_entry);
+            let branches = unsafe { node.branches.as_mut().unwrap_unchecked() };
+            _ = branches.remove(sn_entry);
 
             #[cfg(test)]
             set_grade(2, grade);
 
-            if links.len() > 0 {
+            if branches.len() > 0 {
                 #[cfg(test)]
                 set_grade(4, grade);
 
@@ -553,7 +554,7 @@ impl Poetrie {
             sn_entry = c;
         }
 
-        node.links = None;
+        node.branches = None;
         #[cfg(test)]
         if *grade == 2 {
             set_grade(16, grade);
@@ -581,9 +582,9 @@ impl Poetrie {
         let mut chars = key.chars();
         let mut c;
 
-        if let Some(l) = op_node.links.as_ref() {
+        if let Some(b) = op_node.branches.as_ref() {
             c = unsafe { chars.next_back().unwrap_unchecked() };
-            if let Some(n) = l.get(&c) {
+            if let Some(n) = b.get(&c) {
                 op_node = n;
             } else {
                 return Err(FindErr::NoJointSuffix);
@@ -649,15 +650,15 @@ impl Poetrie {
                 }
             }
 
-            if let Some(l) = op_node.links.as_ref() {
+            if let Some(b) = op_node.branches.as_ref() {
                 #[cfg(test)]
                 assert_eq!(true, next_c.is_some());
 
                 c = unsafe { next_c.unwrap_unchecked() };
-                if let Some(n) = l.get(&c) {
-                    if l.len() > 1 {
+                if let Some(n) = b.get(&c) {
+                    if b.len() > 1 {
                         if max_sl_accord && min_sl <= buf_l && buf_l < max_ml {
-                            branching.push((l, buf_l, n));
+                            branching.push((b, buf_l, n));
                         } else {
                             if disjunct_hit == false {
                                 #[cfg(test)]
@@ -677,12 +678,12 @@ impl Poetrie {
             }
 
             #[cfg(test)]
-            set_grade(grade::NO_PATH_L, grade);
+            set_grade(grade::NO_PATH_B, grade);
             break 'track;
         }
 
-        let links = op_node.links.as_ref();
-        let continuable = links.is_some();
+        let branches = op_node.branches.as_ref();
+        let continuable = branches.is_some();
 
         // extension is special case of branching where
         // branching node is last node of key found
@@ -729,9 +730,9 @@ impl Poetrie {
 
         if can_extend {
             #[cfg(test)]
-            assert_eq!(true, links.is_some());
-            let l = unsafe { links.unwrap_unchecked() };
-            for (c, node) in l {
+            assert_eq!(true, branches.is_some());
+            let b = unsafe { branches.unwrap_unchecked() };
+            for (c, node) in b {
                 if extender.e(node, *c) {
                     #[cfg(test)]
                     set_grade(grade::SAT_ON_EXT, grade);
@@ -743,13 +744,13 @@ impl Poetrie {
         if can_branch {
             let mut b = branching.iter();
 
-            while let Some((blinks, blen, skip_n)) = b.next_back() {
+            while let Some((branches, blen, skip_n)) = b.next_back() {
                 extender.b.truncate(*blen);
 
                 // devnote: check with option to avoid raw pointers
-                let blinks = unsafe { blinks.as_ref().unwrap_unchecked() };
+                let branches = unsafe { branches.as_ref().unwrap_unchecked() };
 
-                for (c, node) in blinks.iter() {
+                for (c, node) in branches.iter() {
                     if node as *const Node == *skip_n {
                         continue;
                     }
@@ -789,8 +790,8 @@ impl Poetrie {
 
         let mut chars = key.chars();
         while let Some(c) = chars.next_back() {
-            if let Some(l) = node.links.as_mut() {
-                if let Some(n) = l.get_mut(&c) {
+            if let Some(b) = node.branches.as_mut() {
+                if let Some(n) = b.get_mut(&c) {
                     if trace {
                         btr.push((c, n));
                     }
@@ -827,7 +828,7 @@ impl Poetrie {
             return 0;
         }
 
-        self.root.links = None;
+        self.root.branches = None;
         self.cnt = 0;
 
         cnt
@@ -852,7 +853,7 @@ impl Poetrie {
         let buff = self.buf.aq_mut();
         let mut res = Vec::with_capacity(cnt);
 
-        let rl = unsafe { self.root.links.as_ref().unwrap_unchecked() };
+        let rl = unsafe { self.root.branches.as_ref().unwrap_unchecked() };
         extract(rl, buff, &mut res);
 
         Some(res)
@@ -872,41 +873,29 @@ pub enum FindErr {
     DisjunctConduct,
 }
 
-#[cfg_attr(test, derive(PartialEq))]
-struct Node {
+#[derive(Debug, PartialEq, Clone)]
+/// Tree node.
+pub struct Node {
     #[cfg(test)]
     c: char,
-    links: Option<Links>,
-    entry: bool,
+    /// Node branches to sub-level nodes.
+    pub branches: Option<Branches>,
+    /// `true` if node is entry node, `false` otherwise.
+    pub entry: bool,
 }
 
 impl Node {
-    const fn links(&self) -> bool {
-        self.links.is_some()
+    const fn branches(&self) -> bool {
+        self.branches.is_some()
     }
 
     const fn empty() -> Self {
         Node {
             #[cfg(test)]
             c: NULL,
-            links: None,
+            branches: None,
             entry: false,
         }
-    }
-}
-
-#[cfg(test)]
-use std::fmt::{Debug, Formatter};
-
-#[cfg(test)]
-impl Debug for Node {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let links = if self.links() { "Some" } else { "None" };
-
-        f.write_fmt(format_args!(
-            "Node {{\n  links: {}\n  entry: {}\n}}",
-            links, self.entry
-        ))
     }
 }
 
@@ -1027,8 +1016,8 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            let links = poetrie.root.links.as_mut().unwrap();
-            extract(links, &mut buff, &mut test);
+            let branches = poetrie.root.branches.as_mut().unwrap();
+            extract(branches, &mut buff, &mut test);
 
             let p = vec![String::from("a"), String::from("z")];
             assert_eq!(p.len(), test.len());
@@ -1057,8 +1046,8 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            let links = poetrie.root.links.as_mut().unwrap();
-            extract(links, &mut buff, &mut test);
+            let branches = poetrie.root.branches.as_mut().unwrap();
+            extract(branches, &mut buff, &mut test);
 
             assert_eq!(entries.len(), test.len());
 
@@ -1098,8 +1087,8 @@ mod tests_of_units {
             let mut buff = String::new();
             let mut test = Vec::new();
 
-            let links = poetrie.root.links.as_mut().unwrap();
-            extract(links, &mut buff, &mut test);
+            let branches = poetrie.root.branches.as_mut().unwrap();
+            extract(branches, &mut buff, &mut test);
 
             assert_eq!(0, buff.len());
             assert_eq!(paths.len(), test.len());
@@ -1113,7 +1102,7 @@ mod tests_of_units {
 
         // segment
         mod seg {
-            use crate::{Links, Node};
+            use crate::{Branches, Node};
 
             pub fn add_linked<'a>(mut n: &'a mut Node, s: &[&str]) -> &'a mut Node {
                 for s in s {
@@ -1131,9 +1120,9 @@ mod tests_of_units {
 
             pub fn add_one<'a>(mut n: &'a mut Node, s: &str, e: bool) -> &'a mut Node {
                 for c in s.chars() {
-                    let l = n.links.get_or_insert(Links::new());
+                    let b = n.branches.get_or_insert(Branches::new());
 
-                    let e = l.entry(c);
+                    let e = b.entry(c);
                     n = e.or_insert(Node::empty());
                 }
 
@@ -1153,8 +1142,8 @@ mod tests_of_units {
 
                     let mut n = &n;
                     for c in "ab".chars() {
-                        let links = n.links.as_ref().unwrap();
-                        n = links.get(&c).unwrap();
+                        let branches = n.branches.as_ref().unwrap();
+                        n = branches.get(&c).unwrap();
 
                         assert_eq!(true, n.entry);
                     }
@@ -1167,9 +1156,9 @@ mod tests_of_units {
                     let n = &mut Node::empty();
                     add_rooted(n, &["a", "b"]);
 
-                    let links = n.links.as_ref().unwrap();
+                    let branches = n.branches.as_ref().unwrap();
                     for c in "ab".chars() {
-                        let n = links.get(&c).unwrap();
+                        let n = branches.get(&c).unwrap();
                         assert_eq!(true, n.entry);
                     }
                 }
@@ -1179,21 +1168,21 @@ mod tests_of_units {
                     let n = &mut Node::empty();
 
                     let a1 = address(add_one(n, "a", true));
-                    let l = n.links.as_ref().unwrap();
+                    let b = n.branches.as_ref().unwrap();
 
-                    one_test(a1, l, 'a', true);
+                    one_test(a1, b, 'a', true);
 
                     let b1 = address(add_one(n, "b", false));
-                    let l = n.links.as_ref().unwrap();
+                    let b = n.branches.as_ref().unwrap();
 
-                    one_test(b1, l, 'b', false);
+                    one_test(b1, b, 'b', false);
 
-                    assert_eq!(true, l.get(&'a').is_some());
+                    assert_eq!(true, b.get(&'a').is_some());
 
-                    fn one_test(res: usize, l: &Links, key: char, e: bool) {
-                        let test = l.get(&key).unwrap();
+                    fn one_test(res: usize, b: &Branches, key: char, e: bool) {
+                        let test = b.get(&key).unwrap();
                         assert_eq!(e, test.entry);
-                        assert_eq!(false, test.links());
+                        assert_eq!(false, test.branches());
                         assert_eq!(res, address(test));
                     }
                 }
@@ -1207,8 +1196,8 @@ mod tests_of_units {
 
                     let mut n = &root;
                     for c in seg.chars() {
-                        let l = n.links.as_ref().unwrap();
-                        n = l.get(&c).unwrap();
+                        let b = n.branches.as_ref().unwrap();
+                        n = b.get(&c).unwrap();
                     }
 
                     assert_eq!(b, address(n));
@@ -1216,12 +1205,12 @@ mod tests_of_units {
                     let seg = "ac";
                     let c = address(add_one(&mut root, seg, true));
 
-                    let mut l = root.links.as_ref().unwrap();
-                    let a = l.get(&'a').unwrap();
+                    let mut b = root.branches.as_ref().unwrap();
+                    let a = b.get(&'a').unwrap();
                     assert_eq!(false, a.entry);
-                    l = a.links.as_ref().unwrap();
-                    assert_eq!(true, l.get(&'b').is_some());
-                    assert_eq!(c, address(l.get(&'c').unwrap()));
+                    b = a.branches.as_ref().unwrap();
+                    assert_eq!(true, b.get(&'b').is_some());
+                    assert_eq!(c, address(b.get(&'c').unwrap()));
                 }
             }
         }
@@ -1460,8 +1449,8 @@ mod tests_of_units {
             let p = p
                 .into_iter()
                 .filter(|x| {
-                    let l = x.len();
-                    serotiny_len < l && l < serotonergic_len
+                    let b = x.len();
+                    serotiny_len < b && b < serotonergic_len
                 })
                 .collect::<HashSet<String>>();
 
@@ -1823,24 +1812,24 @@ mod tests_of_units {
                 let res = poetrie.it(&key);
                 assert_eq!(true, res);
 
-                let links = poetrie.root.links.as_ref();
-                assert_eq!(true, links.is_some());
-                let mut links = links.unwrap();
+                let branches = poetrie.root.branches.as_ref();
+                assert_eq!(true, branches.is_some());
+                let mut branches = branches.unwrap();
 
                 let last_node_ix = key.len() - 1;
                 for (ix, c) in key.chars().rev().enumerate() {
-                    let node = links.get(&c);
+                    let node = branches.get(&c);
 
                     assert_eq!(true, node.is_some());
                     let node = node.unwrap();
 
                     if ix == last_node_ix {
-                        assert_eq!(false, node.links());
+                        assert_eq!(false, node.branches());
                         assert_eq!(true, node.entry);
                     } else {
                         assert_eq!(false, node.entry);
-                        assert_eq!(true, node.links());
-                        links = node.links.as_ref().unwrap();
+                        assert_eq!(true, node.branches());
+                        branches = node.branches.as_ref().unwrap();
                     }
                 }
 
@@ -1881,10 +1870,10 @@ mod tests_of_units {
                 assert_eq!(true, res);
                 assert_eq!(1, poetrie.cnt);
 
-                let links = poetrie.root.0.into_inner().links;
-                assert_eq!(true, links.is_some());
-                let links = links.unwrap();
-                let node = links.get(&'a');
+                let branches = poetrie.root.0.into_inner().branches;
+                assert_eq!(true, branches.is_some());
+                let branches = branches.unwrap();
+                let node = branches.get(&'a');
                 assert_eq!(true, node.is_some());
                 assert_eq!(true, node.unwrap().entry);
             }
@@ -1902,23 +1891,23 @@ mod tests_of_units {
                 assert_eq!(false, res);
                 assert_eq!(1, poetrie.cnt);
 
-                let links = &poetrie.root.links.as_ref();
-                assert_eq!(true, links.is_some());
-                let mut links = links.unwrap();
+                let branches = &poetrie.root.branches.as_ref();
+                assert_eq!(true, branches.is_some());
+                let mut branches = branches.unwrap();
 
                 let last_ix = key.len() - 1;
                 for (ix, c) in key.chars().rev().enumerate() {
-                    let node = links.get(&c);
+                    let node = branches.get(&c);
                     assert_eq!(true, node.is_some());
                     let node = node.unwrap();
 
                     if ix == last_ix {
-                        assert_eq!(false, node.links());
+                        assert_eq!(false, node.branches());
                         assert_eq!(true, node.entry)
                     } else {
-                        assert_eq!(true, node.links());
+                        assert_eq!(true, node.branches());
                         assert_eq!(false, node.entry);
-                        links = node.links.as_ref().unwrap();
+                        branches = node.branches.as_ref().unwrap();
                     }
                 }
             }
@@ -2085,7 +2074,7 @@ mod tests_of_units {
                 poetrie.re_actual(&mut grade);
                 assert_eq!(false, poetrie.ey(key));
                 assert_eq!(18, grade);
-                assert_eq!(false, poetrie.root.links());
+                assert_eq!(false, poetrie.root.branches());
             }
 
             #[test]
@@ -2146,7 +2135,7 @@ mod tests_of_units {
             }
 
             #[test]
-            fn links_removal() {
+            fn branches_removal() {
                 let key = &Key("Keyword");
                 let mut poetrie = Poetrie::nw();
 
@@ -2158,7 +2147,7 @@ mod tests_of_units {
                 assert_eq!(18, grade);
 
                 assert_eq!(false, poetrie.ey(key));
-                assert_eq!(None, poetrie.root.links);
+                assert_eq!(None, poetrie.root.branches);
             }
 
             #[test]
@@ -2204,7 +2193,7 @@ mod tests_of_units {
                 let last = btr[btr.len() - 1];
                 assert_eq!('r', last.0);
                 let node = unsafe { last.1.as_ref() }.unwrap();
-                assert_eq!(false, node.links());
+                assert_eq!(false, node.branches());
             }
         }
 
@@ -2223,8 +2212,8 @@ mod tests_of_units {
                 pub const KEY_EXH: usize = 2;
                 /// no path available on node, ineffectual path potential
                 pub const NO_PATH_N: usize = 4;
-                /// no path available on links, no path potential
-                pub const NO_PATH_L: usize = 8;
+                /// no path available on branches, no path potential
+                pub const NO_PATH_B: usize = 8;
                 /// guaranteed zero matches
                 pub const G_ZERO_M: usize = 16;
                 /// only sub-entries available
@@ -2277,7 +2266,7 @@ mod tests_of_units {
                 mc.max_n = 2;
 
                 let p = Ok(vec![p]);
-                assert_eq!(40, NO_PATH_L | SUB_E_ONLY);
+                assert_eq!(40, NO_PATH_B | SUB_E_ONLY);
                 for duo in [(1, 40), (MAX_ML, 40)] {
                     mc.max_ml = duo.0;
 
@@ -2483,7 +2472,7 @@ mod tests_of_units {
 
                 let p = Ok(vec![se_a.0, se_b.0]);
                 assert_eq!(64, SAT_ON_SE);
-                assert_eq!(40, NO_PATH_L | SUB_E_ONLY);
+                assert_eq!(40, NO_PATH_B | SUB_E_ONLY);
                 for duo in [(2, 64), (usize::MAX, 40)] {
                     mc.max_n = duo.0;
 
@@ -2547,7 +2536,7 @@ mod tests_of_units {
 
                 let p = Ok(vec![se_b.0]);
                 assert_eq!(64, SAT_ON_SE);
-                assert_eq!(40, NO_PATH_L | SUB_E_ONLY);
+                assert_eq!(40, NO_PATH_B | SUB_E_ONLY);
                 for duo in [(1, 64), (usize::MAX, 40)] {
                     mc.max_n = duo.0;
 
@@ -2614,7 +2603,7 @@ mod tests_of_units {
 
                 let p = Ok(vec![se_b.0]);
                 assert_eq!(64, SAT_ON_SE);
-                assert_eq!(40, NO_PATH_L | SUB_E_ONLY);
+                assert_eq!(40, NO_PATH_B | SUB_E_ONLY);
                 for duo in [(1, 64), (usize::MAX, 40)] {
                     mc.max_n = duo.0;
 
@@ -2675,7 +2664,7 @@ mod tests_of_units {
 
                 let p = Ok(vec![p]);
                 assert_eq!(64, SAT_ON_SE);
-                assert_eq!(40, NO_PATH_L | SUB_E_ONLY);
+                assert_eq!(40, NO_PATH_B | SUB_E_ONLY);
                 for duo in [(1, 64), (usize::MAX, 40)] {
                     mc.max_n = duo.0;
 
@@ -2731,7 +2720,7 @@ mod tests_of_units {
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
 
-                assert_eq!(24, NO_PATH_L | G_ZERO_M);
+                assert_eq!(24, NO_PATH_B | G_ZERO_M);
                 assert_eq!(24, grade);
             }
 
@@ -2773,7 +2762,7 @@ mod tests_of_units {
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
 
-                assert_eq!(24, NO_PATH_L | G_ZERO_M);
+                assert_eq!(24, NO_PATH_B | G_ZERO_M);
                 assert_eq!(24, grade);
             }
 
@@ -2815,7 +2804,7 @@ mod tests_of_units {
 
                 let p = Ok(vec![se.0]);
                 assert_eq!(64, SAT_ON_SE);
-                assert_eq!(40, NO_PATH_L | SUB_E_ONLY);
+                assert_eq!(40, NO_PATH_B | SUB_E_ONLY);
                 for min_sl in [se_len, se_len - 1] {
                     mc.min_sl = min_sl;
                     for duo in [(1, 64), (usize::MAX, 40)] {
@@ -2881,7 +2870,7 @@ mod tests_of_units {
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
 
-                assert_eq!(24, NO_PATH_L | G_ZERO_M);
+                assert_eq!(24, NO_PATH_B | G_ZERO_M);
                 assert_eq!(24, grade);
             }
 
@@ -2925,7 +2914,7 @@ mod tests_of_units {
 
                 let p = Ok(vec![se.0]);
                 assert_eq!(64, SAT_ON_SE);
-                assert_eq!(40, NO_PATH_L | SUB_E_ONLY);
+                assert_eq!(40, NO_PATH_B | SUB_E_ONLY);
                 for min_sl in [se_len - 1, se_len - 2] {
                     mc.min_sl = min_sl;
                     for duo in [(1, 64), (usize::MAX, 40)] {
@@ -2991,7 +2980,7 @@ mod tests_of_units {
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
 
-                assert_eq!(24, NO_PATH_L | G_ZERO_M);
+                assert_eq!(24, NO_PATH_B | G_ZERO_M);
                 assert_eq!(24, grade);
             }
 
@@ -3033,7 +3022,7 @@ mod tests_of_units {
 
                 let p = Ok(vec![se.0]);
                 assert_eq!(64, SAT_ON_SE);
-                assert_eq!(40, NO_PATH_L | SUB_E_ONLY);
+                assert_eq!(40, NO_PATH_B | SUB_E_ONLY);
                 for max_sl in [se_len, se_len + 1] {
                     mc.max_sl = max_sl;
                     for duo in [(1, 64), (usize::MAX, 40)] {
@@ -3098,7 +3087,7 @@ mod tests_of_units {
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
 
-                assert_eq!(24, NO_PATH_L | G_ZERO_M);
+                assert_eq!(24, NO_PATH_B | G_ZERO_M);
                 assert_eq!(24, grade);
             }
 
@@ -3140,7 +3129,7 @@ mod tests_of_units {
 
                 let p = Ok(vec![se.0]);
                 assert_eq!(64, SAT_ON_SE);
-                assert_eq!(40, NO_PATH_L | SUB_E_ONLY);
+                assert_eq!(40, NO_PATH_B | SUB_E_ONLY);
                 for max_ml in [se_len, se_len + 1] {
                     mc.max_ml = max_ml;
                     for duo in [(1, 64), (usize::MAX, 40)] {
@@ -3670,7 +3659,7 @@ mod tests_of_units {
                 let f = poetrie.find(&k.key(), &mc, &mut grade);
 
                 assert_eq!(Err(FindErr::DisjunctConduct), f);
-                assert_eq!(24, NO_PATH_L | G_ZERO_M);
+                assert_eq!(24, NO_PATH_B | G_ZERO_M);
                 assert_eq!(24, grade);
             }
 
@@ -5437,7 +5426,7 @@ mod tests_of_units {
         }
 
         mod cr {
-            use crate::{Key, Links, Poetrie};
+            use crate::{Branches, Key, Poetrie};
 
             #[test]
             fn basic_test() {
@@ -5453,7 +5442,7 @@ mod tests_of_units {
                 assert_eq!(1, poetrie.cr());
                 assert_eq!(false, poetrie.ey(&key));
                 let root = &poetrie.root;
-                assert_eq!(false, root.links());
+                assert_eq!(false, root.branches());
                 assert_eq!(0, poetrie.cnt);
 
                 assert_eq!(true, poetrie.btr.capacity() >= cap);
@@ -5465,10 +5454,10 @@ mod tests_of_units {
             fn empty_tree() {
                 let mut poetrie = Poetrie::nw();
 
-                poetrie.root.links = Some(Links::new());
+                poetrie.root.branches = Some(Branches::new());
                 assert_eq!(0, poetrie.cr());
 
-                assert_eq!(true, poetrie.root.links());
+                assert_eq!(true, poetrie.root.branches());
             }
         }
 
@@ -5541,22 +5530,22 @@ mod tests_of_units {
 
     mod node {
 
-        use crate::{Links, Node};
+        use crate::{Branches, Node};
 
         #[test]
-        fn links() {
+        fn branches() {
             let mut node = Node::empty();
 
-            assert_eq!(false, node.links());
-            node.links = Some(Links::new());
-            assert_eq!(true, node.links());
+            assert_eq!(false, node.branches());
+            node.branches = Some(Branches::new());
+            assert_eq!(true, node.branches());
         }
 
         #[test]
         fn empty() {
             let node = Node::empty();
 
-            assert_eq!(None, node.links);
+            assert_eq!(None, node.branches);
             assert_eq!(false, node.entry);
         }
     }
