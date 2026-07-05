@@ -19,7 +19,7 @@ let words = [
     "topics",
     "anticruelty",
 ]
-.map(Entry::new_from_str)
+.map(Key::new_from_str)
 .map(Option::unwrap);
 
 for w in words {
@@ -33,7 +33,7 @@ let mc = MatchConductShaper::init()
     .form()
     .unwrap();
 
-let probe = Entry::new_from_str("lyrics").unwrap();
+let probe = Key::new_from_str("lyrics").unwrap();
 let matchee = poetrie.sx(&probe, &mc);
 
 let confirmation: HashSet<String> =
@@ -47,10 +47,10 @@ assert_eq!(confirmation.len(), matchee.len());
 
 let mc = MatchConduct::default();
 
-let probe = Entry::new_from_str("anticruelty").unwrap();
+let probe = Key::new_from_str("anticruelty").unwrap();
 assert_eq!(Err(FindErr::OnlyKeyMatches), poetrie.sx(&probe, &mc));
 
-let probe = Entry::new_from_str("solemn").unwrap();
+let probe = Key::new_from_str("solemn").unwrap();
 assert_eq!(Err(FindErr::NoJointSuffix), poetrie.sx(&probe, &mc));
 ```
 
@@ -60,15 +60,13 @@ Thinking about what could be good rhyming with word of choice, simple try search
 
 ```rust
 let mut poetrie = Poetrie::nw();
-let words = ["lynx", "index"]
-    .map(Entry::new_from_str)
-    .map(Option::unwrap);
+let words = ["lynx", "index"].map(Key::new_from_str).map(Option::unwrap);
 
 for w in words {
     poetrie.it(&w);
 }
 
-let probe = Entry::new_from_str("ynx").unwrap();
+let probe = Key::new_from_str("ynx").unwrap();
 let mc = MatchConduct::default();
 let matchee = poetrie.sx(&probe, &mc);
 
