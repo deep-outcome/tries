@@ -253,6 +253,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
             if res.is_some() {
                 return res;
             } else {
+                #[cfg(test)]
                 assert_eq!(true, s.buff.is_some());
                 let mut buff = unsafe { s.buff.take().unwrap_unchecked() };
                 _ = buff.pop();
@@ -348,6 +349,7 @@ impl<T> Iterator for Toter<T> {
             if res.is_some() {
                 return res;
             } else {
+                #[cfg(test)]
                 assert_eq!(true, s.buff.is_some());
                 let mut buff = unsafe { s.buff.take().unwrap_unchecked() };
                 _ = buff.pop();
