@@ -260,6 +260,10 @@ impl MatchConduct {
     const fn min_ml(&self) -> usize {
         self.min_sl + self.ext_ml
     }
+
+    const fn val_key(&self, k: &Key) -> bool {
+        self.min_sl <= k.0.len()
+    }
 }
 
 /// Chain-of-adjustments refining type, [`MatchConduct`] configurator.
@@ -579,6 +583,10 @@ impl Poetrie {
     ) -> Result<Find, FindErr> {
         #[cfg(test)]
         assert_eq!(None, MatchConduct::val(mc));
+
+        if mc.val_key(key) == false {
+            return Err(FindErr::KeyDisjunctConduct);
+        }
 
         // operative node
         let mut op_node = self.root.aq_ref();
@@ -1108,6 +1116,8 @@ pub enum FindErr {
     NoJointSuffix,
     /// Conduct configuration prevents match.
     DisjunctConduct,
+    /// Conduct configuration prevents match using key provided.
+    KeyDisjunctConduct,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -1972,6 +1982,29 @@ mod tests_of_units {
 
             assert_eq!(1000, mc.min_ml());
         }
+
+        mod val_key {
+            use crate::{Key, MatchConduct};
+
+            #[test]
+            fn valid_key() {
+                let mc = MatchConduct::test();
+
+                for k in ["a", "aa"] {
+                    let k = Key(k);
+                    assert_eq!(true, mc.val_key(&k));
+                }
+            }
+
+            #[test]
+            fn invalid_key() {
+                let mut mc = MatchConduct::test();
+                let k = Key("aa");
+
+                mc.min_sl = 3;
+                assert_eq!(false, mc.val_key(&k));
+            }
+        }
     }
 
     mod match_conduct_shaper {
@@ -2507,6 +2540,21 @@ mod tests_of_units {
                 for p in p {
                     assert_eq!(true, p == f[0] || p == f[1]);
                 }
+            }
+
+            #[test]
+            fn key_disjunct_conduct() {
+                let mut mc = MatchConduct::test();
+                let poetrie = Poetrie::nw();
+                let k = Key("a");
+
+                mc.min_sl = 2;
+
+                let mut grade = 0;
+                let f = poetrie.find(&k, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::KeyDisjunctConduct), f);
+                assert_eq!(0, grade);
             }
 
             #[test]
@@ -4036,9 +4084,8 @@ mod tests_of_units {
                 let mut grade = 0;
                 let f = poetrie.find(&k.key(), &mc, &mut grade);
 
-                assert_eq!(Err(FindErr::DisjunctConduct), f);
-                assert_eq!(18, KEY_EXH | G_ZERO_M);
-                assert_eq!(18, grade);
+                assert_eq!(Err(FindErr::KeyDisjunctConduct), f);
+                assert_eq!(0, grade);
             }
 
             #[test]
@@ -4057,9 +4104,8 @@ mod tests_of_units {
                 let mut grade = 0;
                 let f = poetrie.find(k, &mc, &mut grade);
 
-                assert_eq!(Err(FindErr::DisjunctConduct), f);
-                assert_eq!(18, KEY_EXH | G_ZERO_M);
-                assert_eq!(18, grade);
+                assert_eq!(Err(FindErr::KeyDisjunctConduct), f);
+                assert_eq!(0, grade);
             }
 
             #[test]
