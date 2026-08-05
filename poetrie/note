@@ -1,6 +1,5 @@
 - check with tries' general note
 - check with devnote:s
-- expose internal buffers (?: as ptr, raw, mut/ref)
 - iter +IntoIter
 - check whether is possible to merge extending into branching
 - merge key into match conduct (idea: do not make search if is not possible to satisfy mc with key)
