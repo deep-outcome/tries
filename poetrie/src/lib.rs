@@ -2,6 +2,7 @@
 //!
 //! For given input, and populated tree, it will find words with shared suffix for you.
 
+use std::collections::hash_map::{IntoIter, Iter};
 use std::{cmp::min, collections::hash_map::HashMap, ops::Deref};
 
 mod aide;
@@ -83,10 +84,13 @@ impl<'a> Extender<'a> {
 }
 
 fn push_match(c: &CharBuf, f: &mut Find, b: usize) -> bool {
-    let e = c.chars().rev().collect();
-
+    let e = to_key(c);
     f.push(e);
     f.len() == b
+}
+
+fn to_key(c: &CharBuf) -> String {
+    c.chars().rev().collect()
 }
 
 /// [`&str`] validated for usage with [`Poetrie`].
@@ -894,6 +898,203 @@ impl Poetrie {
             None
         }
     }
+
+    /// Use to get tree keys enumerator.
+    ///
+    /// Returns [`Keys`] enumerator, [`None`] for empty tree.
+    pub fn ks(&self) -> Option<Keys> {
+        if self.cnt == 0 {
+            None
+        } else {
+            let bra = unsafe { self.root.branches.as_ref().unwrap_unchecked() };
+            let ite = bra.iter();
+            let buf = self.buf.uplift();
+            let keys = Keys {
+                ite,
+                sub: None,
+                buf: Some(buf),
+            };
+            Some(keys)
+        }
+    }
+}
+
+/// [`Poetrie`] keys enumerator.
+///
+/// Constructs keys back from tree branches.
+pub struct Keys<'a> {
+    ite: Iter<'a, char, Node>,
+    sub: Option<Box<Keys<'a>>>,
+    buf: Option<&'a mut CharBuf>,
+}
+
+impl<'a> Iterator for Keys<'a> {
+    type Item = String;
+
+    /// Returns keys one by one as [`String`] in unspecific order.
+    ///
+    /// Returns [`None`] when exhausted.
+    fn next(&mut self) -> Option<String> {
+        let buf = if let Some(s) = self.sub.as_mut() {
+            let res = s.next();
+            if res.is_some() {
+                return res;
+            } else {
+                #[cfg(test)]
+                assert_eq!(true, s.buf.is_some());
+
+                let buf = unsafe { s.buf.take().unwrap_unchecked() };
+                _ = buf.pop();
+
+                self.sub = None;
+                buf
+            }
+        } else {
+            #[cfg(test)]
+            assert_eq!(true, self.buf.is_some());
+
+            unsafe { self.buf.take().unwrap_unchecked() }
+        };
+
+        if let Some(i) = self.ite.next() {
+            buf.push(*i.0);
+            let node = i.1;
+
+            let res = if node.entry {
+                let key = to_key(buf);
+                Some(key)
+            } else {
+                None
+            };
+
+            // branching node
+            if let Some(b) = node.branches.as_ref() {
+                let ite = b.iter();
+                let sub = Keys {
+                    ite,
+                    buf: Some(buf),
+                    sub: None,
+                };
+
+                self.sub = Some(Box::new(sub));
+            } else {
+                _ = buf.pop();
+                self.buf = Some(buf);
+            }
+
+            if res.is_some() {
+                return res;
+            }
+
+            #[cfg(test)]
+            assert_eq!(true, self.sub.is_some());
+
+            let sub = unsafe { self.sub.as_mut().unwrap_unchecked() };
+            return sub.next();
+        }
+
+        self.buf = Some(buf);
+        return None;
+    }
+}
+
+/// [`Poetrie`] keys enumerator.
+///
+/// Constructs keys back from tree branches.
+pub struct IntoKeys {
+    ite: IntoIter<char, Node>,
+    sub: Option<Box<IntoKeys>>,
+    buf: Option<CharBuf>,
+}
+
+impl<'a> Iterator for IntoKeys {
+    type Item = String;
+
+    /// Returns keys one by one as [`String`] in unspecific order.
+    ///
+    /// Returns [`None`] when exhausted and for empty poetrie.
+    fn next(&mut self) -> Option<String> {
+        let mut buf = if let Some(s) = self.sub.as_mut() {
+            let res = s.next();
+            if res.is_some() {
+                return res;
+            } else {
+                #[cfg(test)]
+                assert_eq!(true, s.buf.is_some());
+
+                let mut buf = unsafe { s.buf.take().unwrap_unchecked() };
+                _ = buf.pop();
+
+                self.sub = None;
+                buf
+            }
+        } else {
+            #[cfg(test)]
+            assert_eq!(true, self.buf.is_some());
+
+            unsafe { self.buf.take().unwrap_unchecked() }
+        };
+
+        if let Some(i) = self.ite.next() {
+            buf.push(i.0);
+            let mut node = i.1;
+
+            let res = if node.entry {
+                let key = to_key(&buf);
+                Some(key)
+            } else {
+                None
+            };
+
+            // branching node
+            if let Some(b) = node.branches.take() {
+                let ite = b.into_iter();
+                let sub = IntoKeys {
+                    ite,
+                    buf: Some(buf),
+                    sub: None,
+                };
+
+                self.sub = Some(Box::new(sub));
+            } else {
+                _ = buf.pop();
+                self.buf = Some(buf);
+            }
+
+            if res.is_some() {
+                return res;
+            }
+
+            #[cfg(test)]
+            assert_eq!(true, self.sub.is_some());
+
+            let sub = unsafe { self.sub.as_mut().unwrap_unchecked() };
+            return sub.next();
+        }
+
+        self.buf = Some(buf);
+        return None;
+    }
+}
+
+impl IntoIterator for Poetrie {
+    type Item = String;
+    type IntoIter = IntoKeys;
+
+    /// Use to convert [`Poetrie`] into [`IntoKeys`] keys enumerator.
+    fn into_iter(self) -> IntoKeys {
+        let branches = if let Some(b) = self.root.uproot().branches.take() {
+            b
+        } else {
+            Branches::new()
+        };
+
+        IntoKeys {
+            ite: branches.into_iter(),
+            buf: Some(self.buf.uproot()),
+            sub: None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -1534,6 +1735,26 @@ mod tests_of_units {
             assert_eq!(true, lim);
             assert_eq!(2, f.len());
             assert_eq!(p, f[1]);
+        }
+    }
+
+    mod to_key {
+        use crate::{CharBuf, to_key};
+
+        #[test]
+        fn basic_test() {
+            let c = CharBuf::from("abcxyz");
+            let p = String::from("zyxcba");
+            let key = to_key(&c);
+            assert_eq!(p, key);
+        }
+
+        #[test]
+        fn empty_buffer() {
+            let c = CharBuf::new();
+            let p = String::new();
+            let key = to_key(&c);
+            assert_eq!(p, key);
         }
     }
 
@@ -5660,6 +5881,96 @@ mod tests_of_units {
                 let mut poetrie = Poetrie::nw();
                 let _ptr = poetrie.as_mut_ptr();
                 assert_eq!(None, _ptr);
+            }
+        }
+
+        mod ks {
+            use super::super::rev_key::rev;
+            use crate::{Key, Poetrie};
+
+            #[test]
+            fn basic_test() {
+                let mut proof = [
+                    "a",
+                    "aa",
+                    "azbq",
+                    "by",
+                    "ybc",
+                    "ybxr",
+                    "ybxrqutmop",
+                    "ybxrqutmopfvb",
+                    "ybxrqutmoprfg",
+                    "zazazazazabyyb",
+                ]
+                .map(rev)
+                .to_vec();
+
+                let mut poetrie = Poetrie::nw();
+                for p in proof.iter() {
+                    _ = poetrie.it(&Key(p.as_str()));
+                }
+
+                let keys = poetrie.ks().unwrap();
+                let mut test = keys.collect::<Vec<String>>();
+
+                assert_eq!(proof.len(), test.len());
+
+                proof.sort();
+                test.sort();
+
+                assert_eq!(proof, test);
+            }
+
+            #[test]
+            fn empty_tree() {
+                let poetrie = Poetrie::nw();
+                assert_eq!(true, poetrie.ks().is_none());
+            }
+        }
+
+        mod into_iter {
+            use super::super::rev_key::rev;
+            use crate::{Key, Poetrie};
+            use std::iter::IntoIterator;
+
+            #[test]
+            fn basic_test() {
+                let mut proof = [
+                    "a",
+                    "aa",
+                    "azbq",
+                    "by",
+                    "ybc",
+                    "ybxr",
+                    "ybxrqutmop",
+                    "ybxrqutmopfvb",
+                    "ybxrqutmoprfg",
+                    "zazazazazabyyb",
+                ]
+                .map(rev)
+                .to_vec();
+
+                let mut poetrie = Poetrie::nw();
+                for p in proof.iter() {
+                    _ = poetrie.it(&Key(p.as_str()));
+                }
+
+                let keys = poetrie.into_iter();
+                let mut test = keys.collect::<Vec<String>>();
+
+                assert_eq!(proof.len(), test.len());
+
+                proof.sort();
+                test.sort();
+
+                assert_eq!(proof, test);
+            }
+
+            #[test]
+            fn empty_tree() {
+                let poetrie = Poetrie::nw();
+                let mut keys = poetrie.into_iter();
+                assert_eq!(true, keys.next().is_none());
             }
         }
     }

@@ -1,4 +1,4 @@
-# Suffix Tree Concept
+# Transpositional Tree Concept
 
 ## Concept Basics
 
