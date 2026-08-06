@@ -625,22 +625,19 @@ impl Poetrie {
         );
 
         let buff = self.buf.uplift();
-        let mut buf_l;
-        let mut max_sl_accord;
+        let mut buf_l = 0;
+        let mut max_sl_accord = true;
 
         'track: loop {
-            // devnote: can be guarded by inspection
-            // so heap push is avoided, needs some counter
-            // instead
-            buff.push(c);
-            buf_l = buff.len();
+            if max_sl_accord {
+                buff.push(c);
+                buf_l = buff.len();
+            }
 
             max_sl_accord = buf_l <= max_o_sl;
 
             // implnote: unwinding key, instead of short-cutting,
             // is necessary for disjunct conduct determination
-            // devnote: can be cut short if buff already contains
-            // at least one sub-entry
             let next_c = chars.next_back();
             if next_c.is_none() {
                 #[cfg(test)]
