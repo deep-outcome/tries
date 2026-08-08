@@ -251,7 +251,7 @@ impl MatchConduct {
         Some(err)
     }
 
-    /// max operative suffix length
+    /// max operative suffix length    
     fn max_o_sl(&self) -> usize {
         min(self.max_ml, self.max_sl)
     }
@@ -259,6 +259,10 @@ impl MatchConduct {
     /// min_sl +ext_ml
     const fn min_ml(&self) -> usize {
         self.min_sl + self.ext_ml
+    }
+
+    const fn val_key(&self, k: &Key) -> bool {
+        self.min_sl <= k.0.len()
     }
 }
 
@@ -580,6 +584,10 @@ impl Poetrie {
         #[cfg(test)]
         assert_eq!(None, MatchConduct::val(mc));
 
+        if mc.val_key(key) == false {
+            return Err(FindErr::KeyDisjunctConduct);
+        }
+
         // operative node
         let mut op_node = self.root.aq_ref();
 
@@ -617,22 +625,19 @@ impl Poetrie {
         );
 
         let buff = self.buf.uplift();
-        let mut buf_l;
-        let mut max_sl_accord;
+        let mut buf_l = 0;
+        let mut max_sl_accord = true;
 
         'track: loop {
-            // devnote: can be guarded by inspection
-            // so heap push is avoided, needs some counter
-            // instead
-            buff.push(c);
-            buf_l = buff.len();
+            if max_sl_accord {
+                buff.push(c);
+                buf_l = buff.len();
+            }
 
             max_sl_accord = buf_l <= max_o_sl;
 
             // implnote: unwinding key, instead of short-cutting,
             // is necessary for disjunct conduct determination
-            // devnote: can be cut short if buff already contains
-            // at least one sub-entry
             let next_c = chars.next_back();
             if next_c.is_none() {
                 #[cfg(test)]
@@ -691,8 +696,13 @@ impl Poetrie {
 
         // extension is special case of branching where
         // branching node is last node of key found
-        let can_extend = continuable && max_sl_accord && min_sl <= buf_l && buf_l < max_ml;
-        let can_branch = branching.len() > 0;
+        if continuable && max_sl_accord && min_sl <= buf_l && buf_l < max_ml {
+            #[cfg(test)]
+            assert_eq!(true, branches.is_some());
+
+            let b = unsafe { branches.unwrap_unchecked() };
+            branching.push((b, buf_l, std::ptr::null()));
+        }
 
         // CONTINUATION
         // A) Is possible (key covers partially some entry):
@@ -705,7 +715,7 @@ impl Poetrie {
         //
         // Note: When A then A can intersect with B, when B then B only.
 
-        if !(can_extend || can_branch) {
+        if branching.len() == 0 {
             return if find.len() == 0 {
                 #[cfg(test)]
                 set_grade(grade::G_ZERO_M, grade);
@@ -722,30 +732,15 @@ impl Poetrie {
                 set_grade(grade::SUB_E_ONLY, grade);
                 Ok(find)
             };
-        }
+        } else {
+            let mut extender = Extender {
+                b: buff,
+                f: &mut find,
+                n: max_n,
+                nl: min_ml,
+                xl: max_ml,
+            };
 
-        let mut extender = Extender {
-            b: buff,
-            f: &mut find,
-            n: max_n,
-            nl: min_ml,
-            xl: max_ml,
-        };
-
-        if can_extend {
-            #[cfg(test)]
-            assert_eq!(true, branches.is_some());
-            let b = unsafe { branches.unwrap_unchecked() };
-            for (c, node) in b {
-                if extender.e(node, *c) {
-                    #[cfg(test)]
-                    set_grade(grade::SAT_ON_EXT, grade);
-                    return Ok(find);
-                }
-            }
-        }
-
-        if can_branch {
             let mut b = branching.iter();
 
             while let Some((branches, blen, skip_n)) = b.next_back() {
@@ -766,15 +761,14 @@ impl Poetrie {
                     }
                 }
             }
-        }
+            #[cfg(test)]
+            set_grade(grade::FIN, grade);
 
-        #[cfg(test)]
-        set_grade(grade::FIN, grade);
-
-        return if find.len() == 0 {
-            Err(FindErr::DisjunctConduct)
-        } else {
-            Ok(find)
+            return if find.len() == 0 {
+                Err(FindErr::DisjunctConduct)
+            } else {
+                Ok(find)
+            };
         };
 
         #[cfg(test)]
@@ -1108,6 +1102,8 @@ pub enum FindErr {
     NoJointSuffix,
     /// Conduct configuration prevents match.
     DisjunctConduct,
+    /// Conduct configuration prevents match using key provided.
+    KeyDisjunctConduct,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -1972,6 +1968,29 @@ mod tests_of_units {
 
             assert_eq!(1000, mc.min_ml());
         }
+
+        mod val_key {
+            use crate::{Key, MatchConduct};
+
+            #[test]
+            fn valid_key() {
+                let mc = MatchConduct::test();
+
+                for k in ["a", "aa"] {
+                    let k = Key(k);
+                    assert_eq!(true, mc.val_key(&k));
+                }
+            }
+
+            #[test]
+            fn invalid_key() {
+                let mut mc = MatchConduct::test();
+                let k = Key("aa");
+
+                mc.min_sl = 3;
+                assert_eq!(false, mc.val_key(&k));
+            }
+        }
     }
 
     mod match_conduct_shaper {
@@ -2477,8 +2496,6 @@ mod tests_of_units {
                 pub const SUB_E_ONLY: usize = 32;
                 /// matches requirement satisfied on sub-entry
                 pub const SAT_ON_SE: usize = 64;
-                /// matches requirement satisfied on extension
-                pub const SAT_ON_EXT: usize = 128;
                 /// matches requirement satisfied on branching
                 pub const SAT_ON_BRA: usize = 256;
                 /// final execution reached
@@ -2507,6 +2524,21 @@ mod tests_of_units {
                 for p in p {
                     assert_eq!(true, p == f[0] || p == f[1]);
                 }
+            }
+
+            #[test]
+            fn key_disjunct_conduct() {
+                let mut mc = MatchConduct::test();
+                let poetrie = Poetrie::nw();
+                let k = Key("a");
+
+                mc.min_sl = 2;
+
+                let mut grade = 0;
+                let f = poetrie.find(&k, &mc, &mut grade);
+
+                assert_eq!(Err(FindErr::KeyDisjunctConduct), f);
+                assert_eq!(0, grade);
             }
 
             #[test]
@@ -2580,9 +2612,9 @@ mod tests_of_units {
 
                 let p = Ok(vec![p]);
 
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
                 assert_eq!(514, KEY_EXH | FIN);
-                for duo in [(1, 130), (usize::MAX, 514)] {
+                for duo in [(1, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
@@ -2610,9 +2642,9 @@ mod tests_of_units {
 
                 let p = Ok(vec![p]);
 
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
                 assert_eq!(514, KEY_EXH | FIN);
-                for duo in [(1, 130), (usize::MAX, 514)] {
+                for duo in [(1, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
@@ -3511,11 +3543,11 @@ mod tests_of_units {
                 _ = poetrie.it(&e.key());
 
                 let p = Ok(vec![e.0]);
-                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(260, NO_PATH_N | SAT_ON_BRA);
                 assert_eq!(516, NO_PATH_N | FIN);
                 for min_sl in [e_len - 2, e_len - 3] {
                     mc.min_sl = min_sl;
-                    for duo in [(1, 132), (usize::MAX, 516)] {
+                    for duo in [(1, 260), (usize::MAX, 516)] {
                         mc.max_n = duo.0;
 
                         let mut grade = 0;
@@ -3615,11 +3647,11 @@ mod tests_of_units {
                 _ = poetrie.it(&e.key());
 
                 let p = Ok(vec![e.0]);
-                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(260, NO_PATH_N | SAT_ON_BRA);
                 assert_eq!(516, NO_PATH_N | FIN);
                 for min_sl in [e_len - 3, e_len - 4] {
                     mc.min_sl = min_sl;
-                    for duo in [(1, 132), (usize::MAX, 516)] {
+                    for duo in [(1, 260), (usize::MAX, 516)] {
                         mc.max_n = duo.0;
 
                         let mut grade = 0;
@@ -3717,11 +3749,11 @@ mod tests_of_units {
                 _ = poetrie.it(&e.key());
 
                 let p = Ok(vec![e.0]);
-                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(260, NO_PATH_N | SAT_ON_BRA);
                 assert_eq!(516, NO_PATH_N | FIN);
                 for max_sl in [e_len - 2, e_len - 1] {
                     mc.max_sl = max_sl;
-                    for duo in [(1, 132), (usize::MAX, 516)] {
+                    for duo in [(1, 260), (usize::MAX, 516)] {
                         mc.max_n = duo.0;
 
                         let mut grade = 0;
@@ -3832,10 +3864,10 @@ mod tests_of_units {
 
                 let p = Ok(vec![e.0]);
                 assert_eq!(516, NO_PATH_N | FIN);
-                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(260, NO_PATH_N | SAT_ON_BRA);
                 for triplet in [
-                    (1, 132, e_len),
-                    (1, 132, e_len + 1),
+                    (1, 260, e_len),
+                    (1, 260, e_len + 1),
                     (usize::MAX, 516, e_len),
                     (usize::MAX, 516, e_len + 1),
                 ] {
@@ -3973,11 +4005,11 @@ mod tests_of_units {
                 _ = poetrie.it(&e.key());
 
                 let p = Ok(vec![e.0]);
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
                 assert_eq!(514, KEY_EXH | FIN);
                 for max_sl in [k_len, k_len + 1] {
                     mc.max_sl = max_sl;
-                    for duo in [(1, 130), (usize::MAX, 514)] {
+                    for duo in [(1, 258), (usize::MAX, 514)] {
                         mc.max_n = duo.0;
 
                         let mut grade = 0;
@@ -4005,11 +4037,11 @@ mod tests_of_units {
 
                 let p = Ok(vec![e.0]);
 
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
                 assert_eq!(514, KEY_EXH | FIN);
                 for max_sl in [k_len, k_len + 1] {
                     mc.max_sl = max_sl;
-                    for duo in [(1, 130), (usize::MAX, 514)] {
+                    for duo in [(1, 258), (usize::MAX, 514)] {
                         mc.max_n = duo.0;
 
                         let mut grade = 0;
@@ -4036,9 +4068,8 @@ mod tests_of_units {
                 let mut grade = 0;
                 let f = poetrie.find(&k.key(), &mc, &mut grade);
 
-                assert_eq!(Err(FindErr::DisjunctConduct), f);
-                assert_eq!(18, KEY_EXH | G_ZERO_M);
-                assert_eq!(18, grade);
+                assert_eq!(Err(FindErr::KeyDisjunctConduct), f);
+                assert_eq!(0, grade);
             }
 
             #[test]
@@ -4057,9 +4088,8 @@ mod tests_of_units {
                 let mut grade = 0;
                 let f = poetrie.find(k, &mc, &mut grade);
 
-                assert_eq!(Err(FindErr::DisjunctConduct), f);
-                assert_eq!(18, KEY_EXH | G_ZERO_M);
-                assert_eq!(18, grade);
+                assert_eq!(Err(FindErr::KeyDisjunctConduct), f);
+                assert_eq!(0, grade);
             }
 
             #[test]
@@ -4075,11 +4105,11 @@ mod tests_of_units {
                 _ = poetrie.it(&e.key());
 
                 let p = Ok(vec![e.0]);
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
                 assert_eq!(514, KEY_EXH | FIN);
                 for min_sl in [k_len, k_len - 1] {
                     mc.min_sl = min_sl;
-                    for duo in [(1, 130), (usize::MAX, 514)] {
+                    for duo in [(1, 258), (usize::MAX, 514)] {
                         mc.max_n = duo.0;
 
                         let mut grade = 0;
@@ -4107,11 +4137,11 @@ mod tests_of_units {
 
                 let p = Ok(vec![e.0]);
 
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
                 assert_eq!(514, KEY_EXH | FIN);
                 for min_sl in [k_len, k_len - 1] {
                     mc.min_sl = min_sl;
-                    for duo in [(1, 130), (usize::MAX, 514)] {
+                    for duo in [(1, 258), (usize::MAX, 514)] {
                         mc.max_n = duo.0;
 
                         let mut grade = 0;
@@ -4271,8 +4301,8 @@ mod tests_of_units {
                 let p = Ok(vec![p]);
                 assert_eq!(p, f);
 
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
-                assert_eq!(130, grade);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(258, grade);
             }
 
             #[test]
@@ -4342,9 +4372,9 @@ mod tests_of_units {
                 let p_len = p.len();
                 p.sort();
 
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
                 assert_eq!(514, KEY_EXH | FIN);
-                for duo in [(2, 130), (usize::MAX, 514)] {
+                for duo in [(2, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
@@ -4386,9 +4416,9 @@ mod tests_of_units {
                 let p_len = p.len();
                 p.sort();
 
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
                 assert_eq!(514, KEY_EXH | FIN);
-                for duo in [(2, 130), (usize::MAX, 514)] {
+                for duo in [(2, 258), (usize::MAX, 514)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
@@ -4428,9 +4458,9 @@ mod tests_of_units {
                 let p: HashSet<String> = e.map(RevKey::into).into();
                 let p_len = p.len();
 
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
                 assert_eq!(514, KEY_EXH | FIN);
-                for duo in [(2, 130), (5, 130), (6, 514)] {
+                for duo in [(2, 258), (5, 258), (6, 514)] {
                     let max_n = duo.0;
                     mc.max_n = max_n;
 
@@ -4476,9 +4506,9 @@ mod tests_of_units {
                 let p: HashSet<String> = e.map(RevKey::into).into();
                 let p_len = p.len();
 
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
                 assert_eq!(514, KEY_EXH | FIN);
-                for duo in [(2, 130), (5, 130), (6, 514)] {
+                for duo in [(2, 258), (5, 258), (6, 514)] {
                     let max_n = duo.0;
                     mc.max_n = max_n;
 
@@ -4525,9 +4555,9 @@ mod tests_of_units {
                 p.sort();
                 let p_len = p.len();
 
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
                 assert_eq!(514, KEY_EXH | FIN);
-                for duo in [(2, 130), (usize::MAX, 514)] {
+                for duo in [(2, 258), (usize::MAX, 514)] {
                     let max_n = duo.0;
                     mc.max_n = max_n;
 
@@ -4571,9 +4601,9 @@ mod tests_of_units {
                 p.sort();
                 let p_len = p.len();
 
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
                 assert_eq!(514, KEY_EXH | FIN);
-                for duo in [(2, 130), (usize::MAX, 514)] {
+                for duo in [(2, 258), (usize::MAX, 514)] {
                     let max_n = duo.0;
                     mc.max_n = max_n;
 
@@ -4881,9 +4911,9 @@ mod tests_of_units {
                 let p_len = p.len();
                 p.sort();
 
-                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(260, NO_PATH_N | SAT_ON_BRA);
                 assert_eq!(516, NO_PATH_N | FIN);
-                for duo in [(2, 132), (usize::MAX, 516)] {
+                for duo in [(2, 260), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
@@ -4918,9 +4948,9 @@ mod tests_of_units {
                 let p_len = p.len();
                 p.sort();
 
-                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(260, NO_PATH_N | SAT_ON_BRA);
                 assert_eq!(516, NO_PATH_N | FIN);
-                for duo in [(2, 132), (usize::MAX, 516)] {
+                for duo in [(2, 260), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
@@ -4993,9 +5023,9 @@ mod tests_of_units {
                 let p_len = p.len();
                 p.sort();
 
-                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(260, NO_PATH_N | SAT_ON_BRA);
                 assert_eq!(516, NO_PATH_N | FIN);
-                for duo in [(2, 132), (usize::MAX, 516)] {
+                for duo in [(2, 260), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
@@ -5197,9 +5227,9 @@ mod tests_of_units {
                 _ = poetrie.it(&ent_bb);
 
                 let p = Ok(vec![p]);
-                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(260, NO_PATH_N | SAT_ON_BRA);
                 assert_eq!(516, NO_PATH_N | FIN);
-                for duo in [(1, 132), (usize::MAX, 516)] {
+                for duo in [(1, 260), (usize::MAX, 516)] {
                     mc.max_n = duo.0;
 
                     let mut grade = 0;
@@ -5359,13 +5389,13 @@ mod tests_of_units {
                 assert_eq!(18, KEY_EXH | G_ZERO_M);
                 assert_eq!(34, KEY_EXH | SUB_E_ONLY);
                 assert_eq!(64, SAT_ON_SE);
-                assert_eq!(130, KEY_EXH | SAT_ON_EXT);
-                assert_eq!(132, NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(258, KEY_EXH | SAT_ON_BRA);
+                assert_eq!(260, NO_PATH_N | SAT_ON_BRA);
                 assert_eq!(258, KEY_EXH | SAT_ON_BRA);
 
                 let key = Key("musics");
                 let p = String::from("physics");
-                ac.assert_n(Ok(vec![p]), 132, key, 1);
+                ac.assert_n(Ok(vec![p]), 260, key, 1);
 
                 let key = Key("athletics");
                 let p = String::from("aesthetics");
@@ -5381,7 +5411,7 @@ mod tests_of_units {
                 let key = RevKey::new("documental");
                 let p1 = e_document.0.clone();
                 let p2 = e_documentalist.0.clone();
-                ac.assert_n(Ok(vec![p1, p2]), 130, key.key(), 2);
+                ac.assert_n(Ok(vec![p1, p2]), 258, key.key(), 2);
 
                 let key = e_documentalist;
                 let p = e_document.0.clone();
@@ -5446,12 +5476,12 @@ mod tests_of_units {
                 let p = rev_key::rev("doctorate");
 
                 assert_eq!(4114, DISJ_DIR_BRA | KEY_EXH | G_ZERO_M);
-                assert_eq!(4228, DISJ_DIR_BRA | NO_PATH_N | SAT_ON_EXT);
+                assert_eq!(4356, DISJ_DIR_BRA | NO_PATH_N | SAT_ON_BRA);
                 assert_eq!(4354, DISJ_DIR_BRA | KEY_EXH | SAT_ON_BRA);
                 assert_eq!(4610, DISJ_DIR_BRA | KEY_EXH | FIN);
 
                 let mut ac = AssertComposite { p: poetrie, m: mc };
-                let mut mc = ac.assert(Ok(vec![p]), 4228, key.key());
+                let mut mc = ac.assert(Ok(vec![p]), 4356, key.key());
 
                 mc.min_sl = "doctor".len();
                 mc.ext_ml = 4;
