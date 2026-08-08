@@ -704,8 +704,6 @@ impl Poetrie {
             branching.push((b, buf_l, std::ptr::null()));
         }
 
-        let can_branch = branching.len() > 0;
-
         // CONTINUATION
         // A) Is possible (key covers partially some entry):
         // - (1) Key is suffix to some entry.
@@ -717,7 +715,7 @@ impl Poetrie {
         //
         // Note: When A then A can intersect with B, when B then B only.
 
-        if can_branch == false {
+        if branching.len() == 0 {
             return if find.len() == 0 {
                 #[cfg(test)]
                 set_grade(grade::G_ZERO_M, grade);
