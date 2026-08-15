@@ -77,3 +77,9 @@ Now, one goes: _"As the paws in a snow, </br>
 laid down by lightening lynx, </br>
 my word goes there and forth, </br>
 composing the aerial lyrics."_.
+
+### Note on Letter Case
+
+Poetrie is and ever will be case sensitive. That means that _'MacArthur'_ and _'macarthur'_ are different tree entries. Same would apply to _'DeLuca', 'DiCarlo', 'LaRoche', 'O’Brien' or 'De la Cruz'_ and same surnames with different letter case.
+
+Letter case is taken from search key and for that reason it could be needed to experiment with capitalization. This is user responsibility.
