@@ -327,9 +327,12 @@ impl<T> Trie<T> {
     ///
     /// Does not reset backtracing buffer. Check with [`Trie::put_trace_cap`] for details.
     pub fn clr(&mut self) -> usize {
-        self.root = Node::<T>::empty();
-
         let cnt = self.cnt;
+        if cnt == 0 {
+            return 0;
+        }
+
+        self.root = Node::<T>::empty();
         self.cnt = 0;
         cnt
     }
@@ -1250,25 +1253,37 @@ mod tests_of_units {
             assert_eq!(cap, trie.acq_trace_cap());
         }
 
-        use crate::{KeyErr, Node};
+        mod clr {
+            use crate::{KeyErr, Node, Trie};
 
-        #[test]
-        fn clr() {
-            let key = "Key".chars();
-            let mut trie = Trie::new();
+            #[test]
+            fn clr() {
+                let key = "Key".chars();
+                let mut trie = Trie::new();
+                trie.root.entry = Some(1);
 
-            _ = trie.ins(77usize, key.clone());
+                _ = trie.ins(77usize, key.clone());
 
-            let mut cap = 50;
-            assert!(trie.acq_trace_cap() < cap);
-            cap = trie.put_trace_cap(cap);
+                let mut cap = 50;
+                assert!(trie.acq_trace_cap() < cap);
+                cap = trie.put_trace_cap(cap);
 
-            assert_eq!(1, trie.clr());
-            assert_eq!(Err(KeyErr::Unknown), trie.acq(key));
-            assert_eq!(Node::empty(), trie.root);
-            assert_eq!(0, trie.cnt);
+                assert_eq!(1, trie.clr());
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(key));
+                assert_eq!(Node::empty(), trie.root);
+                assert_eq!(0, trie.cnt);
 
-            assert_eq!(cap, trie.acq_trace_cap());
+                assert_eq!(cap, trie.acq_trace_cap());
+            }
+
+            #[test]
+            fn empty_tree() {
+                let mut trie = Trie::new();
+                trie.root.entry = Some(1);
+
+                assert_eq!(0, trie.clr());
+                assert_eq!(Some(1), trie.root.entry);
+            }
         }
 
         #[test]
