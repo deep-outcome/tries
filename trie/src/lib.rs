@@ -40,10 +40,6 @@ impl<T> Letter<T> {
     const fn en(&self) -> bool {
         self.en.is_some()
     }
-
-    const fn to_mut_ptr(&self) -> *mut Self {
-        (self as *const Self).cast_mut()
-    }
 }
 
 /// Tree node arms. Consists of [`Letter`]s.
@@ -807,17 +803,17 @@ impl<T> Trie<T> {
         let ix = &self.ix;
         let tr = self.tr.uplift();
 
-        let mut letter = &self.rt[ix(c)];
+        let mut letter = &mut self.rt.uplift()[ix(c)];
 
         let tracing = TraStrain::has(ts.clone(), tsdv::TRA);
         loop {
             if tracing {
-                tr.push(letter.to_mut_ptr())
+                tr.push(letter)
             }
 
             if let Some(c) = key.next() {
-                if let Some(ab) = letter.ab.as_ref() {
-                    letter = &ab[ix(c)];
+                if let Some(ab) = letter.ab.as_mut() {
+                    letter = &mut ab[ix(c)];
                 } else {
                     return TraRes::UnknownForAbsentPath;
                 }
@@ -829,10 +825,7 @@ impl<T> Trie<T> {
         if letter.en() {
             match ts {
                 x if TraStrain::has(x.clone(), tsdv::REF) => TraRes::OkRef(letter),
-                x if TraStrain::has(x.clone(), tsdv::MUT) => {
-                    let l_mut = unsafe { letter.to_mut_ptr().as_mut().unwrap_unchecked() };
-                    TraRes::OkMut(l_mut)
-                }
+                x if TraStrain::has(x.clone(), tsdv::MUT) => TraRes::OkMut(letter),
                 x if TraStrain::has(x.clone(), tsdv::EMP) => TraRes::Ok,
                 _ => panic!("Unsupported result scenario."),
             }
@@ -1010,8 +1003,12 @@ impl<T> Trie<T> {
     ///
     /// TC: ϴ(n).
     pub fn clr(&mut self) -> usize {
-        *self.rt = ab(self.al);
         let ct = self.ct;
+        if ct == 0 {
+            return 0;
+        }
+
+        *self.rt = ab(self.al);
         self.ct = 0;
         ct
     }
@@ -2871,19 +2868,36 @@ mod tests_of_units {
             }
         }
 
-        use crate::KeyErr;
+        pub mod clr {
+            use crate::{ab, english_letters::ALPHABET_LEN, KeyErr, Trie};
 
-        #[test]
-        fn clr() {
-            let key = || "abc".chars();
+            #[test]
+            fn basic_test() {
+                let key = || "abc".chars();
 
-            let mut trie = Trie::<usize>::new();
-            _ = trie.ins(key(), 99);
-            assert_eq!(1, trie.clr());
+                let mut trie = Trie::<usize>::new();
+                let pp = trie.rt.aq_mut().as_ptr() as usize;
 
-            assert_eq!(Err(KeyErr::Unknown), trie.acq(key()));
-            assert_eq!(&ab(ALPHABET_LEN), trie.rt.aq_ref());
-            assert_eq!(0, trie.ct);
+                _ = trie.ins(key(), 99);
+                assert_eq!(1, trie.clr());
+                let pt = trie.rt.aq_mut().as_ptr() as usize;
+
+                assert_eq!(Err(KeyErr::Unknown), trie.acq(key()));
+                assert_eq!(&ab(ALPHABET_LEN), trie.rt.aq_ref());
+                assert_eq!(0, trie.ct);
+                assert_ne!(pp, pt);
+            }
+
+            #[test]
+            fn empty_tree() {
+                let mut trie = Trie::<usize>::new();
+                let p = trie.rt.aq_mut().as_ptr() as usize;
+
+                assert_eq!(0, trie.clr());
+
+                let t = trie.rt.aq_mut().as_ptr() as usize;
+                assert_eq!(p, t);
+            }
         }
 
         #[test]
@@ -2963,4 +2977,4 @@ mod tests_of_units {
 }
 
 // cargo fmt & cargo test --features test-ext --release
-// cargo fmt & cargo test --release
+// cargo fmt & cargo test
