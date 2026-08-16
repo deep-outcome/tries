@@ -1,4 +1,4 @@
-//! To reduce memory demands of `LrTrie`, operations are not particularly optimal.
+//! To reduce memory demands of [`LrTrie`], operations are not particularly optimal.
 //! If alphabet used became wide enough, some rework using e.g. hashmap would be needed.
 
 use std::ptr;
@@ -34,15 +34,15 @@ impl PathNode {
     }
 }
 
-/// `KeyEntry` playing entry role.
+/// [`KeyEntry`] playing entry role.
 pub type Entry<'a> = KeyEntry<'a>;
-/// `KeyEntry` playing key role.
+/// [`KeyEntry`] playing key role.
 pub type Key<'a> = KeyEntry<'a>;
 
 #[derive(Clone)]
 /// Tree node.
 pub struct Node {
-    /// `char` conjoined to tree node.
+    /// [`char`] conjoined to tree node.
     pub c: char,
     /// Pointer to super-level node, if exist.
     pub supernode: *const Node,
@@ -109,11 +109,11 @@ impl Node {
     }
 }
 
-/// `&str` verified for working with `LrTrie`.
+/// [`&str`] verified for working with [`LrTrie`].
 pub struct KeyEntry<'a>(&'a str);
 
 impl<'a> KeyEntry<'a> {
-    /// Returns `None` for 0-len `key`.
+    /// Returns [`None`] for 0-len `key`.
     pub const fn new(key: &'a str) -> Option<Self> {
         if key.len() == 0 {
             None
@@ -126,7 +126,7 @@ impl<'a> KeyEntry<'a> {
 impl<'a> std::ops::Deref for KeyEntry<'a> {
     type Target = str;
 
-    /// Returns `&str` of key.
+    /// Returns [`&str`] of keyentry.
     fn deref(&self) -> &str {
         self.0
     }
@@ -326,14 +326,14 @@ pub enum Buffer {
 /// has link to counterpart entry in opposite tree.
 ///
 /// While each entry-entry pair is settled by nodes in respective tree,
-/// each node carries extra reference to its supernode. Thus `LrTrie` is not memory effecient
+/// each node carries extra reference to its supernode. Thus [`LrTrie`] is not memory effecient
 /// unless nodes in each side are reasonably reclaimed.
 ///
 /// All methods asymptotical computational time complexity depends on subnodes count,
-/// i.e. Ο(alphabet-size). For small alphabets applies rather Ο(key-length). `member` method
+/// i.e. Ο(alphabet-size). For small alphabets applies rather Ο(key-length). [`LrTrie::member`] method
 /// is more requiring because of entry construction.
 ///
-/// Node occurs per every `char` as defined by Rust lang.
+/// Node occurs per every [`char`] as defined by Rust lang.
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct LrTrie {
     left: Node,
@@ -437,7 +437,7 @@ impl LrTrie {
 
     /// Seeks for member in other tree than is specified for key.
     ///
-    /// Returns `None` if key is not associated with entry.
+    /// Returns [`None`] if key is not associated with entry.
     pub fn member(&self, key: &Key, lr: LeftRight) -> Option<String> {
         let res = self.track(key, lr, TraStrain::NonRef);
 
@@ -464,7 +464,7 @@ impl LrTrie {
 
     /// Deletes both key and its entry seeking key in specified tree.
     ///
-    /// Returns `Err` when key is not associated with entry.
+    /// Returns [`Err`] when key is not associated with entry.
     pub fn delete(&mut self, key: &Key, lr: LeftRight) -> Result<(), ()> {
         let res = self.delete_crux(key, lr, true);
         self.trace.clear();
@@ -496,14 +496,14 @@ impl LrTrie {
         }
     }
 
-    /// `LrTrie` uses internal buffers, to avoid excessive allocations and copying, which grow
+    /// [`LrTrie`] uses internal buffers, to avoid excessive allocations and copying, which grow
     /// over time due:
-    /// - either backtracing when `delete`-ing, which backtraces whole path from entry
+    /// - either backtracing when [`LrTrie::delete`]-ing, which backtraces whole path from entry
     /// node to root node
-    /// - or entry constructing in `member`, when traversing back to root
+    /// - or entry constructing in [`LrTrie::member`], when traversing back to root
     ///
     /// Use this method to shrink or extend buffer to fit actual program needs. Neither shrinking nor extending
-    /// is guaranteed to be exact. See `Vec::with_capacity()` and `Vec::reserve()`. For optimal
+    /// is guaranteed to be exact. See [`Vec::with_capacity()`] and [`Vec::reserve()`]. For optimal
     /// performance, set `approx_cap` to, at least, `key.chars().count()`.
     ///
     /// Some high value is sufficient anyway. Since buffer continuous
@@ -511,7 +511,7 @@ impl LrTrie {
     ///
     /// Returns actual buffer capacity.
     ///
-    /// **Note:** While `String` is UTF8 encoded, its byte length does not have to equal its `char` count
+    /// **Note:** While [`String`] is UTF8 encoded, its byte length does not have to equal its [`char`] count
     /// which is either equal or lesser.
     /// ```
     /// let star = "⭐";
@@ -538,7 +538,7 @@ impl LrTrie {
 
     /// Acquires corresponding buffer capacity.
     ///
-    /// Check with `fn put_buf_cap` for details.
+    /// Check with [`LrTrie::put_buf_cap`] for details.
     pub fn aq_buf_cap(&self, buf: Buffer) -> usize {
         if buf == Buffer::Delete {
             self.trace.capacity()
@@ -550,15 +550,21 @@ impl LrTrie {
         }
     }
 
-    /// Clears both trees leaving `LrTrie` instance blank.
+    /// Clears both trees leaving [`LrTrie`] instance blank.
     ///
     /// Returns count of entry-entry pairs before clearing.
     ///
-    /// Keeps capacity of all of internal buffers intact. Check with `put_buf_cap` for details.
+    /// Keeps capacity of all of internal buffers intact. Check with [`LrTrie::put_buf_cap`] for details.
     pub fn clear(&mut self) -> usize {
+        let count = self.count;
+
+        if count == 0 {
+            return 0;
+        }
+
         self.left = Node::empty();
         self.right = Node::empty();
-        let count = self.count;
+
         self.count = 0;
         count
     }
@@ -570,17 +576,14 @@ impl LrTrie {
 
     /// Extracts all entry-entry pairs.
     ///
-    /// Returns `None` when `LrTrie` is blank.
+    /// Returns[ `None`] when [`LrTrie`] is blank.
     ///
-    /// Returned set is alphabetically unordered. Exactly, order depends on current order of `char`s
+    /// Returned set is alphabetically unordered. Exactly, order depends on current order of [`char`]s
     /// at each node.
     ///
     /// Both trees are kept settled.
     ///
-    /// Use `lr` `LeftRight` parameter for `0` field source tree selection.
-    ///
-    /// Returned set can be overcapacitated, i.e. its capacity will not
-    /// be shrunken according to its length.
+    /// Use `lr` [`LeftRight`] parameter for `0` field source tree selection.    
     pub fn extract(&self, lr: LeftRight) -> Option<Vec<(String, String)>> {
         let c = self.count;
         if c == 0 {
@@ -1970,17 +1973,46 @@ mod tests_of_units {
     }
 
     use crate::KeyEntry;
-    #[test]
-    fn clear() {
-        let mut trie = LrTrie::new();
-        let entry = KeyEntry("Key");
-        trie.insert(&entry, &entry);
+    mod clear {
 
-        assert_eq!(1, trie.clear());
-        assert_eq!(0, trie.count);
+        use crate::{KeyEntry, LrTrie, Node};
+        #[test]
+        fn basic_test() {
+            let mut trie = LrTrie::new();
+            let entry = KeyEntry("Key");
+            trie.insert(&entry, &entry);
 
-        assert_eq!(trie.left, Node::empty());
-        assert_eq!(trie.right, Node::empty());
+            let cap = 10_000;
+            trie.trace.aq_mut().reserve_exact(cap);
+            trie.entry.aq_mut().reserve_exact(cap);
+
+            let node = Node::empty();
+            trie.left.lrref = &node;
+            trie.right.lrref = &node;
+
+            assert_eq!(1, trie.clear());
+            assert_eq!(0, trie.count);
+
+            assert_eq!(trie.left, Node::empty());
+            assert_eq!(trie.right, Node::empty());
+
+            assert_eq!(true, trie.trace.capacity() >= cap);
+            assert_eq!(true, trie.entry.capacity() >= cap);
+        }
+
+        #[test]
+        fn empty_tree() {
+            let mut trie = LrTrie::new();
+
+            let node = Node::empty();
+            trie.left.lrref = &node;
+            trie.right.lrref = &node;
+
+            assert_eq!(0, trie.clear());            
+
+            assert_eq!(trie.left.lrref, &node);
+            assert_eq!(trie.right.lrref, &node);
+        }
     }
 
     #[test]
@@ -2019,7 +2051,9 @@ mod tests_of_units {
 
             let proof_len = proof.len();
             assert_eq!(proof_len, ext.len());
-            assert_eq!(true, ext.capacity() >= proof_len);
+
+            let ext_cap = ext.capacity();
+            assert_eq!(true, ext_cap >= proof_len && ext_cap < proof_len * 2);
 
             for z in proof.iter().zip(ext.iter()) {
                 let p = z.0;
@@ -2053,7 +2087,8 @@ mod tests_of_units {
 
             let proof_len = proof.len();
             assert_eq!(proof_len, ext.len());
-            assert_eq!(true, ext.capacity() >= proof_len);
+            let ext_cap = ext.capacity();
+            assert_eq!(true, ext_cap >= proof_len && ext_cap < proof_len * 2);
 
             for z in proof.iter().zip(ext.iter()) {
                 let p = z.0;
