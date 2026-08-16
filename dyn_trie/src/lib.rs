@@ -345,10 +345,7 @@ impl<T> Trie<T> {
     /// order given by [`std::collections::hash_map::IterMut`] iterator produced by
     /// [`std::collections::HashMap::iter_mut`] at each node.
     ///
-    /// Return value is [`None`] for empty [`Trie`].
-    ///
-    /// Returned set can be overcapacitated, i.e. its capacity
-    /// will not be shrunken according to its length.
+    /// Return value is [`None`] for empty [`Trie`].    
     pub fn ext(&mut self) -> Option<Vec<(String, T)>> {
         let cnt = self.cnt;
         if cnt == 0 {
