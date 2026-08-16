@@ -58,7 +58,7 @@ fn view<'a, T>(b: &'a Branches<T>, buff: &mut String, o: &mut Vec<(String, &'a T
 /// Node occurs per every [`char`] as defined by Rust lang and uses [`std::collections::HashMap`]
 /// to linking subnodes. Thus all methods complexity is respective to hashmap methods complexity.
 pub struct Trie<T> {
-    root: Node<T>,
+    root: UC<Node<T>>,
     // backtrace buff
     btr: UC<Vec<(char, *mut Node<T>)>>,
     // entries count
@@ -73,7 +73,7 @@ impl<T> Trie<T> {
     /// Ctor.
     pub const fn new() -> Trie<T> {
         Trie {
-            root: Node::<T>::empty(),
+            root: UC::new(Node::<T>::empty()),
             btr: UC::new(Vec::new()),
             cnt: 0,
         }
@@ -106,7 +106,7 @@ impl<T> Trie<T> {
             return Err(KeyErr::ZeroLen);
         }
 
-        let mut node = &mut self.root;
+        let mut node = self.root.aq_mut();
         while let Some(c) = next {
             let branches = node.branches.get_or_insert_with(|| Branches::new());
             node = branches.entry(c).or_insert(Node::<T>::empty());
@@ -234,21 +234,21 @@ impl<T> Trie<T> {
             return TraRes::ZeroLenKey;
         }
 
-        let mut node = &self.root;
+        let mut node = self.root.uplift();
         let tr = self.btr.uplift();
 
         let tracing = TraStrain::has(ts.clone(), tsdv::TRA);
         if tracing {
-            tr.push((NULL, node.to_mut_ptr()));
+            tr.push((NULL, node));
         }
 
         while let Some(c) = next {
             next = key.next();
 
-            if let Some(b) = node.branches.as_ref() {
-                if let Some(n) = b.get(&c) {
+            if let Some(b) = node.branches.as_mut() {
+                if let Some(n) = b.get_mut(&c) {
                     if tracing {
-                        tr.push((c, n.to_mut_ptr()));
+                        tr.push((c, n));
                     }
 
                     node = n;
@@ -263,10 +263,7 @@ impl<T> Trie<T> {
         if node.entry() {
             match ts {
                 x if TraStrain::has(x.clone(), tsdv::REF) => TraRes::OkRef(node),
-                x if TraStrain::has(x.clone(), tsdv::MUT) => {
-                    let n_mut = unsafe { node.to_mut_ptr().as_mut().unwrap_unchecked() };
-                    TraRes::OkMut(n_mut)
-                }
+                x if TraStrain::has(x.clone(), tsdv::MUT) => TraRes::OkMut(node),
                 x if TraStrain::has(x.clone(), tsdv::EMP) => TraRes::Ok,
                 _ => panic!("Unsupported result scenario."),
             }
@@ -332,7 +329,7 @@ impl<T> Trie<T> {
             return 0;
         }
 
-        self.root = Node::<T>::empty();
+        *self.root.aq_mut() = Node::<T>::empty();
         self.cnt = 0;
         cnt
     }
@@ -459,10 +456,6 @@ impl<T> Node<T> {
             branches: None,
             entry: None,
         }
-    }
-
-    const fn to_mut_ptr(&self) -> *mut Self {
-        (self as *const Self).cast_mut()
     }
 }
 
@@ -768,7 +761,7 @@ mod tests_of_units {
                 assert_eq!(Ok((&mut entry, None)), res);
                 assert_eq!(1, trie.cnt);
 
-                let branches = trie.root.branches;
+                let branches = trie.root.aq_ref().branches.as_ref();
                 assert_eq!(true, branches.is_some());
                 let branches = branches.unwrap();
                 let node = branches.get(&'a');
@@ -1270,7 +1263,7 @@ mod tests_of_units {
 
                 assert_eq!(1, trie.clr());
                 assert_eq!(Err(KeyErr::Unknown), trie.acq(key));
-                assert_eq!(Node::empty(), trie.root);
+                assert_eq!(&Node::empty(), trie.root.aq_ref());
                 assert_eq!(0, trie.cnt);
 
                 assert_eq!(cap, trie.acq_trace_cap());
@@ -1491,14 +1484,6 @@ mod tests_of_units {
 
             assert!(node.branches.is_none());
             assert!(node.entry.is_none());
-        }
-
-        use crate::aide::address;
-        #[test]
-        fn to_mut_ptr() {
-            let n = Node::<usize>::empty();
-            let n_add = address(&n);
-            assert_eq!(n_add, n.to_mut_ptr() as usize);
         }
     }
 
