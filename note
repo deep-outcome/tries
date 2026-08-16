@@ -2,8 +2,6 @@
     - check with key vs entry
 - opts (apply to t-oc also)
     - check with track optimizations (remove to mut casting) on UC node
-    - optimize clr methods
-    - check ext methods, optimize (early empty return, reuse buffers)
     - dyn_trie
         ▪ keys, values, view_mut methods
         ▪ iter, iter_mut, IntoIter
