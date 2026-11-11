@@ -19,7 +19,19 @@ use uc::UC;
 /// [`char`] is mapped to [`Node`].
 pub type Branches<T> = HashMap<char, Node<T>>;
 
-fn ext<T>(b: &mut Branches<T>, buff: &mut String, o: &mut Vec<(String, T)>) {
+/// Key-entry duo type.
+pub type Take<T> = (String, T);
+
+/// 'Viewable' key-entry duo type.
+pub type Sight<'a, T> = (String, &'a T);
+
+/// Keys extraction type.
+pub type Keys = Vec<String>;
+
+/// 'Scenic' series type.
+pub type Montage<T> = Vec<T>;
+
+fn ext<T>(b: &mut Branches<T>, buff: &mut String, o: &mut Montage<Take<T>>) {
     for (k, n) in b.iter_mut() {
         buff.push(*k);
 
@@ -36,7 +48,7 @@ fn ext<T>(b: &mut Branches<T>, buff: &mut String, o: &mut Vec<(String, T)>) {
     }
 }
 
-fn view<'a, T>(b: &'a Branches<T>, buff: &mut String, o: &mut Vec<(String, &'a T)>) {
+fn view<'a, T>(b: &'a Branches<T>, buff: &mut String, o: &mut Montage<Sight<'a, T>>) {
     for (k, n) in b.iter() {
         buff.push(*k);
 
@@ -47,6 +59,23 @@ fn view<'a, T>(b: &'a Branches<T>, buff: &mut String, o: &mut Vec<(String, &'a T
 
         if let Some(b) = n.branches.as_ref() {
             view(b, buff, o);
+        }
+
+        _ = buff.pop();
+    }
+}
+
+fn keys<T>(b: &Branches<T>, buff: &mut String, o: &mut Keys) {
+    for (k, n) in b.iter() {
+        buff.push(*k);
+
+        if n.entry() {
+            let key = buff.clone();
+            o.push(key);
+        }
+
+        if let Some(b) = n.branches.as_ref() {
+            keys(b, buff, o);
         }
 
         _ = buff.pop();
@@ -346,7 +375,7 @@ impl<T> Trie<T> {
     /// [`std::collections::HashMap::iter_mut`] at each node.
     ///
     /// Return value is [`None`] for empty [`Trie`].    
-    pub fn ext(&mut self) -> Option<Vec<(String, T)>> {
+    pub fn ext(&mut self) -> Option<Montage<Take<T>>> {
         let cnt = self.cnt;
         if cnt == 0 {
             return None;
@@ -370,10 +399,7 @@ impl<T> Trie<T> {
     /// [`std::collections::HashMap::iter`] at each node.
     ///
     /// Return value is [`None`] for empty [`Trie`].
-    ///
-    /// Returned set can be overcapacitated, i.e. its capacity
-    /// will not be shrunken according to its length.
-    pub fn view(&self) -> Option<Vec<(String, &T)>> {
+    pub fn view(&self) -> Option<Montage<Sight<'_, T>>> {
         let cnt = self.cnt;
         if cnt == 0 {
             return None;
@@ -385,6 +411,31 @@ impl<T> Trie<T> {
 
         let rl = unsafe { self.root.branches.as_ref().unwrap_unchecked() };
         view(rl, &mut buff, &mut res);
+
+        Some(res)
+    }
+
+    /// Extracts keys from tree.
+    ///
+    /// Extraction is alphabetically unordered. Exactly, order depends on
+    /// order given by [`std::collections::hash_map::IterMut`] iterator produced by
+    /// [`std::collections::HashMap::iter_mut`] at each node.
+    ///
+    /// Return value is [`None`] for empty [`Trie`].
+    pub fn keys(&self) -> Option<Keys> {
+        let cnt = self.cnt;
+        if cnt == 0 {
+            return None;
+        }
+
+        // capacity is prebuffered
+        let mut buff = String::with_capacity(KEY_BUFF_CAP);
+
+        let mut res = Vec::with_capacity(cnt);
+
+        let b = self.root.aq_ref().branches.as_ref();
+        let b = unsafe { b.unwrap_unchecked() };
+        keys(&b, &mut buff, &mut res);
 
         Some(res)
     }
@@ -480,7 +531,7 @@ mod tests_of_units {
 
     mod ext {
 
-        use crate::{ext, KeyErr, Trie};
+        use crate::{ext, KeyErr, Montage, Trie};
 
         #[test]
         fn basic_test() {
@@ -493,7 +544,7 @@ mod tests_of_units {
             _ = trie.ins(2usize, z());
 
             let mut buff = String::new();
-            let mut test = Vec::new();
+            let mut test = Montage::new();
 
             let branches = trie.root.branches.as_mut().unwrap();
             ext(branches, &mut buff, &mut test);
@@ -528,7 +579,7 @@ mod tests_of_units {
             }
 
             let mut buff = String::new();
-            let mut test = Vec::new();
+            let mut test = Montage::new();
 
             let branches = trie.root.branches.as_mut().unwrap();
             ext(branches, &mut buff, &mut test);
@@ -560,7 +611,7 @@ mod tests_of_units {
             }
 
             let mut buff = String::new();
-            let mut test = Vec::new();
+            let mut test = Montage::new();
 
             let branches = trie.root.branches.as_mut().unwrap();
             ext(branches, &mut buff, &mut test);
@@ -574,7 +625,7 @@ mod tests_of_units {
 
     mod view {
 
-        use crate::{view, Trie};
+        use crate::{view, Montage, Trie};
 
         #[test]
         fn basic_test() {
@@ -590,7 +641,7 @@ mod tests_of_units {
             _ = trie.ins(z_entry, z());
 
             let mut buff = String::new();
-            let mut test = Vec::new();
+            let mut test = Montage::new();
 
             let branches = unsafe { trie.root.branches.as_ref().unwrap_unchecked() };
             view(branches, &mut buff, &mut test);
@@ -623,7 +674,7 @@ mod tests_of_units {
             }
 
             let mut buff = String::new();
-            let mut test = Vec::new();
+            let mut test = Montage::new();
 
             let branches = unsafe { trie.root.branches.as_ref().unwrap_unchecked() };
             view(branches, &mut buff, &mut test);
@@ -655,7 +706,7 @@ mod tests_of_units {
             }
 
             let mut buff = String::new();
-            let mut test = Vec::new();
+            let mut test = Montage::new();
 
             let branches = unsafe { trie.root.branches.as_ref().unwrap_unchecked() };
             view(branches, &mut buff, &mut test);
@@ -664,6 +715,107 @@ mod tests_of_units {
             test.sort_by_key(|x| x.0.clone());
 
             assert_eq!(paths, test);
+        }
+    }
+
+    mod keys {
+
+        use crate::{keys, Keys, Trie};
+
+        #[test]
+        fn basic_test() {
+            let mut trie = Trie::new();
+
+            let a = || "a".chars();
+            let z = || "z".chars();
+
+            let a_entry = 1;
+            let z_entry = 2;
+
+            _ = trie.ins(a_entry, a());
+            _ = trie.ins(z_entry, z());
+
+            let mut buff = String::new();
+            let mut test = Keys::new();
+
+            let b = trie.root.aq_ref().branches.as_ref().unwrap();
+
+            keys(b, &mut buff, &mut test);
+
+            test.sort();
+
+            let proof = vec![String::from("a"), String::from("z")];
+            assert_eq!(proof, test);
+        }
+
+        #[test]
+        fn nesting() {
+            let mut trie = Trie::new();
+
+            let entries = vec![
+                (String::from("a"), 3),
+                (String::from("az"), 5),
+                (String::from("b"), 5),
+                (String::from("by"), 8),
+                (String::from("y"), 10),
+                (String::from("yb"), 12),
+                (String::from("z"), 99),
+                (String::from("za"), 103),
+            ];
+
+            for e in entries.iter() {
+                _ = trie.ins(e.1, e.0.chars());
+            }
+
+            let mut buff = String::new();
+            let mut test = Keys::new();
+
+            let b = trie.root.aq_ref().branches.as_ref().unwrap();
+
+            keys(b, &mut buff, &mut test);
+            assert_eq!(entries.len(), test.len());
+
+            test.sort();
+
+            for zip in entries.iter().zip(test.iter()) {
+                assert_eq!(zip.0 .0, *zip.1);
+            }
+        }
+
+        #[test]
+        fn in_depth_recursion() {
+            let mut trie = Trie::new();
+
+            let paths = vec![
+                (String::from("a"), 9),
+                (String::from("aa"), 13),
+                (String::from("azbq"), 11),
+                (String::from("by"), 329),
+                (String::from("ybc"), 7),
+                (String::from("ybcrqutmop"), 33),
+                (String::from("ybcrqutmopfvb"), 99),
+                (String::from("ybcrqutmoprfg"), 80),
+                (String::from("ybxr"), 53),
+                (String::from("zazazazazabyyb"), 55),
+            ];
+
+            for p in paths.iter() {
+                _ = trie.ins(p.1, p.0.chars());
+            }
+
+            let mut buff = String::new();
+            let mut test = Keys::new();
+
+            let b = trie.root.aq_ref().branches.as_ref().unwrap();
+
+            keys(b, &mut buff, &mut test);
+            assert_eq!(paths.len(), test.len());
+
+            test.sort();
+
+            for zip in paths.iter().zip(test.iter()) {
+                assert_eq!(zip.0 .0, *zip.1);
+            }
         }
     }
 
@@ -1379,6 +1531,56 @@ mod tests_of_units {
                 let view = trie.view();
 
                 assert_eq!(None, view);
+            }
+        }
+
+        mod keys {
+            use crate::Trie;
+
+            #[test]
+            fn basic_test() {
+                let proof = vec![
+                    (String::from("aa"), 13),
+                    (String::from("azbq"), 11),
+                    (String::from("by"), 329),
+                    (String::from("ybc"), 7),
+                    (String::from("ybxr"), 53),
+                    (String::from("ybxrqutmop"), 33),
+                    (String::from("ybxrqutmopfvb"), 99),
+                    (String::from("ybxrqutmoprfg"), 80),
+                    (String::from("zazazazazabyyb"), 55),
+                ];
+
+                let proof_len = proof.len();
+
+                let mut trie = Trie::new();
+                for p in proof.iter() {
+                    _ = trie.ins(p.1, p.0.chars());
+                }
+
+                let keys = trie.keys();
+                assert_eq!(true, keys.is_some());
+                let mut keys = keys.unwrap();
+
+                assert_eq!(proof_len, keys.len());
+
+                keys.sort();
+
+                for zip in proof.iter().zip(keys.iter()) {
+                    assert_eq!(zip.0 .0, *zip.1);
+                }
+
+                assert_eq!(true, keys.capacity() >= proof_len);
+
+                for p in proof.iter() {
+                    assert_eq!(Ok(&p.1), trie.acq(p.0.chars()));
+                }
+            }
+
+            #[test]
+            fn empty_tree() {
+                let trie = Trie::<usize>::new();
+                assert_eq!(None, trie.keys());
             }
         }
 
