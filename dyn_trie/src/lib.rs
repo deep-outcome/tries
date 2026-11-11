@@ -48,7 +48,7 @@ fn ext<T>(b: &mut Branches<T>, buff: &mut String, o: &mut Montage<Take<T>>) {
     }
 }
 
-fn view<'a, T>(b: &'a Branches<T>, buff: &mut String, o: &mut Montage<Sight<'a,T>>) {
+fn view<'a, T>(b: &'a Branches<T>, buff: &mut String, o: &mut Montage<Sight<'a, T>>) {
     for (k, n) in b.iter() {
         buff.push(*k);
 
@@ -432,7 +432,7 @@ impl<T> Trie<T> {
         let mut buff = String::with_capacity(KEY_BUFF_CAP);
 
         let mut res = Vec::with_capacity(cnt);
-        
+
         let b = self.root.aq_ref().branches.as_ref();
         let b = unsafe { b.unwrap_unchecked() };
         keys(&b, &mut buff, &mut res);
@@ -531,7 +531,7 @@ mod tests_of_units {
 
     mod ext {
 
-        use crate::{ext, KeyErr, Trie, Montage};
+        use crate::{ext, KeyErr, Montage, Trie};
 
         #[test]
         fn basic_test() {
@@ -625,7 +625,7 @@ mod tests_of_units {
 
     mod view {
 
-        use crate::{view, Trie, Montage};
+        use crate::{view, Montage, Trie};
 
         #[test]
         fn basic_test() {
@@ -720,7 +720,7 @@ mod tests_of_units {
 
     mod keys {
 
-        use crate::{keys, Trie, Keys};
+        use crate::{keys, Keys, Trie};
 
         #[test]
         fn basic_test() {
