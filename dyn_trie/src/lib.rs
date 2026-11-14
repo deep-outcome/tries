@@ -28,7 +28,7 @@ pub type Sight<'a, T> = (String, &'a T);
 /// Keys extraction type.
 pub type Keys = Vec<String>;
 
-/// Values extraction type.
+/// Values acquisition type.
 pub type Values<T> = Vec<T>;
 
 /// 'Scenic' series type.
