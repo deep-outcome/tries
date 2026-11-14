@@ -458,9 +458,9 @@ impl<T> Trie<T> {
         Some(res)
     }
 
-    /// Extracts values from tree.
+    /// Acquires cloned values from tree.
     ///
-    /// Extraction is alphabetically unordered. Exactly, order depends on
+    /// Acquisition is alphabetically unordered. Exactly, order depends on
     /// order given by [`std::collections::hash_map::Values`] iterator produced by
     /// [`std::collections::HashMap::values`] at each node.
     ///
@@ -1722,10 +1722,10 @@ mod tests_of_units {
                 assert_eq!(None, trie.keys());
             }
         }
-        
+
         mod vals {
             use crate::Trie;
-            
+
             #[test]
             fn basic_test() {
                 let entries = [
@@ -1739,34 +1739,34 @@ mod tests_of_units {
                     ("ybxrqutmoprfg", 80),
                     ("zazazazazabyyb", 55),
                 ];
-                
+
                 let p_len = entries.len();
-                
+
                 let mut trie = Trie::new();
                 for p in entries.iter() {
                     _ = trie.ins(p.1, p.0.chars());
                 }
-                
+
                 let vals = trie.vals();
                 assert_eq!(true, vals.is_some());
                 let mut vals = vals.unwrap();
-                
+
                 assert_eq!(p_len, vals.len());
-                
+
                 let mut proof = entries.map(|x| x.1);
-                
+
                 vals.sort();
                 proof.sort();
-                
+
                 assert_eq!(proof.as_slice(), vals.as_slice());
-                
+
                 assert_eq!(true, vals.capacity() >= p_len);
-                
+
                 for e in entries.iter() {
                     assert_eq!(Ok(&e.1), trie.acq(e.0.chars()));
                 }
             }
-            
+
             #[test]
             fn empty_tree() {
                 let trie = Trie::<usize>::new();
