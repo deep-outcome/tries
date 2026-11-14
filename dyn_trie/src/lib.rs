@@ -28,6 +28,9 @@ pub type Sight<'a, T> = (String, &'a T);
 /// Keys extraction type.
 pub type Keys = Vec<String>;
 
+/// Values extraction type.
+pub type Values<T> = Vec<T>;
+
 /// 'Scenic' series type.
 pub type Montage<T> = Vec<T>;
 
@@ -79,6 +82,21 @@ fn keys<T>(b: &Branches<T>, buff: &mut String, o: &mut Keys) {
         }
 
         _ = buff.pop();
+    }
+}
+
+fn vals<T>(b: &Branches<T>, o: &mut Values<T>)
+where
+    T: Clone,
+{
+    for n in b.values() {
+        if let Some(e) = n.entry.as_ref() {
+            o.push(e.clone());
+        }
+
+        if let Some(b) = n.branches.as_ref() {
+            vals(b, o);
+        }
     }
 }
 
@@ -436,6 +454,31 @@ impl<T> Trie<T> {
         let b = self.root.aq_ref().branches.as_ref();
         let b = unsafe { b.unwrap_unchecked() };
         keys(&b, &mut buff, &mut res);
+
+        Some(res)
+    }
+
+    /// Extracts values from tree.
+    ///
+    /// Extraction is alphabetically unordered. Exactly, order depends on
+    /// order given by [`std::collections::hash_map::Values`] iterator produced by
+    /// [`std::collections::HashMap::values`] at each node.
+    ///
+    /// Return value is [`None`] for empty [`Trie`].
+    pub fn vals(&self) -> Option<Values<T>>
+    where
+        T: Clone,
+    {
+        let cnt = self.cnt;
+        if cnt == 0 {
+            return None;
+        }
+
+        let mut res = Vec::with_capacity(cnt);
+
+        let b = self.root.aq_ref().branches.as_ref();
+        let b = unsafe { b.unwrap_unchecked() };
+        vals(&b, &mut res);
 
         Some(res)
     }
@@ -816,6 +859,102 @@ mod tests_of_units {
             for zip in paths.iter().zip(test.iter()) {
                 assert_eq!(zip.0 .0, *zip.1);
             }
+        }
+    }
+
+    mod vals {
+
+        use crate::{vals, Trie};
+
+        #[test]
+        fn basic_test() {
+            let mut trie = Trie::new();
+
+            let a = || "a".chars();
+            let z = || "z".chars();
+
+            _ = trie.ins(1, a());
+            _ = trie.ins(2, z());
+
+            let mut test = Vec::new();
+
+            let b = trie.root.aq_ref().branches.as_ref().unwrap();
+            vals(b, &mut test);
+
+            let proof = vec![1, 2];
+            test.sort();
+
+            assert_eq!(proof, test);
+
+            assert_eq!(true, trie.acq(a()).is_ok());
+            assert_eq!(true, trie.acq(z()).is_ok());
+        }
+
+        #[test]
+        fn nesting() {
+            let mut trie = Trie::new();
+
+            let entries = [
+                ("a", 3),
+                ("az", 5),
+                ("b", 5),
+                ("by", 8),
+                ("y", 10),
+                ("yb", 12),
+                ("z", 99),
+                ("za", 103),
+            ];
+
+            for e in entries.iter() {
+                _ = trie.ins(e.1, e.0.chars());
+            }
+
+            let mut test = Vec::new();
+
+            let b = trie.root.aq_ref().branches.as_ref().unwrap();
+            vals(b, &mut test);
+
+            assert_eq!(entries.len(), test.len());
+
+            let proof = entries.map(|x| x.1);
+            test.sort();
+
+            assert_eq!(proof.as_slice(), test.as_slice());
+        }
+
+        #[test]
+        fn in_depth_recursion() {
+            let mut trie = Trie::new();
+
+            let paths = [
+                ("a", 9),
+                ("aa", 13),
+                ("azbq", 11),
+                ("by", 329),
+                ("ybc", 7),
+                ("ybcrqutmop", 33),
+                ("ybcrqutmopfvb", 99),
+                ("ybcrqutmoprfg", 80),
+                ("ybxr", 53),
+                ("zazazazazabyyb", 55),
+            ];
+
+            for p in paths.iter() {
+                _ = trie.ins(p.1, p.0.chars());
+            }
+
+            let mut test = Vec::new();
+
+            let b = trie.root.aq_ref().branches.as_ref().unwrap();
+            vals(b, &mut test);
+            assert_eq!(paths.len(), test.len());
+
+            let mut proof = paths.map(|x| x.1);
+
+            test.sort();
+            proof.sort();
+
+            assert_eq!(proof.as_slice(), test.as_slice());
         }
     }
 
@@ -1581,6 +1720,57 @@ mod tests_of_units {
             fn empty_tree() {
                 let trie = Trie::<usize>::new();
                 assert_eq!(None, trie.keys());
+            }
+        }
+        
+        mod vals {
+            use crate::Trie;
+            
+            #[test]
+            fn basic_test() {
+                let entries = [
+                    ("aa", 13),
+                    ("azbq", 11),
+                    ("by", 329),
+                    ("ybc", 7),
+                    ("ybxr", 53),
+                    ("ybxrqutmop", 33),
+                    ("ybxrqutmopfvb", 99),
+                    ("ybxrqutmoprfg", 80),
+                    ("zazazazazabyyb", 55),
+                ];
+                
+                let p_len = entries.len();
+                
+                let mut trie = Trie::new();
+                for p in entries.iter() {
+                    _ = trie.ins(p.1, p.0.chars());
+                }
+                
+                let vals = trie.vals();
+                assert_eq!(true, vals.is_some());
+                let mut vals = vals.unwrap();
+                
+                assert_eq!(p_len, vals.len());
+                
+                let mut proof = entries.map(|x| x.1);
+                
+                vals.sort();
+                proof.sort();
+                
+                assert_eq!(proof.as_slice(), vals.as_slice());
+                
+                assert_eq!(true, vals.capacity() >= p_len);
+                
+                for e in entries.iter() {
+                    assert_eq!(Ok(&e.1), trie.acq(e.0.chars()));
+                }
+            }
+            
+            #[test]
+            fn empty_tree() {
+                let trie = Trie::<usize>::new();
+                assert_eq!(None, trie.vals());
             }
         }
 

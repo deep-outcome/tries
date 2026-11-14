@@ -1,9 +1,15 @@
+unstable ideas:
+- Key alias for impl Iterator<Item = char>.
+- Some methods can be const later on.
+
+
+- do: extract scenic types into sce(?) mod
 - ideas
     - check with key vs entry
 - opts
     - check with track optimizations (remove to mut casting) on UC node
     - dyn_trie
-        ▪ keys, values, view_mut methods
+        ▪ view_mut methods
         ▪ iter, iter_mut, IntoIter
     - lr_trie
         ▪ ext_side method
