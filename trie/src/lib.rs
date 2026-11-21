@@ -227,6 +227,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
 /// Mutable iterator for key-entry duos in tree.
 #[derive(Eq, PartialEq, Debug, Clone)]
+#[allow(unpredictable_function_pointer_comparisons)]
 pub struct IterMut<'a, T> {
     ab: *mut Letter<T>,
     ab_len: usize,
@@ -323,6 +324,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
 
 /// Extracting iterator of key-entry duos of tree.
 #[derive(Eq, PartialEq, Debug, Clone)]
+#[allow(unpredictable_function_pointer_comparisons)]
 pub struct Toter<T> {
     ab: Alphabet<T>,
     ab_len: usize,
@@ -1969,8 +1971,8 @@ mod tests_of_units {
         fn new() {
             let trie = Trie::<usize>::new();
             assert_eq!(ALPHABET_LEN, trie.al);
-            assert_eq!(ix as usize, trie.ix as usize);
-            assert_eq!(re as usize, trie.re as usize);
+            assert_eq!(ix as *const () as usize, trie.ix as usize);
+            assert_eq!(re as *const () as usize, trie.re as usize);
         }
 
         #[test]
@@ -1988,8 +1990,8 @@ mod tests_of_units {
 
             assert_eq!(&ab(ab_len), trie.rt.aq_ref());
             assert_eq!(ab_len, trie.al);
-            assert_eq!(test_ix as usize, trie.ix as usize);
-            assert_eq!(test_re as usize, trie.re as usize);
+            assert_eq!(test_ix as *const () as usize, trie.ix as usize);
+            assert_eq!(test_re as *const () as usize, trie.re as usize);
             assert_eq!(0, trie.tr.capacity());
             assert_eq!(0, trie.ct);
         }
