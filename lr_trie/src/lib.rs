@@ -398,7 +398,7 @@ impl LrTrie {
         }
     }
 
-    fn track(&self, key: &Key, lr: LeftRight, ts: TraStrain) -> TraRes {
+    fn track(&self, key: &Key, lr: LeftRight, ts: TraStrain) -> TraRes<'_> {
         let root = self.root(lr);
         let trace = self.trace.uplift();
 
@@ -2008,7 +2008,7 @@ mod tests_of_units {
             trie.left.lrref = &node;
             trie.right.lrref = &node;
 
-            assert_eq!(0, trie.clear());            
+            assert_eq!(0, trie.clear());
 
             assert_eq!(trie.left.lrref, &node);
             assert_eq!(trie.right.lrref, &node);
