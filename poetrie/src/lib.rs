@@ -896,7 +896,7 @@ impl Poetrie {
     /// Use to get tree keys enumerator.
     ///
     /// Returns [`Keys`] enumerator, [`None`] for empty tree.
-    pub fn ks(&self) -> Option<Keys> {
+    pub fn ks(&self) -> Option<Keys<'_>> {
         if self.cnt == 0 {
             None
         } else {
@@ -1152,7 +1152,7 @@ mod tests_of_units {
                 RevKey(rev)
             }
 
-            pub fn key(&self) -> Key {
+            pub fn key(&self) -> Key<'_> {
                 Key(self.0.as_str())
             }
         }
