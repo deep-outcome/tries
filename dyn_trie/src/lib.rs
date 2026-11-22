@@ -539,6 +539,158 @@ impl<T> Trie<T> {
     pub fn as_mut(&mut self) -> Option<&mut Branches<T>> {
         self.root.branches.as_mut()
     }
+
+    /// Acquires iterator of key-entry duos in tree.
+    ///
+    /// Check with [`Iter::next`] for details.
+    ///
+    /// Return value is [`None`] for empty [`Trie`].
+    pub fn iter(&self) -> Option<Iter<'_, T>> {
+        if self.cnt == 0 {
+            return None;
+        }
+
+        // capacity is prebuffered
+        let buff = String::with_capacity(KEY_BUFF_CAP);
+
+        let r = self.root.uplift();
+        let bra = r.branches.as_mut();
+        let bra = unsafe { bra.unwrap_unchecked() }.iter_mut();
+
+        let iter = IterMut {
+            bra: bra,
+            buff: Some(buff),
+            sub: None,
+        };
+
+        Some(Iter { iter })
+    }
+
+    /// Acquires mutable iterator of key-entry duos in tree.
+    ///
+    /// Check with [`IterMut::next`] for details.
+    ///
+    /// Return value is [`None`] for empty [`Trie`].
+    pub fn iter_mut(&mut self) -> Option<IterMut<'_, T>> {
+        if self.cnt == 0 {
+            return None;
+        }
+
+        // capacity is prebuffered
+        let buff = String::with_capacity(KEY_BUFF_CAP);
+
+        let r = self.root.aq_mut();
+        let bra = r.branches.as_mut();
+        let bra = unsafe { bra.unwrap_unchecked() }.iter_mut();
+
+        let iter = IterMut {
+            bra: bra,
+            buff: Some(buff),
+            sub: None,
+        };
+
+        Some(iter)
+    }
+}
+
+/// Iterator for key-entry duos in tree.
+#[derive(Debug)]
+pub struct Iter<'a, T> {
+    iter: IterMut<'a, T>,
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = Sight<'a, T>;
+
+    /// Returns [`Sight`] one by one in order given by by
+    /// [`std::collections::hash_map::IterMut`] iterator produced by
+    /// [`std::collections::HashMap::iter_mut`] at each node.
+    ///
+    /// Returns [`None`] when exhausted.
+    fn next(&mut self) -> Option<Sight<'a, T>> {
+        return if let Some(s) = self.iter.next() {
+            Some((s.0, s.1))
+        } else {
+            None
+        };
+    }
+}
+
+/// Mutable iterator for key-entry duos in tree.
+#[derive(Debug)]
+pub struct IterMut<'a, T> {
+    bra: std::collections::hash_map::IterMut<'a, char, Node<T>>,
+    buff: Option<String>,
+    sub: Option<Box<IterMut<'a, T>>>,
+}
+
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = SightMut<'a, T>;
+
+    /// Returns [`SightMut`] one by one in order given by by
+    /// [`std::collections::hash_map::IterMut`] iterator produced by
+    /// [`std::collections::HashMap::iter_mut`] at each node.
+    ///
+    /// Returns [`None`] when exhausted.
+    fn next(&mut self) -> Option<SightMut<'a, T>> {
+        if let Some(s) = self.sub.as_mut() {
+            let res = s.next();
+            if res.is_some() {
+                return res;
+            } else {
+                #[cfg(test)]
+                assert_eq!(true, s.buff.is_some());
+                let mut buff = unsafe { s.buff.take().unwrap_unchecked() };
+                _ = buff.pop();
+
+                self.sub = None;
+                self.buff = Some(buff);
+            }
+        }
+
+        while let Some(kv) = self.bra.next() {
+            #[cfg(test)]
+            assert_eq!(true, self.buff.is_some());
+            let buff = unsafe { self.buff.as_mut().unwrap_unchecked() };
+
+            buff.push(*kv.0);
+
+            let node = kv.1;
+
+            let res = if let Some(e) = node.entry.as_mut() {
+                let key = buff.clone();
+                Some((key, e))
+            } else {
+                None
+            };
+
+            if let Some(b) = node.branches.as_mut() {
+                #[cfg(test)]
+                assert_eq!(true, self.buff.is_some());
+                let buff = unsafe { self.buff.take().unwrap_unchecked() };
+                let sub = IterMut {
+                    bra: b.iter_mut(),
+                    buff: Some(buff),
+                    sub: None,
+                };
+
+                self.sub = Some(Box::new(sub));
+            } else {
+                _ = buff.pop();
+            }
+
+            return if res.is_some() {
+                res
+            } else {
+                #[cfg(test)]
+                assert_eq!(true, self.sub.is_some());
+                let sub = unsafe { self.sub.as_mut().unwrap_unchecked() };
+                sub.next()
+            };
+        }
+
+        return None;
+    }
 }
 
 #[cfg_attr(test, derive(PartialEq, Debug))]
@@ -566,7 +718,7 @@ impl<'a, T> TraRes<'a, T> {
 
 /// Tree node.
 ///
-/// It is associated with `char` in [`Branches`].
+/// It is associated with [`char`] in [`Branches`].
 /// Optionally: can link to entries and hold some entry.
 #[derive(PartialEq, Clone)]
 pub struct Node<T> {
@@ -2017,6 +2169,90 @@ mod tests_of_units {
                 let proof = address(trie.root.branches.as_mut().unwrap());
 
                 assert_eq!(as_mut, proof);
+            }
+        }
+
+        mod iter {
+            use crate::{Sight, Trie};
+
+            #[test]
+            fn basic_test() {
+                let proof = vec![
+                    (String::from("a"), 13),
+                    (String::from("aa"), 13),
+                    (String::from("azbq"), 11),
+                    (String::from("by"), 329),
+                    (String::from("ybc"), 7),
+                    (String::from("ybxr"), 53),
+                    (String::from("ybxrqutmop"), 33),
+                    (String::from("ybxrqutmopfvb"), 99),
+                    (String::from("ybxrqutmoprfg"), 80),
+                    (String::from("zazazazazabyyb"), 55),
+                ];
+
+                let mut trie = Trie::new();
+                for p in proof.iter() {
+                    _ = trie.ins(p.1, p.0.chars());
+                }
+
+                let iter = trie.iter().unwrap();
+                let mut test = iter.collect::<Vec<Sight<'_, isize>>>();
+                test.sort();
+
+                assert_eq!(proof.len(), test.len(), "{test:?}");
+                for (ix, p) in proof.iter().enumerate() {
+                    let t = &test[ix];
+                    assert_eq!(p.0, t.0);
+                    assert_eq!(&p.1, t.1);
+                }
+            }
+
+            #[test]
+            fn empty_tree() {
+                let trie = Trie::<usize>::new();
+                assert_eq!(true, trie.iter().is_none());
+            }
+        }
+
+        mod iter_mut {
+            use crate::{SightMut, Trie};
+
+            #[test]
+            fn basic_test() {
+                let mut proof = vec![
+                    (String::from("a"), 13),
+                    (String::from("aa"), 13),
+                    (String::from("azbq"), 11),
+                    (String::from("by"), 329),
+                    (String::from("ybc"), 7),
+                    (String::from("ybxr"), 53),
+                    (String::from("ybxrqutmop"), 33),
+                    (String::from("ybxrqutmopfvb"), 99),
+                    (String::from("ybxrqutmoprfg"), 80),
+                    (String::from("zazazazazabyyb"), 55),
+                ];
+
+                let mut trie = Trie::new();
+                for p in proof.iter() {
+                    _ = trie.ins(p.1, p.0.chars());
+                }
+
+                let iter = trie.iter_mut().unwrap();
+                let mut test = iter.collect::<Vec<SightMut<'_, isize>>>();
+                test.sort();
+
+                assert_eq!(proof.len(), test.len(), "{test:?}");
+                for (ix, p) in proof.iter_mut().enumerate() {
+                    let t = &test[ix];
+                    assert_eq!(p.0, t.0);
+                    assert_eq!(&mut p.1, t.1);
+                }
+            }
+
+            #[test]
+            fn empty_tree() {
+                let mut trie = Trie::<usize>::new();
+                assert_eq!(true, trie.iter_mut().is_none());
             }
         }
     }
