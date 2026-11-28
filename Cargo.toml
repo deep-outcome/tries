@@ -7,7 +7,7 @@ members = [
   "lr_trie",
   "res",  
   "tra",
-  "poetrie"]
+  "poetrie", "sce"]
 
 [profile.dev]
 opt-level = 0

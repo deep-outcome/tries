@@ -5,6 +5,9 @@
 use core::panic;
 use std::collections::hash_map::HashMap;
 
+mod sce;
+pub use sce::*;
+
 mod res;
 pub use res::{InsRes, InsResAide, InsResAideEx, KeyErr};
 
@@ -14,30 +17,14 @@ use tra::{tsdv, TraStrain};
 mod uc;
 use uc::UC;
 
+use std::iter::IntoIterator;
+
 /// Tree node branches.
 ///
 /// [`char`] is mapped to [`Node`].
 pub type Branches<T> = HashMap<char, Node<T>>;
 
-/// Key-entry duo type.
-pub type Take<T> = (String, T);
-
-/// 'Viewable' key-entry duo type.
-pub type Sight<'a, T> = (String, &'a T);
-
-/// 'Viewable' mutable key-entry duo type.
-pub type SightMut<'a, T> = (String, &'a mut T);
-
-/// Keys extraction type.
-pub type Keys = Vec<String>;
-
-/// Values acquisition type.
-pub type Values<T> = Vec<T>;
-
-/// 'Scenic' series type.
-pub type Montage<T> = Vec<T>;
-
-fn ext<T>(b: &mut Branches<T>, buff: &mut String, o: &mut Montage<Take<T>>) {
+fn ext<T>(b: &mut Branches<T>, buff: &mut String, o: &mut Collage<Take<T>>) {
     for (k, n) in b.iter_mut() {
         buff.push(*k);
 
@@ -54,7 +41,7 @@ fn ext<T>(b: &mut Branches<T>, buff: &mut String, o: &mut Montage<Take<T>>) {
     }
 }
 
-fn view<'a, T>(b: &'a Branches<T>, buff: &mut String, o: &mut Montage<Sight<'a, T>>) {
+fn view<'a, T>(b: &'a Branches<T>, buff: &mut String, o: &mut Collage<Sight<'a, T>>) {
     for (k, n) in b.iter() {
         buff.push(*k);
 
@@ -71,7 +58,7 @@ fn view<'a, T>(b: &'a Branches<T>, buff: &mut String, o: &mut Montage<Sight<'a, 
     }
 }
 
-fn view_mut<'a, T>(b: &'a mut Branches<T>, buff: &mut String, o: &mut Montage<SightMut<'a, T>>) {
+fn view_mut<'a, T>(b: &'a mut Branches<T>, buff: &mut String, o: &mut Collage<SightMut<'a, T>>) {
     for (k, n) in b.iter_mut() {
         buff.push(*k);
 
@@ -413,7 +400,7 @@ impl<T> Trie<T> {
     /// [`std::collections::HashMap::iter_mut`] at each node.
     ///
     /// Return value is [`None`] for empty [`Trie`].    
-    pub fn ext(&mut self) -> Option<Montage<Take<T>>> {
+    pub fn ext(&mut self) -> Option<Collage<Take<T>>> {
         let cnt = self.cnt;
         if cnt == 0 {
             return None;
@@ -437,7 +424,7 @@ impl<T> Trie<T> {
     /// [`std::collections::HashMap::iter`] at each node.
     ///
     /// Return value is [`None`] for empty [`Trie`].
-    pub fn view(&self) -> Option<Montage<Sight<'_, T>>> {
+    pub fn view(&self) -> Option<Collage<Sight<'_, T>>> {
         let cnt = self.cnt;
         if cnt == 0 {
             return None;
@@ -460,7 +447,7 @@ impl<T> Trie<T> {
     /// [`std::collections::HashMap::iter_mut`] at each node.
     ///
     /// Return value is [`None`] for empty [`Trie`].
-    pub fn view_mut(&mut self) -> Option<Montage<SightMut<'_, T>>> {
+    pub fn view_mut(&mut self) -> Option<Collage<SightMut<'_, T>>> {
         let cnt = self.cnt;
         if cnt == 0 {
             return None;
@@ -542,10 +529,10 @@ impl<T> Trie<T> {
 
     /// Acquires iterator of key-entry duos in tree.
     ///
-    /// Check with [`Iter::next`] for details.
+    /// Check with [`Montage::next`] for details.
     ///
     /// Return value is [`None`] for empty [`Trie`].
-    pub fn iter(&self) -> Option<Iter<'_, T>> {
+    pub fn iter(&self) -> Option<Montage<'_, T>> {
         if self.cnt == 0 {
             return None;
         }
@@ -557,21 +544,21 @@ impl<T> Trie<T> {
         let bra = r.branches.as_mut();
         let bra = unsafe { bra.unwrap_unchecked() }.iter_mut();
 
-        let iter = IterMut {
+        let iter = MontageMut {
             bra: bra,
             buff: Some(buff),
             sub: None,
         };
 
-        Some(Iter { iter })
+        Some(Montage { iter })
     }
 
     /// Acquires mutable iterator of key-entry duos in tree.
     ///
-    /// Check with [`IterMut::next`] for details.
+    /// Check with [`MontageMut::next`] for details.
     ///
     /// Return value is [`None`] for empty [`Trie`].
-    pub fn iter_mut(&mut self) -> Option<IterMut<'_, T>> {
+    pub fn iter_mut(&mut self) -> Option<MontageMut<'_, T>> {
         if self.cnt == 0 {
             return None;
         }
@@ -583,7 +570,7 @@ impl<T> Trie<T> {
         let bra = r.branches.as_mut();
         let bra = unsafe { bra.unwrap_unchecked() }.iter_mut();
 
-        let iter = IterMut {
+        let iter = MontageMut {
             bra: bra,
             buff: Some(buff),
             sub: None,
@@ -595,11 +582,12 @@ impl<T> Trie<T> {
 
 /// Iterator for key-entry duos in tree.
 #[derive(Debug)]
-pub struct Iter<'a, T> {
-    iter: IterMut<'a, T>,
+pub struct Montage<'a, T> {
+    iter: MontageMut<'a, T>,
 }
 
-impl<'a, T> Iterator for Iter<'a, T> {
+impl<'a, T> Iterator for Montage<'a, T> {
+    /// 'Viewable' key-entry duo type.
     type Item = Sight<'a, T>;
 
     /// Returns [`Sight`] one by one in order given by by
@@ -618,13 +606,14 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
 /// Mutable iterator for key-entry duos in tree.
 #[derive(Debug)]
-pub struct IterMut<'a, T> {
+pub struct MontageMut<'a, T> {
     bra: std::collections::hash_map::IterMut<'a, char, Node<T>>,
     buff: Option<String>,
-    sub: Option<Box<IterMut<'a, T>>>,
+    sub: Option<Box<MontageMut<'a, T>>>,
 }
 
-impl<'a, T> Iterator for IterMut<'a, T> {
+impl<'a, T> Iterator for MontageMut<'a, T> {
+    /// 'Viewable' mutable key-entry duo type.
     type Item = SightMut<'a, T>;
 
     /// Returns [`SightMut`] one by one in order given by by
@@ -648,7 +637,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
             }
         }
 
-        while let Some(kv) = self.bra.next() {
+        if let Some(kv) = self.bra.next() {
             #[cfg(test)]
             assert_eq!(true, self.buff.is_some());
             let buff = unsafe { self.buff.as_mut().unwrap_unchecked() };
@@ -668,7 +657,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
                 #[cfg(test)]
                 assert_eq!(true, self.buff.is_some());
                 let buff = unsafe { self.buff.take().unwrap_unchecked() };
-                let sub = IterMut {
+                let sub = MontageMut {
                     bra: b.iter_mut(),
                     buff: Some(buff),
                     sub: None,
@@ -679,17 +668,123 @@ impl<'a, T> Iterator for IterMut<'a, T> {
                 _ = buff.pop();
             }
 
-            return if res.is_some() {
+            if res.is_some() {
                 res
             } else {
                 #[cfg(test)]
                 assert_eq!(true, self.sub.is_some());
                 let sub = unsafe { self.sub.as_mut().unwrap_unchecked() };
                 sub.next()
-            };
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl<T> IntoIterator for Trie<T> {
+    /// Key-entry duo type.
+    type Item = Take<T>;
+
+    /// Extracting iterator of key-entry duos of tree.
+    type IntoIter = Capture<T>;
+
+    /// Acquires extracting iterator of key-entry duos in tree.
+    ///
+    /// Check with [`Capture::next`] for details.
+    fn into_iter(self) -> Self::IntoIter {
+        let mut root = self.root.0.into_inner();
+
+        let bra = if let Some(b) = root.branches.take() {
+            b.into_iter()
+        } else {
+            Branches::with_capacity(0).into_iter()
+        };
+
+        let buff = String::with_capacity(KEY_BUFF_CAP);
+
+        Capture {
+            bra,
+            buff: Some(buff),
+            sub: None,
+        }
+    }
+}
+
+/// Extracting iterator of key-entry duos of tree.
+pub struct Capture<T> {
+    bra: std::collections::hash_map::IntoIter<char, Node<T>>,
+    buff: Option<String>,
+    sub: Option<Box<Capture<T>>>,
+}
+
+impl<T> Iterator for Capture<T> {
+    /// Key-entry duo type.
+    type Item = Take<T>;
+
+    /// Returns [`Take`] one by one in order given by by
+    /// [`std::collections::hash_map::IntoIter`] iterator produced by
+    /// [`std::collections::HashMap::into_iter`] at each node.
+    ///
+    /// Returns [`None`] when exhausted.
+    fn next(&mut self) -> Option<Take<T>> {
+        if let Some(s) = self.sub.as_mut() {
+            let res = s.next();
+            if res.is_some() {
+                return res;
+            } else {
+                #[cfg(test)]
+                assert_eq!(true, s.buff.is_some());
+                let mut buff = unsafe { s.buff.take().unwrap_unchecked() };
+                _ = buff.pop();
+
+                self.sub = None;
+                self.buff = Some(buff);
+            }
         }
 
-        return None;
+        if let Some(kv) = self.bra.next() {
+            #[cfg(test)]
+            assert_eq!(true, self.buff.is_some());
+            let buff = unsafe { self.buff.as_mut().unwrap_unchecked() };
+
+            buff.push(kv.0);
+
+            let mut node = kv.1;
+
+            let res = if let Some(e) = node.entry.take() {
+                let key = buff.clone();
+                Some((key, e))
+            } else {
+                None
+            };
+
+            if let Some(b) = node.branches.take() {
+                #[cfg(test)]
+                assert_eq!(true, self.buff.is_some());
+                let buff = unsafe { self.buff.take().unwrap_unchecked() };
+                let sub = Capture {
+                    bra: b.into_iter(),
+                    buff: Some(buff),
+                    sub: None,
+                };
+
+                self.sub = Some(Box::new(sub));
+            } else {
+                _ = buff.pop();
+            }
+
+            if res.is_some() {
+                res
+            } else {
+                #[cfg(test)]
+                assert_eq!(true, self.sub.is_some());
+                let sub = unsafe { self.sub.as_mut().unwrap_unchecked() };
+                sub.next()
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -769,7 +864,7 @@ mod tests_of_units {
 
     mod ext {
 
-        use crate::{ext, KeyErr, Montage, Trie};
+        use crate::{ext, Collage, KeyErr, Trie};
 
         #[test]
         fn basic_test() {
@@ -782,7 +877,7 @@ mod tests_of_units {
             _ = trie.ins(2usize, z());
 
             let mut buff = String::new();
-            let mut test = Montage::new();
+            let mut test = Collage::new();
 
             let branches = trie.root.branches.as_mut().unwrap();
             ext(branches, &mut buff, &mut test);
@@ -817,7 +912,7 @@ mod tests_of_units {
             }
 
             let mut buff = String::new();
-            let mut test = Montage::new();
+            let mut test = Collage::new();
 
             let branches = trie.root.branches.as_mut().unwrap();
             ext(branches, &mut buff, &mut test);
@@ -849,7 +944,7 @@ mod tests_of_units {
             }
 
             let mut buff = String::new();
-            let mut test = Montage::new();
+            let mut test = Collage::new();
 
             let branches = trie.root.branches.as_mut().unwrap();
             ext(branches, &mut buff, &mut test);
@@ -863,7 +958,7 @@ mod tests_of_units {
 
     mod view {
 
-        use crate::{view, Montage, Trie};
+        use crate::{view, Collage, Trie};
 
         #[test]
         fn basic_test() {
@@ -879,7 +974,7 @@ mod tests_of_units {
             _ = trie.ins(z_entry, z());
 
             let mut buff = String::new();
-            let mut test = Montage::new();
+            let mut test = Collage::new();
 
             let branches = trie.root.branches.as_ref().unwrap();
             view(branches, &mut buff, &mut test);
@@ -912,7 +1007,7 @@ mod tests_of_units {
             }
 
             let mut buff = String::new();
-            let mut test = Montage::new();
+            let mut test = Collage::new();
 
             let branches = trie.root.branches.as_ref().unwrap();
             view(branches, &mut buff, &mut test);
@@ -944,7 +1039,7 @@ mod tests_of_units {
             }
 
             let mut buff = String::new();
-            let mut test = Montage::new();
+            let mut test = Collage::new();
 
             let branches = trie.root.branches.as_ref().unwrap();
             view(branches, &mut buff, &mut test);
@@ -958,7 +1053,7 @@ mod tests_of_units {
 
     mod view_mut {
 
-        use crate::{view_mut, Montage, Trie};
+        use crate::{view_mut, Collage, Trie};
 
         #[test]
         fn basic_test() {
@@ -974,7 +1069,7 @@ mod tests_of_units {
             _ = trie.ins(z_entry, z());
 
             let mut buff = String::new();
-            let mut test = Montage::new();
+            let mut test = Collage::new();
 
             let branches = trie.root.branches.as_mut().unwrap();
             view_mut(branches, &mut buff, &mut test);
@@ -1010,7 +1105,7 @@ mod tests_of_units {
             }
 
             let mut buff = String::new();
-            let mut test = Montage::new();
+            let mut test = Collage::new();
 
             let branches = trie.root.branches.as_mut().unwrap();
             view_mut(branches, &mut buff, &mut test);
@@ -1046,7 +1141,7 @@ mod tests_of_units {
             }
 
             let mut buff = String::new();
-            let mut test = Montage::new();
+            let mut test = Collage::new();
 
             let branches = trie.root.branches.as_mut().unwrap();
             view_mut(branches, &mut buff, &mut test);
@@ -2254,6 +2349,165 @@ mod tests_of_units {
                 let mut trie = Trie::<usize>::new();
                 assert_eq!(true, trie.iter_mut().is_none());
             }
+        }
+    }
+
+    mod into_iter {
+        use crate::{Capture, Take, Trie};
+        use std::iter::IntoIterator;
+
+        #[test]
+        fn basic_test() {
+            let mut trie = Trie::new();
+
+            let a = || "a".chars();
+            let z = || "z".chars();
+
+            let a_entry = 1;
+            let z_entry = 2;
+
+            _ = trie.ins(a_entry, a());
+            _ = trie.ins(z_entry, z());
+
+            let buff = String::new();
+            let mut root = trie.root.0.into_inner();
+            let bra = root.branches.take().unwrap();
+
+            let iter = Capture {
+                bra: bra.into_iter(),
+                buff: Some(buff),
+                sub: None,
+            };
+
+            let mut test = iter.collect::<Vec<Take<isize>>>();
+            test.sort();
+
+            let proof = vec![(String::from("a"), a_entry), (String::from("z"), z_entry)];
+            assert_eq!(proof, test);
+        }
+
+        #[test]
+        fn specific_traits() {
+            let mut trie = Trie::new();
+
+            let mut entries = vec![
+                // has entry and branch
+                (String::from("a"), 10),
+                (String::from("az"), 20),
+                (String::from("azqq"), 30),
+                (String::from("aa"), 40),
+                (String::from("aaz"), 50),
+                (String::from("aazqq"), 60),
+                // has entry
+                (String::from("b"), 70),
+                (String::from("cc"), 80),
+                (String::from("ddd"), 90),
+                // has branch
+                (String::from("e"), 100),
+                (String::from("eee"), 110),
+                (String::from("eff"), 120),
+                (String::from("effee"), 125),
+                (String::from("eeeff"), 130),
+                (String::from("effeee"), 140),
+                (String::from("eefffff"), 150),
+            ];
+
+            for e in entries.iter() {
+                _ = trie.ins(e.1, e.0.chars());
+            }
+
+            let buff = String::new();
+            let mut root = trie.root.0.into_inner();
+            let bra = root.branches.take().unwrap();
+
+            let iter = Capture {
+                bra: bra.into_iter(),
+                buff: Some(buff),
+                sub: None,
+            };
+
+            let mut test = iter.collect::<Vec<Take<isize>>>();
+            assert_eq!(entries.len(), test.len());
+
+            test.sort();
+            entries.sort_by_key(|x| x.0.clone());
+
+            for (ix, e) in entries.iter().enumerate() {
+                let t = &test[ix];
+                assert_eq!(e.0, t.0);
+                assert_eq!(e.1, t.1);
+            }
+        }
+
+        #[test]
+        fn in_depth_recursion() {
+            let mut trie = Trie::new();
+
+            let paths = vec![
+                (String::from("a"), 9),
+                (String::from("aa"), 13),
+                (String::from("azbq"), 11),
+                (String::from("by"), 329),
+                (String::from("ybc"), 7),
+                (String::from("ybcrqutmop"), 33),
+                (String::from("ybcrqutmopfvb"), 99),
+                (String::from("ybcrqutmoprfg"), 80),
+                (String::from("ybxr"), 53),
+                (String::from("zazazazazabyyb"), 55),
+            ];
+
+            for p in paths.iter() {
+                _ = trie.ins(p.1, p.0.chars());
+            }
+
+            let buff = String::new();
+
+            let mut root = trie.root.0.into_inner();
+            let bra = root.branches.take().unwrap();
+
+            let iter = Capture {
+                bra: bra.into_iter(),
+                buff: Some(buff),
+                sub: None,
+            };
+
+            let mut test = iter.collect::<Vec<Take<isize>>>();
+            assert_eq!(paths.len(), test.len());
+
+            test.sort();
+
+            for (ix, p) in paths.iter().enumerate() {
+                let t = &test[ix];
+                assert_eq!(p.0, t.0);
+                assert_eq!(p.1, t.1);
+            }
+        }
+
+        #[test]
+        fn into_iter() {
+            let mut trie = Trie::new();
+
+            let a = || "a".chars();
+            let z = || "z".chars();
+
+            let a_entry = 1;
+            let z_entry = 2;
+
+            _ = trie.ins(a_entry, a());
+            _ = trie.ins(z_entry, z());
+
+            let iter = trie.into_iter();
+            let mut test = iter.collect::<Vec<Take<isize>>>();
+            test.sort();
+
+            let proof = vec![(String::from("a"), a_entry), (String::from("z"), z_entry)];
+            assert_eq!(proof, test);
+        }
+
+        #[test]
+        fn empty_tree() {
+            let trie = Trie::<usize>::new();
+            assert_eq!(None, trie.into_iter().next());
         }
     }
 

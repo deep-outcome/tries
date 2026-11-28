@@ -2,16 +2,16 @@ unstable ideas:
 - Key alias for impl Iterator<Item = char>, type x = impl Iterator<Item = char>.
 - Some methods can be const later on, specifically focus on as_slice/as_str usages.
 
-
 - do: extract scenic types into sce(?) mod
 - ideas
     - check with key vs entry
 - opts
-    - check with track optimizations (remove to mut casting) on UC node
-    - dyn_trie        
-        ▪ IntoIter
+    - check with track optimizations (remove to mut casting) on UC node    
     - lr_trie
         ▪ ext_side method
         ▪ iter +into iter
     ▪ reduce memory demands:        
         - arms reduction
+        
+- improvements
+    - replace true roots with pseudoroot -> implement empty iterators + & and &mut into-iterators (dyn, lr)
